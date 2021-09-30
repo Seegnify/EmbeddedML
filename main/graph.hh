@@ -27,6 +27,7 @@
 namespace seegnify {
 
 // Base class declarations
+class Aggregator;
 class Function;
 class Graph;
 
@@ -315,6 +316,20 @@ public:
 
 protected:
   Function* _relu;
+};
+
+// Step function
+class Step : public Function
+{
+public:
+  Step(Graph& graph, Function& x, DTYPE lo = 0, DTYPE hi = 1);
+
+  virtual const Tensor& forward();
+
+protected:
+  DTYPE _lo;
+  DTYPE _hi;
+  Function& _x;
 };
 
 // Dropout function
@@ -653,11 +668,34 @@ protected:
   Function *_H;
 };
 
-// Function Graph
-class Graph
+// No Value computed in the graph exception
+class NoValueException : public std::exception
 {
 public:
-  virtual ~Graph() { clear(); }
+  NoValueException() : std::exception() {}
+};
+
+// Gradient Aggregator
+class Aggregator
+{
+public:
+  virtual void aggregate(
+  Tensor& g, const std::vector<Function*>& derivative) const = 0;
+};
+
+// Function Graph
+class Graph : public Aggregator
+{
+public:
+  Graph()
+  {
+    _aggregator = this;
+  }
+
+  virtual ~Graph()
+  {
+    clear();
+  }
 
   void clear();
 
@@ -687,6 +725,16 @@ public:
 
   // compute gradients
   void backward(Function& f, const Tensor& g);
+
+  // get gradient aggregotar
+  Aggregator& aggregator() const { return *_aggregator; }
+
+  // set gradient aggregotar
+  void aggregator(Aggregator& a) { _aggregator = &a; }
+
+  // aggreagor implementation
+  virtual void aggregate(
+  Tensor& g, const std::vector<Function*>& derivative) const;
 
   ///////////////////////////////////////////
   // numerical derivative
@@ -833,6 +881,13 @@ public:
   ReLU* new_relu(Function& x)
   {
     auto node = new ReLU(*this, x);
+    keep(node);
+    return node;
+  }
+
+  Step* new_step(Function& x, DTYPE lo = 0, DTYPE hi = 1)
+  {
+    auto node = new Step(*this, x, lo, hi);
     keep(node);
     return node;
   }
@@ -1038,6 +1093,7 @@ public:
 
 protected:
   RNG _rng;
+  Aggregator* _aggregator;
   std::vector<Function*> _nodes;
   std::vector<Variable*> _vars;
   std::unordered_map<std::string, Function*> _names;

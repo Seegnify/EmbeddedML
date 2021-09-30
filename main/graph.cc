@@ -21,33 +21,6 @@
 namespace seegnify {
 
 ///////////////////////////////////////////
-// Tensor routines
-///////////////////////////////////////////
-
-static Tensor ATB(const Tensor& A, const Tensor& B)
-{
-  if (B.cols() == 1)
-    return (ConstRowVectorMap(B.data(), B.size()) * A).transpose();
-  else
-    return A.transpose() * B;
-}
-
-static Tensor ABT(const Tensor& A, const Tensor& B)
-{
-  if (B.cols() == 1)
-    return A * ConstRowVectorMap(B.data(), B.size());
-  else
-    return A * B.transpose();
-}
-
-static Tensor clip(const Tensor& t, DTYPE min_val, DTYPE max_val)
-{
-  auto lo = Tensor::Constant(t.rows(), t.cols(), min_val);
-  auto up = Tensor::Constant(t.rows(), t.cols(), max_val);
-  return t.array().min(up.array()).max(lo.array());
-}
-
-///////////////////////////////////////////
 // Function operators
 ///////////////////////////////////////////
 
@@ -144,13 +117,6 @@ Function& operator/(Function& x, Function& y)
 // equivalent of "static class"
 namespace
 {
-  // No Value computed in the graph exception
-  class NoValueException : public std::exception
-  {
-  public:
-    NoValueException() : std::exception() {}
-  };
-
   // Identity (pass-through) derivative
   class IDerivative : public Function
   {
@@ -179,6 +145,33 @@ namespace
 }
 
 ///////////////////////////////////////////
+// Tensor routines
+///////////////////////////////////////////
+
+static Tensor ATB(const Tensor& A, const Tensor& B)
+{
+  if (B.cols() == 1)
+    return (ConstRowVectorMap(B.data(), B.size()) * A).transpose();
+  else
+    return A.transpose() * B;
+}
+
+static Tensor ABT(const Tensor& A, const Tensor& B)
+{
+  if (B.cols() == 1)
+    return A * ConstRowVectorMap(B.data(), B.size());
+  else
+    return A * B.transpose();
+}
+
+static Tensor clip(const Tensor& t, DTYPE min_val, DTYPE max_val)
+{
+  auto lo = Tensor::Constant(t.rows(), t.cols(), min_val);
+  auto up = Tensor::Constant(t.rows(), t.cols(), max_val);
+  return t.array().min(up.array()).max(lo.array());
+}
+
+///////////////////////////////////////////
 // Function impl
 ///////////////////////////////////////////
 
@@ -197,18 +190,10 @@ const Tensor& Function::backward()
   if (!_gradient.size())
   {
     _gradient = Tensor::Zero(_value.rows(), _value.cols());
-    
-    for (auto e: _derivative)
-    {
-      try
-      {
-        if (_backprop) _gradient += e->forward();
-      }
-      catch(NoValueException& e)
-      {
-        continue;
-      }
-    }
+
+    auto& aggregator = _graph.aggregator();
+
+    if (_backprop) aggregator.aggregate(_gradient, _derivative);
   }
 
   return _gradient;
@@ -280,19 +265,9 @@ const Tensor& Variable::backward()
     _gradient = Tensor::Zero(_value.rows(), _value.cols());
   }
 
-  // accumulate gradient unitl reset with zero_grad()
-  for (auto e: _derivative)
-  {
-    try
-    {
-      if (_backprop) _gradient += e->forward();
-    }
-    // skip gradient in no-value case
-    catch(NoValueException& e)
-    {
-      continue;
-    }
-  }
+  auto& aggregator = _graph.aggregator();
+
+  if (_backprop) aggregator.aggregate(_gradient, _derivative);
 
   return _gradient;
 }
@@ -1273,7 +1248,35 @@ const Tensor& ReLU::forward()
 }
 
 ///////////////////////////////////////////
-// Function ReLU
+// Function Step
+///////////////////////////////////////////
+
+Step::Step(Graph& graph, Function& x, DTYPE lo, DTYPE hi) :
+Function(graph), _x(x), _lo(lo), _hi(hi)
+{
+  // assume 'on purpose' that the derivarive of 'step' is 1
+  x.derivative(new IDerivative(_graph, *this));
+}
+
+// F = {lo for x <= 0, hi for x > 0}
+const Tensor& Step::forward()
+{
+  // return cached value
+  if (_value.size()) return _value;
+
+  auto& x = _x.forward();
+
+  // update value
+  auto lo = Tensor::Constant(x.rows(), x.cols(), _lo);
+  auto hi = Tensor::Constant(x.rows(), x.cols(), _hi);
+  _value = (x.array() <= 0).select(lo, hi);
+
+  // return value
+  return _value;
+}
+
+///////////////////////////////////////////
+// Function Dropout
 ///////////////////////////////////////////
 
 Dropout::Dropout(Graph& graph, Function& x, DTYPE rate) :
@@ -2426,6 +2429,26 @@ Tensor Graph::dFdX(Function& f, Variable& x)
   dfdx(xr, xc) = dfdx(xr, xc) + dFdX(f, x, yr, yc, xr, xc);
 
   return dfdx;
+}
+
+///////////////////////////////////////////
+// Default gradient aggregator
+///////////////////////////////////////////
+
+void Graph::aggregate(Tensor& g, const std::vector<Function*>& derivative) const
+{
+  // aggregate gradient
+  for (auto e: derivative)
+  {
+    try
+    {
+      g += e->forward();
+    }
+    catch(NoValueException& e)
+    {
+      continue;
+    }
+  }
 }
 
 } /* namespace */

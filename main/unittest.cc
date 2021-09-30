@@ -1496,6 +1496,66 @@ void test_relu_backward()
   TEST_END()
 }
 
+void test_step_forward()
+{
+  TEST_BEGIN("Step Forward")
+  Graph g;
+
+  // size
+  int N = 4;
+
+  // step input
+  Constant x(g, N, 1);
+  x.value() << 1,
+               0,
+               -3,
+               4;
+
+  // step output
+  Tensor y_hat(N, 1);
+  y_hat <<  1,
+            -1,
+            -1,
+            1;
+
+  Step y(g, x, -1, 1);
+  ASSERT(y() == y_hat)
+
+  TEST_END()
+}
+
+void test_step_backward()
+{
+  TEST_BEGIN("Step Backward")
+
+  // size
+  int N = 4;
+  Graph g;
+
+  // step input
+  auto& z = *g.new_variable(N, 1);
+  z.value() << -1,
+               0,
+               -3,
+               4;
+
+  // gradient
+  auto& y = *g.new_step(z);
+  y.forward();
+  y.gradient() = Tensor::Ones(N, 1);
+
+  // dFdz
+  auto& dFdz = z.backward();
+  ASSERT(dFdz.rows() == N);
+  ASSERT(dFdz.cols() == 1);
+
+  // dFdX_hat
+  Tensor dFdz_hat = y.gradient();
+  ASSERT(dFdz_hat == dFdz)
+
+  TEST_END()
+}
+
 void test_dropout_forward()
 {
   TEST_BEGIN("Dropout Forward")
@@ -2571,6 +2631,7 @@ void test_normal_sampler()
 
   Constant s(g, N, 1);
   s.value() = Tensor::Random(N, 1);
+  s.value()(0) = 0;
   Abs sabs(g, s);
 
   Sampler n(g, m, sabs);
@@ -2593,6 +2654,79 @@ void test_normal_sampler()
   auto x_m_2_sum = x_m_2.rowwise().sum();
   auto sd = (x_m_2_sum / (M - 1)).sqrt().matrix();
   ASSERT(sd.isApprox(sabs(), 0.1))
+
+  TEST_END()
+}
+
+void test_step_regression()
+{
+  TEST_BEGIN("Step Regression")
+
+  // size
+  int N = 5;
+  srand(time(NULL));
+
+  Graph g;
+
+  // x
+  Constant& x = *g.new_constant(N, 1);
+
+  Function* x2 = &x;
+  for (int i=0; i<8; i++)
+  {
+    x2 = g.new_fgu(*x2, N, N);
+    x2 = g.new_linear(*x2, N, N);
+    x2 = g.new_step(*x2);
+  }
+
+  auto& l = *g.new_linear(*x2, N, 1);
+  auto& y = *g.new_step(l);
+
+  // target y
+  Constant& y_hat = *g.new_constant(1, 1);
+
+  // Loss
+  auto& diff = *g.new_sub(y_hat, y);
+  auto& pow2 = *g.new_mul(diff, diff);
+  auto& loss = *g.new_sum(pow2);
+
+  SGD opt(g.variables(), 0.01);
+  DTYPE accuracy = 0;
+
+  int epochs = 100;
+  int steps = 200;
+  for (int i=0; i<epochs; i++)
+  {
+    int accurate = 0;
+    accuracy = accurate;
+    for (int j=0; j<steps; j++)
+    {
+      // random target value
+      int positive = g.random().uniform_int(1);
+      y_hat.value() << positive;
+
+      // reset input
+      g.recache();
+      x.value() = (0.1 * Tensor::Random(N,1)).array() + positive;
+
+      int correct = (fabs(diff()(0)) < 0.5) ? 1 : -1;
+      if (correct == 1) accurate += 1;
+
+      // update gradients
+      g.backward(loss, Tensor::Constant(1,1,1));
+
+      // update weights
+      opt.update();
+
+      // clear gradients
+      g.zero_grad();
+    }
+
+    accuracy = (float)accurate / (float)steps;
+    if (accuracy >= 0.95) break;
+  }
+
+  ASSERT(accuracy >= 0.95)
 
   TEST_END()
 }
@@ -2921,6 +3055,9 @@ int main(int argc, char* argv[]) {
   test_relu_forward();
   test_relu_backward();
 
+  test_step_forward();
+  test_step_backward();
+
   test_dropout_forward();
   test_dropout_backward();
 
@@ -2964,6 +3101,7 @@ int main(int argc, char* argv[]) {
   test_hopfield_backward();
 
   test_normal_sampler();
+  test_step_regression();
   test_linear_regression();
   test_quadratic_regression();
 
