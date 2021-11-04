@@ -85,6 +85,7 @@ main/fulltest.cc
 add_library (seegnify-rl STATIC
 rl/env.cc
 rl/gui.cc
+rl/slider.cc
 rl/plot.cc
 )
 
