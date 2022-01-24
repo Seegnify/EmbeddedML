@@ -647,6 +647,32 @@ protected:
   Function *_z; // log(exp(z))
 };
 
+// Normal
+class Normal : public Function
+{
+public:
+  Normal(Graph& graph, Function& x, Function& m, Function& s);
+
+  virtual const Tensor& forward();
+
+protected:
+  Function *_a; // 1 / sqrt(2*pi*s^2)
+  Function *_z; // F = a * exp(z)
+};
+
+// LogNormal
+class LogNormal : public Function
+{
+public:
+  LogNormal(Graph& graph, Function& x, Function& m, Function& s);
+
+  virtual const Tensor& forward();
+
+protected:
+  Function *_a; // log(a)
+  Function *_z; // log(exp(z))
+};
+
 // Hopfield
 class Hopfield : public Function
 {
@@ -1066,6 +1092,20 @@ public:
     auto node = new LogGaussian(*this, x, m, s);
     keep(node);
     return node; 
+  }
+
+  Normal* new_normal(Function& x, Function& m, Function& s)
+  {
+    auto node = new Normal(*this, x, m, s);
+    keep(node);
+    return node;
+  }
+
+  LogNormal* new_log_normal(Function& x, Function& m, Function& s)
+  {
+    auto node = new LogNormal(*this, x, m, s);
+    keep(node);
+    return node;
   }
 
   Hopfield* new_hopfield(Function& x, DTYPE b, int size, int count,
