@@ -2544,6 +2544,72 @@ void test_gaussian_backward()
   TEST_END()
 }
 
+void test_normal_forward()
+{
+  TEST_BEGIN("Normal Forward")
+
+  // size
+  int IN = 5;
+  int OUT = 5;
+  Graph g;
+
+  auto& x = *g.new_variable(IN,1);
+  auto& m = *g.new_variable(IN,1);
+  auto& s = *g.new_variable(IN,1);
+  auto& y = *g.new_normal(x, m, s);
+
+  m.value() << -1.0,    0.0,    2.0,   3.0,   4.0;
+  s.value() <<  0.01,   0.1,    1.0,   2.0,   3.0;
+  x.value() << -1.01,   0.0,    2.1,   3.5,   5.0;
+
+  Tensor y_hat(OUT,1);
+  y_hat     << 24.197072451914313,
+               3.989422804014327,
+               0.3969525474770118,
+               0.19333405840142465,
+               0.12579440923099774;
+
+  ASSERT(y().isApprox(y_hat, 0.001))
+
+  TEST_END()
+}
+
+void test_normal_backward()
+{
+  TEST_BEGIN("Normal Backward")
+
+  // size
+  int IN = 5;
+  int OUT = 5;
+  Graph g;
+
+  auto& x = *g.new_variable(IN,1);
+  auto& m = *g.new_variable(IN,1);
+  auto& s = *g.new_variable(IN,1);
+  auto& y = *g.new_normal(x, m, s);
+
+  m.value() << -1.0,    0.0,    2.0,   3.0,   4.0;
+  s.value() <<  0.02,   0.1,    1.0,   2.0,   3.0;
+  x.value() << -1.05,   0.0,    2.1,   3.5,   5.0;
+
+  y.forward();
+  y.gradient() = Tensor::Ones(OUT,1);
+
+  auto& dydx = x.backward();
+  auto& dydm = m.backward();
+  auto& dyds = s.backward();
+
+  auto dydx_num = g.dFdX(y,x);
+  auto dydm_num = g.dFdX(y,m);
+  auto dyds_num = g.dFdX(y,s);
+
+  ASSERT(dydx.isApprox(dydx_num, 0.01))
+  ASSERT(dydm.isApprox(dydm_num, 0.01))
+  ASSERT(dyds.isApprox(dyds_num, 0.01))
+
+  TEST_END()
+}
+
 void test_hopfield_forward()
 {
   TEST_BEGIN("Hopfield Forward")
@@ -2672,9 +2738,8 @@ void test_step_regression()
   Constant& x = *g.new_constant(N, 1);
 
   Function* x2 = &x;
-  for (int i=0; i<8; i++)
+  for (int i=0; i<2; i++)
   {
-    x2 = g.new_fgu(*x2, N, N);
     x2 = g.new_linear(*x2, N, N);
     x2 = g.new_step(*x2);
   }
@@ -3096,6 +3161,9 @@ int main(int argc, char* argv[]) {
 
   test_gaussian_forward();
   test_gaussian_backward();
+
+  test_normal_forward();
+  test_normal_backward();
 
   test_hopfield_forward();
   test_hopfield_backward();
