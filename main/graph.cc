@@ -2270,10 +2270,8 @@ const Tensor& LogGaussian::forward()
 Normal::Normal(Graph& graph, Function& x, Function& m, Function& s) : 
 Function(graph)
 {
-  auto& pi = *graph.new_scalar(M_PI, s);
-
   // compute height of distribution's peak
-  _a = &(1 / (s * power(2 * pi, 0.5)));
+  _a = &(1 / (s * sqrt(2 * M_PI)));
 
   // compute argument for exp(z)
   _z = &(-0.5 * power((x - m) / s, 2));
@@ -2366,10 +2364,8 @@ const Tensor& Normal::forward()
 LogNormal::LogNormal(Graph& graph, Function& x, Function& m, Function& s) :
 Function(graph)
 {
-  auto& pi = *graph.new_scalar(M_PI, s);
-
   // compute height of distribution's peak
-  _a = &(1 / (s * power(2 * pi, 0.5)));
+  _a = &(1 / (s * sqrt(2 * M_PI)));
 
   // compute argument for exp(z)
   _z = &(-0.5 * power((x - m) / s, 2));
