@@ -100,20 +100,6 @@ protected:
   Graph& _graph;
 };
 
-// Scalar function
-class Scalar : public Function
-{
-public:
-  Scalar(Graph& graph, DTYPE scalar, Function& target);
-
-  virtual const Tensor& forward();
-
-  virtual void recache() { /* no-op */ }
-
-private:
-  Function& _target;
-};
-
 // Constant function
 class Constant : public Function
 {
@@ -136,6 +122,24 @@ public:
   virtual const Tensor& backward();
 
   virtual void recache() { /* no-op */ }
+};
+
+// Scalar function
+class Scalar : public Function
+{
+public:
+  Scalar(Graph& graph, DTYPE scalar, Function& target);
+
+  Scalar(Graph& graph, Function& scalar, Function& target);
+
+  virtual const Tensor& forward();
+
+private:
+  void init();
+
+protected:
+  Function& _x;
+  Function& _y;
 };
 
 // Split function (takes a fragment of the input)
@@ -611,7 +615,7 @@ protected:
   Function *_FGU;
 };
 
-// Gaussian Sampler
+// Sampler
 class Sampler : public Function
 {
 public:
@@ -623,6 +627,19 @@ protected:
   Function &_m, &_s;
 };
 
+// Norm
+class Norm : public Function
+{
+public:
+  Norm(Graph& graph, Function& x);
+
+  virtual const Tensor& forward();
+
+protected:
+  Function &_x;
+  Function *_n;
+};
+
 // Gaussian
 class Gaussian : public Function
 {
@@ -632,39 +649,15 @@ public:
   virtual const Tensor& forward();
 
 protected:
-  Function *_z; // exp(z)
-};
-
-// Log-Gaussian
-class LogGaussian : public Function
-{
-public:
-  LogGaussian(Graph& graph, Function& x, Function& m, Function& s);
-
-  virtual const Tensor& forward();
-
-protected:
-  Function *_z; // log(exp(z))
-};
-
-// Normal
-class Normal : public Function
-{
-public:
-  Normal(Graph& graph, Function& x, Function& m, Function& s);
-
-  virtual const Tensor& forward();
-
-protected:
   Function *_a; // 1 / sqrt(2*pi*s^2)
   Function *_z; // F = a * exp(z)
 };
 
-// LogNormal
-class LogNormal : public Function
+// LogGaussian
+class LogGaussian : public Function
 {
 public:
-  LogNormal(Graph& graph, Function& x, Function& m, Function& s);
+  LogGaussian(Graph& graph, Function& x, Function& m, Function& s);
 
   virtual const Tensor& forward();
 
@@ -774,9 +767,16 @@ public:
   // node constructors
   ///////////////////////////////////////////
 
-  Scalar* new_scalar(DTYPE s, Function& target)
+  Scalar* new_scalar(DTYPE source, Function& target)
   {
-    auto node = new Scalar(*this, s, target);
+    auto node = new Scalar(*this, source, target);
+    keep(node);
+    return node;
+  }
+
+  Scalar* new_scalar(Function& source, Function& target)
+  {
+    auto node = new Scalar(*this, source, target);
     keep(node);
     return node; 
   }
@@ -1080,30 +1080,23 @@ public:
     return node; 
   }
 
+  Norm* new_norm(Function& x)
+  {
+    auto node = new Norm(*this, x);
+    keep(node);
+    return node; 
+  }
+
   Gaussian* new_gaussian(Function& x, Function& m, Function& s)
   {
     auto node = new Gaussian(*this, x, m, s);
     keep(node);
-    return node; 
+    return node;
   }
 
   LogGaussian* new_log_gaussian(Function& x, Function& m, Function& s)
   {
     auto node = new LogGaussian(*this, x, m, s);
-    keep(node);
-    return node; 
-  }
-
-  Normal* new_normal(Function& x, Function& m, Function& s)
-  {
-    auto node = new Normal(*this, x, m, s);
-    keep(node);
-    return node;
-  }
-
-  LogNormal* new_log_normal(Function& x, Function& m, Function& s)
-  {
-    auto node = new LogNormal(*this, x, m, s);
     keep(node);
     return node;
   }

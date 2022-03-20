@@ -376,33 +376,6 @@ void test_function_negative()
   TEST_END()
 }
 
-void test_scalar()
-{
-  TEST_BEGIN("Scalar")
-  Graph g;
-
-  // size
-  int IN = 2;
-
-  // x vector
-  Constant x(g, IN, 1);
-  x.value() << 1, 2;
-  ASSERT(x.forward().rows() == IN);
-  ASSERT(x.forward().cols() == 1);
-
-  // y scalar
-  Scalar y(g, 3.3, x);
-  ASSERT(y.forward().rows() == IN);
-  ASSERT(y.forward().cols() == 1);
-
-  // y_hat
-  Tensor y_hat(IN, 1);
-  y_hat << 3.3, 3.3;
-  ASSERT(y_hat == y.forward());
-
-  TEST_END()
-}
-
 void test_constant()
 {
   TEST_BEGIN("Constant")
@@ -582,6 +555,121 @@ void test_back_propagation()
   // dFdb_hat = 1
   Tensor dFdb_hat = Tensor::Ones(OUT, 1);
   ASSERT(dFdb.isApprox(dFdb_hat, 0.01))
+
+  TEST_END()
+}
+
+void test_scalar_forward()
+{
+  TEST_BEGIN("Scalar Forward")
+  Graph g;
+
+  // size
+  int IN = 2;
+
+  // x vector
+  Constant x(g, IN, 1);
+  x.value() << 1, 2;
+  ASSERT(x.forward().rows() == IN);
+  ASSERT(x.forward().cols() == 1);
+
+  // y scalar
+  Scalar y(g, 3.3, x);
+  ASSERT(y.forward().rows() == IN);
+  ASSERT(y.forward().cols() == 1);
+
+  // y_hat
+  Tensor y_hat(IN, 1);
+  y_hat << 3.3, 3.3;
+  ASSERT(y_hat == y.forward());
+
+  // z vector
+  Variable z(g, IN, 1);
+  z.value() << 3,4;
+  ASSERT(z.forward().rows() == IN);
+  ASSERT(z.forward().cols() == 1);
+
+  // v vector
+  Variable v(g, IN, 1);
+  v.value() << 5,6;
+  ASSERT(v.forward().rows() == IN);
+  ASSERT(v.forward().cols() == 1);
+
+  // y scalar
+  Scalar s(g, z, x);
+  ASSERT(s.forward().rows() == IN);
+  ASSERT(s.forward().cols() == 1);
+
+  Function& vs = v * s;
+
+  // vs_hat
+  Tensor vs_hat(IN, 1);
+  vs_hat << 35, 42;
+  ASSERT(vs_hat == vs.forward());
+
+  TEST_END()
+}
+
+void test_scalar_backward()
+{
+  TEST_BEGIN("Scalar Backward")
+  Graph g;
+
+  // size
+  int IN = 2;
+
+  // x vector
+  auto& x = *g.new_variable(IN, 1);
+  x.value() << 1, 2;
+  ASSERT(x.forward().rows() == IN);
+  ASSERT(x.forward().cols() == 1);
+
+  // z vector
+  auto& z = *g.new_variable(IN, 1);
+  z.value() << 3,4;
+  ASSERT(z.forward().rows() == IN);
+  ASSERT(z.forward().cols() == 1);
+
+  // v vector
+  auto& v = *g.new_variable(IN, 1);
+  v.value() << 5,6;
+  ASSERT(v.forward().rows() == IN);
+  ASSERT(v.forward().cols() == 1);
+
+  // y scalar
+  auto& s = *g.new_scalar(z, x);
+  ASSERT(s.forward().rows() == IN);
+  ASSERT(s.forward().cols() == 1);
+
+  auto& F = v * s;
+
+  // vs_hat
+  Tensor F_hat(IN, 1);
+  F_hat << 35, 42;
+  ASSERT(F_hat == F.forward());
+
+  g.backward(F, Tensor::Ones(IN,1));
+
+  // dFdv
+  Tensor dFdv = v.gradient();
+  ASSERT(dFdv.rows() == IN);
+  ASSERT(dFdv.cols() == 1);
+  ASSERT(dFdv == s.forward());
+
+  // dFds
+  Tensor dFds = s.gradient();
+  ASSERT(dFds.rows() == IN);
+  ASSERT(dFds.cols() == 1);
+  ASSERT(dFds == v.forward());
+
+  // dFdz_num
+  auto dFdz_num = g.dFdX(F, z);
+
+  // dFdz
+  Tensor dFdz = z.gradient();
+  ASSERT(dFdz.rows() == IN);
+  ASSERT(dFdz.cols() == 1);
+  ASSERT(dFdz.isApprox(dFdz_num, 0.001));
 
   TEST_END()
 }
@@ -2482,6 +2570,24 @@ void test_agru_backward()
   TEST_END()
 }
 
+void test_norm_forward()
+{
+  TEST_BEGIN("Norm Forward")
+
+  ASSERT(false)
+
+  TEST_END()
+}
+
+void test_norm_backward()
+{
+  TEST_BEGIN("Norm Backward")
+
+  ASSERT(false)
+
+  TEST_END()
+}
+
 void test_gaussian_forward()
 {
   TEST_BEGIN("Gaussian Forward")
@@ -2496,12 +2602,16 @@ void test_gaussian_forward()
   auto& s = *g.new_variable(IN,1);
   auto& y = *g.new_gaussian(x, m, s);
 
-  x.value() << -2.0,    0.0,    2.1,   3.5,   5.0;
+  x.value() << -1.01,   0.0,    2.1,   3.5,   5.0;
   m.value() << -1.0,    0.0,    2.0,   3.0,   4.0;
-  s.value() << 0.01,    0.1,    1.0,   2.0,   3.0;
+  s.value() <<  0.01,   0.1,    1.0,   2.0,   3.0;
 
   Tensor y_hat(OUT,1);
-  y_hat     << 0.0, 1.0, 0.99501248, 0.96923323, 0.94595947;
+  y_hat     << 24.197072451914313,
+               3.989422804014327,
+               0.3969525474770118,
+               0.19333405840142465,
+               0.12579440923099774;
 
   ASSERT(y().isApprox(y_hat, 0.001))
 
@@ -2521,134 +2631,6 @@ void test_gaussian_backward()
   auto& m = *g.new_variable(IN,1);
   auto& s = *g.new_variable(IN,1);
   auto& y = *g.new_gaussian(x, m, s);
-
-  x.value() << -2.0,    0.0,    2.1,   3.5,   5.0;
-  m.value() << -1.0,    0.0,    2.0,   3.0,   4.0;
-  s.value() << 0.01,    0.1,    1.0,   2.0,   3.0;
-
-  y.forward();
-  y.gradient() = Tensor::Ones(OUT,1);
-
-  auto& dydx = x.backward();
-  auto& dydm = m.backward();
-  auto& dyds = s.backward();
-
-  auto dydx_num = g.dFdX(y,x);
-  auto dydm_num = g.dFdX(y,m);
-  auto dyds_num = g.dFdX(y,s);
-
-  ASSERT(dydx.isApprox(dydx_num, 0.001))
-  ASSERT(dydm.isApprox(dydm_num, 0.001))
-  ASSERT(dyds.isApprox(dyds_num, 0.001))
-
-  TEST_END()
-}
-
-void test_log_gaussian_forward()
-{
-  TEST_BEGIN("Log Gaussian Forward")
-
-  // size
-  int IN = 5;
-  int OUT = 5;
-  Graph g;
-
-  auto& x = *g.new_variable(IN,1);
-  auto& m = *g.new_variable(IN,1);
-  auto& s = *g.new_variable(IN,1);
-  auto& y = *g.new_log_gaussian(x, m, s);
-
-  x.value() << -1.01,   0.0,    2.1,   3.5,   5.0;
-  m.value() << -1.0,    0.0,    2.0,   3.0,   4.0;
-  s.value() <<  0.01,   0.1,    1.0,   2.0,   3.0;
-
-  Tensor y_hat(OUT,1);
-  y_hat     << -0.5, 0.0, -0.004999999, -0.031249999, -0.055555555;
-
-  ASSERT(y().isApprox(y_hat, 0.001))
-
-  TEST_END()
-}
-
-void test_log_gaussian_backward()
-{
-  TEST_BEGIN("Log Gaussian Backward")
-
-  // size
-  int IN = 5;
-  int OUT = 5;
-  Graph g;
-
-  auto& x = *g.new_variable(IN,1);
-  auto& m = *g.new_variable(IN,1);
-  auto& s = *g.new_variable(IN,1);
-  auto& y = *g.new_log_gaussian(x, m, s);
-
-  x.value() << -1.01,   0.0,    2.1,   3.5,   5.0;
-  m.value() << -1.0,    0.0,    2.0,   3.0,   4.0;
-  s.value() <<  0.05,   0.1,    1.0,   2.0,   3.0;
-
-  y.forward();
-  y.gradient() = Tensor::Ones(OUT,1);
-
-  auto& dydx = x.backward();
-  auto& dydm = m.backward();
-  auto& dyds = s.backward();
-
-  auto dydx_num = g.dFdX(y,x);
-  auto dydm_num = g.dFdX(y,m);
-  auto dyds_num = g.dFdX(y,s);
-
-  ASSERT(dydx.isApprox(dydx_num, 0.001))
-  ASSERT(dydm.isApprox(dydm_num, 0.001))
-  ASSERT(dyds.isApprox(dyds_num, 0.001))
-
-  TEST_END()
-}
-
-void test_normal_forward()
-{
-  TEST_BEGIN("Normal Forward")
-
-  // size
-  int IN = 5;
-  int OUT = 5;
-  Graph g;
-
-  auto& x = *g.new_variable(IN,1);
-  auto& m = *g.new_variable(IN,1);
-  auto& s = *g.new_variable(IN,1);
-  auto& y = *g.new_normal(x, m, s);
-
-  x.value() << -1.01,   0.0,    2.1,   3.5,   5.0;
-  m.value() << -1.0,    0.0,    2.0,   3.0,   4.0;
-  s.value() <<  0.01,   0.1,    1.0,   2.0,   3.0;
-
-  Tensor y_hat(OUT,1);
-  y_hat     << 24.197072451914313,
-               3.989422804014327,
-               0.3969525474770118,
-               0.19333405840142465,
-               0.12579440923099774;
-
-  ASSERT(y().isApprox(y_hat, 0.001))
-
-  TEST_END()
-}
-
-void test_normal_backward()
-{
-  TEST_BEGIN("Normal Backward")
-
-  // size
-  int IN = 5;
-  int OUT = 5;
-  Graph g;
-
-  auto& x = *g.new_variable(IN,1);
-  auto& m = *g.new_variable(IN,1);
-  auto& s = *g.new_variable(IN,1);
-  auto& y = *g.new_normal(x, m, s);
 
   m.value() << -1.0,    0.0,    2.0,   3.0,   4.0;
   s.value() <<  0.02,   0.1,    1.0,   2.0,   3.0;
@@ -2672,7 +2654,7 @@ void test_normal_backward()
   TEST_END()
 }
 
-void test_log_normal_forward()
+void test_log_gaussian_forward()
 {
   TEST_BEGIN("Log Normal Forward")
 
@@ -2684,7 +2666,7 @@ void test_log_normal_forward()
   auto& x = *g.new_variable(IN,1);
   auto& m = *g.new_variable(IN,1);
   auto& s = *g.new_variable(IN,1);
-  auto& y = *g.new_log_normal(x, m, s);
+  auto& y = *g.new_log_gaussian(x, m, s);
 
   x.value() << -1.01,   0.0,    2.1,   3.5,   5.0;
   m.value() << -1.0,    0.0,    2.0,   3.0,   4.0;
@@ -2702,7 +2684,7 @@ void test_log_normal_forward()
   TEST_END()
 }
 
-void test_log_normal_backward()
+void test_log_gaussian_backward()
 {
   TEST_BEGIN("Log Normal Backward")
 
@@ -2714,7 +2696,7 @@ void test_log_normal_backward()
   auto& x = *g.new_variable(IN,1);
   auto& m = *g.new_variable(IN,1);
   auto& s = *g.new_variable(IN,1);
-  auto& y = *g.new_log_normal(x, m, s);
+  auto& y = *g.new_log_gaussian(x, m, s);
 
   m.value() << -1.0,    0.0,    2.0,   3.0,   4.0;
   s.value() <<  0.02,   0.1,    1.0,   2.0,   3.0;
@@ -2812,9 +2794,9 @@ void test_hopfield_backward()
   TEST_END()
 }
 
-void test_normal_sampler()
+void test_gaussian_sampler()
 {
-  TEST_BEGIN("Normal Sampler")
+  TEST_BEGIN("Gaussian Sampler")
 
   long N = 10;
   long M = 100000;
@@ -3191,7 +3173,6 @@ void test_adam_optimizer()
  * test entry point
  */ 
 int main(int argc, char* argv[]) {
-
   test_eigen_fft();
   test_audio_file();
 
@@ -3200,17 +3181,21 @@ int main(int argc, char* argv[]) {
   test_discount_reward();
   test_function_negative();
 
-  test_scalar();
   test_constant();
   test_variable();
+
   test_numerical_derivative();
   test_back_propagation();
+
+  test_scalar_forward();
+  test_scalar_backward();
 
   test_split_forward();
   test_split_backward();
 
   test_join_forward();
   test_join_backward();
+
 /*
   test_min_forward();
   test_min_backward();
@@ -3221,6 +3206,7 @@ int main(int argc, char* argv[]) {
   test_clip_forward();
   test_clip_backward();
 */
+
   test_linear_forward();
   test_linear_backward();
 
@@ -3287,22 +3273,19 @@ int main(int argc, char* argv[]) {
   test_agru_forward();
   test_agru_backward();
 
+  test_norm_forward();
+  test_norm_backward();
+
   test_gaussian_forward();
   test_gaussian_backward();
 
   test_log_gaussian_forward();
   test_log_gaussian_backward();
 
-  test_normal_forward();
-  test_normal_backward();
-
-  test_log_normal_forward();
-  test_log_normal_backward();
-
   test_hopfield_forward();
   test_hopfield_backward();
 
-  test_normal_sampler();
+  test_gaussian_sampler();
   test_step_regression();
   test_linear_regression();
   test_quadratic_regression();

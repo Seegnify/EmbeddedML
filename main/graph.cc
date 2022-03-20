@@ -206,29 +206,6 @@ void Function::recache()
   _gradient.resize(0,0);
 }
 
-
-///////////////////////////////////////////
-// Function Scalar
-///////////////////////////////////////////
-
-Scalar::Scalar(Graph& graph, DTYPE scalar, Function& target) :
-Function(graph), _target(target)
-{
-  _value.resize(1,1);
-  _value << scalar;
-}
-
-// F = x (x broadcast to target)
-const Tensor& Scalar::forward()
-{ 
-  auto& t = _target();
-  if (_value.rows() != t.rows() || _value.cols() != t.cols())
-  {
-    _value = Tensor::Constant(t.rows(), t.cols(), _value(0,0));
-  }
-  return _value;
-}
-
 ///////////////////////////////////////////
 // Function Constant
 ///////////////////////////////////////////
@@ -270,6 +247,77 @@ const Tensor& Variable::backward()
   if (_backprop) aggregator.aggregate(_gradient, _derivative);
 
   return _gradient;
+}
+
+///////////////////////////////////////////
+// Function Scalar
+///////////////////////////////////////////
+
+Scalar::Scalar(Graph& graph, DTYPE scalar, Function& target) :
+Function(graph), _x(*graph.new_constant(1,1)), _y(target)
+{
+  _x.value() = Tensor::Constant(1,1, scalar);
+
+  init();
+}
+
+Scalar::Scalar(Graph& graph, Function& scalar, Function& target) :
+Function(graph), _x(scalar), _y(target)
+{
+  // external scalar aggregate
+
+  init();
+}
+
+void Scalar::init()
+{
+  // Scalar Backward function
+  class Derivative_x : public Function
+  {
+  public:
+    Derivative_x(Graph& graph, Scalar& base) :
+    Function(graph), _base(base) { graph.keep(this); }
+
+    // dFdx = 1
+    virtual const Tensor& forward()
+    {
+      // return cached value
+      if (_value.size()) return _value;
+
+      auto& g = _base.backward();
+      auto& x = _base._x.forward();
+
+      // aggregate the gradient broadcast
+      Tensor dFdx = Tensor::Constant(x.rows(), x.cols(), g.sum());
+
+      // update gradient value
+      _value = dFdx;
+
+      // return gradient value
+      return _value;
+    }
+
+  private:
+    Scalar& _base;
+  };
+
+  _x.derivative(new Derivative_x(_graph, *this));
+}
+
+// F = x (x broadcast to target)
+const Tensor& Scalar::forward()
+{
+  // return cached value
+  if (_value.size()) return _value;
+
+  // get source and target
+  auto& x = _x.forward();
+  auto& y = _y.forward();
+
+  // broadcast input scalar to target size
+  _value = Tensor::Constant(y.rows(), y.cols(), x.sum());
+
+  return _value;
 }
 
 ///////////////////////////////////////////
@@ -336,7 +384,7 @@ const Tensor& Split::forward()
 Join::Join(Graph& graph, Function& x, Function& y, int rows, int cols) :
 Function(graph), _x(x), _y(y), _rows(rows), _cols(cols)
 {
-  // Split Derivative with respect toX
+  // Split Derivative with respect to X
   class Derivative_x : public Function
   {
   public:
@@ -364,7 +412,7 @@ Function(graph), _x(x), _y(y), _rows(rows), _cols(cols)
     Join& _base;
   };
 
-  // Split Derivative with respect toY
+  // Split Derivative with respect to Y
   class Derivative_y : public Function
   {
   public:
@@ -970,6 +1018,7 @@ Function(graph), _x(x), _y(y)
 
       // update gradient value
       _value = g.array() * dFdx.array();
+
       return _value;
     }    
 
@@ -997,6 +1046,7 @@ Function(graph), _x(x), _y(y)
 
       // update gradient value
       _value = g.array() * dFdy.array();
+
       return _value;
     }    
 
@@ -2171,103 +2221,25 @@ const Tensor& Sampler::forward()
 }
 
 ///////////////////////////////////////////
+// Norm
+///////////////////////////////////////////
+
+Norm::Norm(Graph& graph, Function& x) :
+Function(graph), _x(x)
+{
+}
+
+// F = g * (x - m) / s - b
+const Tensor& Norm::forward()
+{
+  return _value;
+}
+
+///////////////////////////////////////////
 // Gaussian
 ///////////////////////////////////////////
 
 Gaussian::Gaussian(Graph& graph, Function& x, Function& m, Function& s) : 
-Function(graph)
-{
-  auto& x_m = *graph.new_sub(x, m);
-  auto& x_m_2 = *graph.new_mul(x_m, x_m);
-  auto& s_2 = *graph.new_mul(s, s);
-
-  // compute argument for exp(z)
-  _z = &(-0.5 * x_m_2 / s_2);
-
-  // for performance and numerical stability we do NOT add exp(z) to the graph,
-  // instead, we calculate exp(z) in forward() method and use
-  // F as gradient of exp(z) in the z derivative:
-
-  // Derivative with respect to z
-  class Derivative_z : public Function
-  {
-  public:
-    Derivative_z(Graph& graph, Function& base) :
-    Function(graph), _base(base) { graph.keep(this); }
-
-    // dFdz = exp(z) = F
-    virtual const Tensor& forward()
-    {
-      // return cached value
-      if (_value.size()) return _value;
-
-      auto& g = _base.backward();
-      auto& dFdz = _base.forward();
-
-      // update gradient value
-      _value = g.array() * dFdz.array();
-
-      // return gradient value
-      return _value;
-    }    
-
-  private:
-    Function& _base;
-  };
-
-  _z->derivative(new Derivative_z(_graph, *this));
-}
-
-// Z = -(x - m)^2 / (2*s^2)
-// F = exp(Z)
-const Tensor& Gaussian::forward()
-{
-  // return cached value
-  if (_value.size()) return _value;
-
-  // F = exp(Z)
-  _value = _z->forward().array().exp();
-
-  // return value
-  return _value;
-}
-
-///////////////////////////////////////////
-// Log-Guassian
-///////////////////////////////////////////
-
-LogGaussian::LogGaussian(Graph& graph, Function& x, Function& m, Function& s) :
-Function(graph)
-{
-  auto& x_m = *graph.new_sub(x, m);
-  auto& x_m_2 = *graph.new_mul(x_m, x_m);
-  auto& s_2 = *graph.new_mul(s, s);
-
-  // compute z for log(exp(z))
-  _z = &(-0.5 * x_m_2 / s_2);
-
-  // let output handle the gradient directly
-  _z->derivative(new IDerivative(_graph, *this));  
-}
-
-// Z = -(x - m)^2 / (2*s^2)
-// F = log(exp(Z)) = Z
-const Tensor& LogGaussian::forward()
-{
-  // return cached value
-  if (_value.size()) return _value;
-
-  _value = _z->forward();
-
-  // return value
-  return _value;
-}
-
-///////////////////////////////////////////
-// Normal
-///////////////////////////////////////////
-
-Normal::Normal(Graph& graph, Function& x, Function& m, Function& s) : 
 Function(graph)
 {
   // compute height of distribution's peak
@@ -2284,7 +2256,7 @@ Function(graph)
   class Derivative_a : public Function
   {
   public:
-    Derivative_a(Graph& graph, Normal& base) :
+    Derivative_a(Graph& graph, Gaussian& base) :
     Function(graph), _base(base) { graph.keep(this); }
 
     // dFda = exp(z)
@@ -2305,7 +2277,7 @@ Function(graph)
     }
 
   private:
-    Normal& _base;
+    Gaussian& _base;
   };
 
   // Derivative with respect to z
@@ -2342,7 +2314,7 @@ Function(graph)
 // A = 1 / (s * sqrt(2 * PI))
 // Z = -(x - m)^2 / (2*s^2)
 // F = A * exp(Z)
-const Tensor& Normal::forward()
+const Tensor& Gaussian::forward()
 {
   // return cached value
   if (_value.size()) return _value;
@@ -2358,10 +2330,10 @@ const Tensor& Normal::forward()
 }
 
 ///////////////////////////////////////////
-// Log-Normal
+// Log-Gaussian
 ///////////////////////////////////////////
 
-LogNormal::LogNormal(Graph& graph, Function& x, Function& m, Function& s) :
+LogGaussian::LogGaussian(Graph& graph, Function& x, Function& m, Function& s) :
 Function(graph)
 {
   // compute height of distribution's peak
@@ -2378,7 +2350,7 @@ Function(graph)
   class Derivative_a : public Function
   {
   public:
-    Derivative_a(Graph& graph, LogNormal& base) :
+    Derivative_a(Graph& graph, LogGaussian& base) :
     Function(graph), _base(base) { graph.keep(this); }
 
     // dFda = exp(z)
@@ -2399,7 +2371,7 @@ Function(graph)
     }
 
   private:
-    LogNormal& _base;
+    LogGaussian& _base;
   };
 
   // Derivative with respect to z
@@ -2436,7 +2408,7 @@ Function(graph)
 // A = 1 / (s * sqrt(2 * PI))
 // Z = -(x - m)^2 / (2*s^2)
 // F = log(A * exp(Z)) = log(A) + Z
-const Tensor& LogNormal::forward()
+const Tensor& LogGaussian::forward()
 {
   // return cached value
   if (_value.size()) return _value;
