@@ -2227,14 +2227,40 @@ const Tensor& Sampler::forward()
 // Norm
 ///////////////////////////////////////////
 
-Norm::Norm(Graph& graph, Function& x) :
+Norm::Norm(Graph& graph, Function& x, DTYPE g, DTYPE b) :
 Function(graph), _x(x)
 {
+  DTYPE eps = EPSILON; // numerical stability
+  _H = graph.new_constant(1,1); // dimension placeholder
+
+  auto& mean = *graph.new_sum(x) / *_H;
+  auto& x_mean = x - *graph.new_broadcast(mean, x);
+
+  auto& var = *graph.new_sum(power(x_mean, 2)) / *_H;
+  auto& std = power(var + eps, 0.5);
+
+  auto& A = *graph.new_broadcast(g / (std + eps), x);
+  auto& B = *graph.new_broadcast(scalar(graph, b), x);
+
+  _N = &(A * x_mean + B);
+
+  _N->derivative(new IDerivative(_graph, *this));
 }
 
 // F = g * (x - m) / s - b
 const Tensor& Norm::forward()
 {
+  // return cached value
+  if (_value.size()) return _value;
+
+  auto& x = _x.forward();
+
+  // update dimension placeholder
+  _H->value() = Tensor::Constant(1,1, x.rows() * x.cols());
+
+  // compute norm
+  _value = _N->forward();
+
   return _value;
 }
 

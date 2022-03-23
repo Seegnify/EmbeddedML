@@ -2576,7 +2576,20 @@ void test_norm_forward()
 {
   TEST_BEGIN("Norm Forward")
 
-  ASSERT(false)
+  // size
+  int IN = 5;
+  Graph g;
+
+  auto& x = *g.new_variable(IN,1);
+  x.value() << 11, 12, 13, 14, 15;
+
+  Tensor y_hat(IN, 1);
+  y_hat << -1.41421356, -0.70710678,  0, 0.70710678, 1.41421356;
+
+  auto& N = *g.new_norm(x);
+  auto& y = N.forward();
+
+  ASSERT(y.isApprox(y_hat, 0.001))
 
   TEST_END()
 }
@@ -2585,7 +2598,24 @@ void test_norm_backward()
 {
   TEST_BEGIN("Norm Backward")
 
-  ASSERT(false)
+  // size
+  int IN = 5;
+  Graph g;
+
+  auto& x = *g.new_variable(IN,1);
+  x.value() << 1, 1, 1, 1, 1;
+
+  auto& N = *g.new_norm(x);
+
+  N.forward();
+  N.gradient() = Tensor::Ones(IN,1);
+  N.gradient()(0) = 5;
+
+  auto& dNdx = x.backward();
+  Tensor dNdx_hat(IN, 1);
+  dNdx_hat <<   3196.8, -799.201, -799.201, -799.201, -799.201;
+
+  ASSERT(dNdx.isApprox(dNdx_hat, 0.001))
 
   TEST_END()
 }

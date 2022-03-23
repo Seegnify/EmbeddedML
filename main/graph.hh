@@ -626,13 +626,14 @@ protected:
 class Norm : public Function
 {
 public:
-  Norm(Graph& graph, Function& x);
+  Norm(Graph& graph, Function& x, DTYPE g, DTYPE b);
 
   virtual const Tensor& forward();
 
 protected:
   Function &_x;
-  Function *_n;
+  Function *_N;
+  Constant *_H;
 };
 
 // Gaussian
@@ -1068,9 +1069,9 @@ public:
     return node; 
   }
 
-  Norm* new_norm(Function& x)
+  Norm* new_norm(Function& x, DTYPE g = 1.0, DTYPE b = 0.0)
   {
-    auto node = new Norm(*this, x);
+    auto node = new Norm(*this, x, g, b);
     keep(node);
     return node; 
   }
