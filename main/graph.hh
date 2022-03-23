@@ -124,22 +124,17 @@ public:
   virtual void recache() { /* no-op */ }
 };
 
-// Scalar function
-class Scalar : public Function
+// Broadcast function
+class Broadcast : public Function
 {
 public:
-  Scalar(Graph& graph, DTYPE scalar, Function& target);
-
-  Scalar(Graph& graph, Function& scalar, Function& target);
+  Broadcast(Graph& graph, Function& x, Function& target);
 
   virtual const Tensor& forward();
 
-private:
-  void init();
-
 protected:
   Function& _x;
-  Function& _y;
+  Function& _t;
 };
 
 // Split function (takes a fragment of the input)
@@ -767,16 +762,9 @@ public:
   // node constructors
   ///////////////////////////////////////////
 
-  Scalar* new_scalar(DTYPE source, Function& target)
+  Broadcast* new_broadcast(Function& x, Function& target)
   {
-    auto node = new Scalar(*this, source, target);
-    keep(node);
-    return node;
-  }
-
-  Scalar* new_scalar(Function& source, Function& target)
-  {
-    auto node = new Scalar(*this, source, target);
+    auto node = new Broadcast(*this, x, target);
     keep(node);
     return node; 
   }

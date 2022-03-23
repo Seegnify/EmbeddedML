@@ -559,9 +559,9 @@ void test_back_propagation()
   TEST_END()
 }
 
-void test_scalar_forward()
+void test_broadcast_forward()
 {
-  TEST_BEGIN("Scalar Forward")
+  TEST_BEGIN("Broadcast Forward")
   Graph g;
 
   // size
@@ -574,7 +574,9 @@ void test_scalar_forward()
   ASSERT(x.forward().cols() == 1);
 
   // y scalar
-  Scalar y(g, 3.3, x);
+  Constant s(g, 1,1);
+  s.value() << 3.3;
+  Broadcast y(g, s, x);
   ASSERT(y.forward().rows() == IN);
   ASSERT(y.forward().cols() == 1);
 
@@ -595,24 +597,24 @@ void test_scalar_forward()
   ASSERT(v.forward().rows() == IN);
   ASSERT(v.forward().cols() == 1);
 
-  // y scalar
-  Scalar s(g, z, x);
-  ASSERT(s.forward().rows() == IN);
-  ASSERT(s.forward().cols() == 1);
+  // b broadcast
+  Broadcast b(g, z, x);
+  ASSERT(b.forward().rows() == IN);
+  ASSERT(b.forward().cols() == 1);
 
-  Function& vs = v * s;
+  Function& vb = v * b;
 
   // vs_hat
-  Tensor vs_hat(IN, 1);
-  vs_hat << 35, 42;
-  ASSERT(vs_hat == vs.forward());
+  Tensor vb_hat(IN, 1);
+  vb_hat << 35, 42;
+  ASSERT(vb_hat == vb.forward());
 
   TEST_END()
 }
 
-void test_scalar_backward()
+void test_broadcast_backward()
 {
-  TEST_BEGIN("Scalar Backward")
+  TEST_BEGIN("Broadcast Backward")
   Graph g;
 
   // size
@@ -636,8 +638,8 @@ void test_scalar_backward()
   ASSERT(v.forward().rows() == IN);
   ASSERT(v.forward().cols() == 1);
 
-  // y scalar
-  auto& s = *g.new_scalar(z, x);
+  // s broadcast
+  auto& s = *g.new_broadcast(z, x);
   ASSERT(s.forward().rows() == IN);
   ASSERT(s.forward().cols() == 1);
 
@@ -3187,8 +3189,8 @@ int main(int argc, char* argv[]) {
   test_numerical_derivative();
   test_back_propagation();
 
-  test_scalar_forward();
-  test_scalar_backward();
+  test_broadcast_forward();
+  test_broadcast_backward();
 
   test_split_forward();
   test_split_backward();

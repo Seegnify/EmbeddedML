@@ -24,9 +24,17 @@ namespace seegnify {
 // Function operators
 ///////////////////////////////////////////
 
+Function& Broadcast(Graph&g, DTYPE y)
+{
+  auto& s = *g.new_constant(1,1);
+  s.value() << y;
+  return s;
+}
+
 Function& power(Function& x, DTYPE y)
 {
-  auto& c = *x.graph().new_scalar(y, x);
+  auto& s = Broadcast(x.graph(), y);
+  auto& c = *x.graph().new_broadcast(s, x);
   return *x.graph().new_power(x, c);
 }
 
@@ -53,44 +61,51 @@ Function& operator*(Function& x, Function& y)
 //Function& Function::operator-()
 Function& operator-(Function& x)
 {
-  auto& c = *x.graph().new_scalar(-1, x);
+  auto& s = Broadcast(x.graph(), -1);
+  auto& c = *x.graph().new_broadcast(s, x);
   return *x.graph().new_mul(c, x);
 }
 
 // DTYPE operators
 Function& operator+(DTYPE x, Function& y)
 {
-  auto& c = *y.graph().new_scalar(x, y);
+  auto& s = Broadcast(y.graph(), x);
+  auto& c = *y.graph().new_broadcast(s, y);
   return *y.graph().new_add(c, y);
 }
 
 Function& operator+(Function& x, DTYPE y)
 {
-  auto& c = *x.graph().new_scalar(y, x);
+  auto& s = Broadcast(x.graph(), y);
+  auto& c = *x.graph().new_broadcast(s, x);
   return *x.graph().new_add(x, c);
 }
 
 Function& operator-(DTYPE x, Function& y)
 {
-  auto& c = *y.graph().new_scalar(x, y);
+  auto& s = Broadcast(y.graph(), x);
+  auto& c = *y.graph().new_broadcast(s, y);
   return *y.graph().new_sub(c, y);
 }
 
 Function& operator-(Function& x, DTYPE y)
 {
-  auto& c = *x.graph().new_scalar(y, x);
+  auto& s = Broadcast(x.graph(), y);
+  auto& c = *x.graph().new_broadcast(s, x);
   return *x.graph().new_sub(x, c);
 }
 
 Function& operator*(DTYPE x, Function& y)
 {
-  auto& c = *y.graph().new_scalar(x, y);
+  auto& s = Broadcast(y.graph(), x);
+  auto& c = *y.graph().new_broadcast(s, y);
   return *y.graph().new_mul(c, y);
 }
 
 Function& operator*(Function& x, DTYPE y)
 {
-  auto& c = *x.graph().new_scalar(y, x);
+  auto& s = Broadcast(x.graph(), y);
+  auto& c = *x.graph().new_broadcast(s, x);
   return *x.graph().new_mul(x, c);
 }
 
@@ -101,7 +116,8 @@ Function& operator/(Function& x, DTYPE y)
 
 Function& operator/(DTYPE x, Function& y)
 {
-  auto& c = *y.graph().new_scalar(x, y);
+  auto& s = Broadcast(y.graph(), x);
+  auto& c = *y.graph().new_broadcast(s, y);
   return c * power(y, -1);
 }
 
@@ -250,32 +266,17 @@ const Tensor& Variable::backward()
 }
 
 ///////////////////////////////////////////
-// Function Scalar
+// Function Broadcast
 ///////////////////////////////////////////
 
-Scalar::Scalar(Graph& graph, DTYPE scalar, Function& target) :
-Function(graph), _x(*graph.new_constant(1,1)), _y(target)
+Broadcast::Broadcast(Graph& graph, Function& x, Function& target) :
+Function(graph), _x(x), _t(target)
 {
-  _x.value() = Tensor::Constant(1,1, scalar);
-
-  init();
-}
-
-Scalar::Scalar(Graph& graph, Function& scalar, Function& target) :
-Function(graph), _x(scalar), _y(target)
-{
-  // external scalar aggregate
-
-  init();
-}
-
-void Scalar::init()
-{
-  // Scalar Backward function
+  // Broadcast Backward function
   class Derivative_x : public Function
   {
   public:
-    Derivative_x(Graph& graph, Scalar& base) :
+    Derivative_x(Graph& graph, Broadcast& base) :
     Function(graph), _base(base) { graph.keep(this); }
 
     // dFdx = 1
@@ -298,24 +299,24 @@ void Scalar::init()
     }
 
   private:
-    Scalar& _base;
+    Broadcast& _base;
   };
 
   _x.derivative(new Derivative_x(_graph, *this));
 }
 
 // F = x (x broadcast to target)
-const Tensor& Scalar::forward()
+const Tensor& Broadcast::forward()
 {
   // return cached value
   if (_value.size()) return _value;
 
   // get source and target
   auto& x = _x.forward();
-  auto& y = _y.forward();
+  auto& t = _t.forward();
 
-  // broadcast input scalar to target size
-  _value = Tensor::Constant(y.rows(), y.cols(), x.sum());
+  // broadcast input to target size
+  _value = Tensor::Constant(t.rows(), t.cols(), x.sum());
 
   return _value;
 }
@@ -1277,8 +1278,10 @@ const Tensor& Sigmoid::forward()
 ReLU::ReLU(Graph& graph, Function& x) :
 Function(graph)
 {
+  auto& zero = Broadcast(graph, 0);
+
   // create relu from function max and constant '0'
-  _relu = graph.new_max(x, *graph.new_scalar(0, x));
+  _relu = graph.new_max(x, *graph.new_broadcast(zero, x));
 
   // let output handle the gradient directly
   _relu->derivative(new IDerivative(_graph, *this));
