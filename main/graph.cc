@@ -24,7 +24,7 @@ namespace seegnify {
 // Function operators
 ///////////////////////////////////////////
 
-Function& Broadcast(Graph&g, DTYPE y)
+Function& scalar(Graph&g, DTYPE y)
 {
   auto& s = *g.new_constant(1,1);
   s.value() << y;
@@ -33,7 +33,7 @@ Function& Broadcast(Graph&g, DTYPE y)
 
 Function& power(Function& x, DTYPE y)
 {
-  auto& s = Broadcast(x.graph(), y);
+  auto& s = scalar(x.graph(), y);
   auto& c = *x.graph().new_broadcast(s, x);
   return *x.graph().new_power(x, c);
 }
@@ -61,7 +61,7 @@ Function& operator*(Function& x, Function& y)
 //Function& Function::operator-()
 Function& operator-(Function& x)
 {
-  auto& s = Broadcast(x.graph(), -1);
+  auto& s = scalar(x.graph(), -1);
   auto& c = *x.graph().new_broadcast(s, x);
   return *x.graph().new_mul(c, x);
 }
@@ -69,42 +69,42 @@ Function& operator-(Function& x)
 // DTYPE operators
 Function& operator+(DTYPE x, Function& y)
 {
-  auto& s = Broadcast(y.graph(), x);
+  auto& s = scalar(y.graph(), x);
   auto& c = *y.graph().new_broadcast(s, y);
   return *y.graph().new_add(c, y);
 }
 
 Function& operator+(Function& x, DTYPE y)
 {
-  auto& s = Broadcast(x.graph(), y);
+  auto& s = scalar(x.graph(), y);
   auto& c = *x.graph().new_broadcast(s, x);
   return *x.graph().new_add(x, c);
 }
 
 Function& operator-(DTYPE x, Function& y)
 {
-  auto& s = Broadcast(y.graph(), x);
+  auto& s = scalar(y.graph(), x);
   auto& c = *y.graph().new_broadcast(s, y);
   return *y.graph().new_sub(c, y);
 }
 
 Function& operator-(Function& x, DTYPE y)
 {
-  auto& s = Broadcast(x.graph(), y);
+  auto& s = scalar(x.graph(), y);
   auto& c = *x.graph().new_broadcast(s, x);
   return *x.graph().new_sub(x, c);
 }
 
 Function& operator*(DTYPE x, Function& y)
 {
-  auto& s = Broadcast(y.graph(), x);
+  auto& s = scalar(y.graph(), x);
   auto& c = *y.graph().new_broadcast(s, y);
   return *y.graph().new_mul(c, y);
 }
 
 Function& operator*(Function& x, DTYPE y)
 {
-  auto& s = Broadcast(x.graph(), y);
+  auto& s = scalar(x.graph(), y);
   auto& c = *x.graph().new_broadcast(s, x);
   return *x.graph().new_mul(x, c);
 }
@@ -116,7 +116,7 @@ Function& operator/(Function& x, DTYPE y)
 
 Function& operator/(DTYPE x, Function& y)
 {
-  auto& s = Broadcast(y.graph(), x);
+  auto& s = scalar(y.graph(), x);
   auto& c = *y.graph().new_broadcast(s, y);
   return c * power(y, -1);
 }
@@ -1278,7 +1278,7 @@ const Tensor& Sigmoid::forward()
 ReLU::ReLU(Graph& graph, Function& x) :
 Function(graph)
 {
-  auto& zero = Broadcast(graph, 0);
+  auto& zero = scalar(graph, 0);
 
   // create relu from function max and constant '0'
   _relu = graph.new_max(x, *graph.new_broadcast(zero, x));

@@ -762,13 +762,6 @@ public:
   // node constructors
   ///////////////////////////////////////////
 
-  Broadcast* new_broadcast(Function& x, Function& target)
-  {
-    auto node = new Broadcast(*this, x, target);
-    keep(node);
-    return node; 
-  }
-
   Constant* new_constant(int rows = 0, int cols = 0)
   {
     auto node = new Constant(*this, rows, cols);
@@ -790,6 +783,13 @@ public:
       keep(node, name);
       return node;
     }
+  }
+
+  Broadcast* new_broadcast(Function& x, Function& target)
+  {
+    auto node = new Broadcast(*this, x, target);
+    keep(node);
+    return node; 
   }
 
   Split* new_split(Function& x, int r, int c, int rows, int cols)
