@@ -61,6 +61,7 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DMAGICKCORE_QUANTUM_DEPTH=16")
 add_library (seegnify-common STATIC
 main/graph.cc
 main/storage.cc
+main/image.cc
 )
 
 # client / server
