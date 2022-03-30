@@ -130,9 +130,9 @@ Interpolation interp)
 {
   switch(interp)
   {
-    case ITERPOLATE_NEAREST:
+    case INTERPOLATE_NEAREST:
       return scale_nearest(rows, cols);
-    case ITERPOLATE_BILINEAR:
+    case INTERPOLATE_BILINEAR:
       return scale_bilinear(rows, cols);
   }
 }
@@ -141,8 +141,8 @@ Image Image::scale_nearest(uint32_t rows, uint32_t cols)
 {
   Image im(rows,  cols, _bits_per_pixel);
 
-  auto scale_r = (float)_rows/rows;
-  auto scale_c = (float)_cols/cols;
+  auto scale_r = (float)(_rows - 1)/(rows - 1);
+  auto scale_c = (float)(_cols - 1)/(cols - 1);
   auto bytes_per_pixel = _bits_per_pixel / 8;
 
   for (auto r=0; r<rows; r++)
@@ -168,8 +168,8 @@ Image Image::scale_bilinear(uint32_t rows, uint32_t cols)
 {
   Image im(rows,  cols, _bits_per_pixel);
 
-  auto scale_r = (float)_rows/rows;
-  auto scale_c = (float)_cols/cols;
+  auto scale_r = (float)(_rows - 1)/(rows - 1);
+  auto scale_c = (float)(_cols - 1)/(cols - 1);
   auto bytes_per_pixel = _bits_per_pixel / 8;
 
   for (auto r=0; r<rows; r++)
@@ -181,28 +181,28 @@ Image Image::scale_bilinear(uint32_t rows, uint32_t cols)
     uint32_t this_r0 = float_r;
     uint32_t this_c0 = float_c;
 
-    float lr = float_r - this_r0;
-    float lc = float_c - this_c0;
-
-    uint32_t this_r1 = std::min<uint32_t>(this_r0 + 1, _rows-1); 
-    uint32_t this_c1 = std::min<uint32_t>(this_c0 + 1, _cols-1); 
+    uint32_t this_r1 = std::min<uint32_t>(this_r0 + 1, _rows - 1); 
+    uint32_t this_c1 = std::min<uint32_t>(this_c0 + 1, _cols - 1); 
 
     auto r0_c0 = bytes_per_pixel * (this_r0 * _cols + this_c0);
     auto r1_c0 = bytes_per_pixel * (this_r1 * _cols + this_c0);
     auto r0_c1 = bytes_per_pixel * (this_r0 * _cols + this_c1);
     auto r1_c1 = bytes_per_pixel * (this_r1 * _cols + this_c1);
 
+    float sr = float_r - this_r0;
+    float sc = float_c - this_c0;
+
     auto offset = bytes_per_pixel * (r * cols + c);
 
-    // copy pixel bytes
+    // interpolate pixel bytes
     for (int b=0; b<bytes_per_pixel; b++)
     {
       // linear along rows
-      auto col_r0 = (1 - lr) * _data[r0_c0 + b] + lr * _data[r1_c0 + b];
-      auto col_r1 = (1 - lr) * _data[r0_c1 + b] + lr * _data[r1_c1 + b];
+      auto col_r0 = (1 - sr) * _data[r0_c0 + b] + sr * _data[r1_c0 + b];
+      auto col_r1 = (1 - sr) * _data[r0_c1 + b] + sr * _data[r1_c1 + b];
 
       // linear along cols
-      im._data[offset + b] = (1 - lc) * col_r0 + lc * col_r1;
+      im._data[offset + b] = (1 - sc) * col_r0 + sc * col_r1;
     }
   }
 

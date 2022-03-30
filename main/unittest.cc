@@ -26,6 +26,7 @@
 #include "graph.hh"
 #include "optimizer.hh"
 #include "storage.hh"
+#include "image.hh"
 
 using namespace seegnify;
 
@@ -223,6 +224,55 @@ void test_audio_file()
 
   // write output audio to file
   save_audio("/tmp/out.wav", output, num_channels, sample_rate);
+
+  TEST_END()
+}
+
+void test_image_file()
+{
+  TEST_BEGIN("Image File")
+
+  int rows = 100;
+  int cols = 200;
+  int channels = 3;
+
+  Image im(rows, cols, channels * 8);
+  ASSERT(im.rows() == rows);
+  ASSERT(im.cols() == cols);
+  ASSERT(im.bits_per_pixel() == channels * 8);
+
+  // set background color
+  auto data = im.data();
+  memset(data, 128, rows * cols * channels / 2);
+  memset(data + rows * cols * channels / 2, 64, rows * cols * channels / 2);
+
+  // scale nearest
+  int rows_nearest = 150;
+  int cols_nearest = 88;
+  auto im_nearest = im.scale(rows_nearest, cols_nearest,
+    Image::INTERPOLATE_NEAREST);
+  ASSERT(im_nearest.rows() == rows_nearest);
+  ASSERT(im_nearest.cols() == cols_nearest);
+  ASSERT(im_nearest.bits_per_pixel() == channels * 8);
+
+  // scale bilinear
+  int rows_bilinear = 150;
+  int cols_bilinear = 88;
+  auto im_bilinear = im.scale(rows_bilinear, cols_bilinear,
+    Image::INTERPOLATE_BILINEAR);
+  ASSERT(im_bilinear.rows() == rows_bilinear);
+  ASSERT(im_bilinear.cols() == cols_bilinear);
+  ASSERT(im_bilinear.bits_per_pixel() == channels * 8);
+
+  // crop image
+  int r_cropped = -20;
+  int c_cropped = 20;
+  int rows_cropped = 150;
+  int cols_cropped = 88;
+  auto im_cropped = im.crop(r_cropped, c_cropped, rows_cropped, cols_cropped);
+  ASSERT(im_cropped.rows() == rows_cropped);
+  ASSERT(im_cropped.cols() == cols_cropped);
+  ASSERT(im_cropped.bits_per_pixel() == channels * 8);
 
   TEST_END()
 }
@@ -2609,7 +2659,7 @@ void test_norm_backward()
 
   N.forward();
   N.gradient() = Tensor::Ones(IN,1);
-  N.gradient()(0) = 5;
+  N.gradient()(0) = 5; // gradient[0] == sum(gradient,1,4)
 
   auto& dNdx = x.backward();
   Tensor dNdx_hat(IN, 1);
@@ -3207,6 +3257,7 @@ void test_adam_optimizer()
 int main(int argc, char* argv[]) {
   test_eigen_fft();
   test_audio_file();
+  test_image_file();
 
   test_eigen_matrix();
   test_random_numbers();

@@ -11,8 +11,8 @@ public:
 
   enum Interpolation
   {
-    ITERPOLATE_NEAREST = 1,
-    ITERPOLATE_BILINEAR = 2
+    INTERPOLATE_NEAREST = 1,
+    INTERPOLATE_BILINEAR = 2
   };
 
   Image()
@@ -73,7 +73,7 @@ public:
   Image crop(int roq, int col, uint32_t rows, uint32_t cols);
 
   Image scale(uint32_t rows, uint32_t cols,
-  Interpolation interp = ITERPOLATE_NEAREST);
+  Interpolation interp = INTERPOLATE_NEAREST);
 
 protected:
   Image scale_nearest(uint32_t rows, uint32_t cols);
