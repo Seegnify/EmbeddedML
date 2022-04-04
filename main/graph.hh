@@ -198,7 +198,7 @@ protected:
 class Linear : public Function
 {
 public:
-  Linear(Graph& graph, Function&x, int in, int out);
+  Linear(Graph& graph, Function& x, int in, int out);
   Linear(Graph& graph, Function& x, const Linear& other);
 
   // variable access
@@ -683,6 +683,26 @@ protected:
   Function *_H;
 };
 
+// Embedding function
+class Embedding : public Function
+{
+public:
+  Embedding(Graph& graph, Constant& i, int in, int out);
+  Embedding(Graph& graph, Constant& i, const Embedding& other);
+
+  // variable access
+  Variable& E() { return *_E; }
+
+  virtual const Tensor& forward();
+
+private:
+  void init();
+
+protected:
+  Constant& _i;
+  Variable* _E;
+};
+
 // No Value computed in the graph exception
 class NoValueException : public std::exception
 {
@@ -1109,6 +1129,29 @@ public:
   Hopfield* new_hopfield(Function& x, const Hopfield& other)
   {
     auto node = new Hopfield(*this, x, other);
+    keep(node);
+    return node;
+  }
+
+  Embedding* new_embedding(Constant& i, int in = 0, int out = 0,
+  const char* name = nullptr)
+  {
+    auto other = function(name);
+    if (other)
+    {
+      return new_embedding(i, (Embedding&)*other);
+    }
+    else
+    {
+      auto node = new Embedding(*this, i, in, out);
+      keep(node, name);
+      return node;
+    }
+  }
+
+  Embedding* new_embedding(Constant& i, const Embedding& other)
+  {
+    auto node = new Embedding(*this, i, other);
     keep(node);
     return node;
   }

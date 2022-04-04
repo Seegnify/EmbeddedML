@@ -2659,11 +2659,11 @@ void test_norm_backward()
 
   N.forward();
   N.gradient() = Tensor::Ones(IN,1);
-  N.gradient()(0) = 5; // gradient[0] == sum(gradient,1,4)
+  N.gradient()(0) = IN; // gradient[0] == sum(gradient,1,N)
 
   auto& dNdx = x.backward();
   Tensor dNdx_hat(IN, 1);
-  dNdx_hat <<   3196.8, -799.201, -799.201, -799.201, -799.201;
+  dNdx_hat <<   3200, -800, -800, -800, -800;
 
   ASSERT(dNdx.isApprox(dNdx_hat, 0.001))
 
@@ -2872,6 +2872,53 @@ void test_hopfield_backward()
 
   ASSERT(dydW.isApprox(dydW_num, 0.01))
   ASSERT(dyds.isApprox(dyds_num, 0.01))
+
+  TEST_END()
+}
+
+void test_embedding_forward()
+{
+  TEST_BEGIN("Embedding Forward")
+
+  // size
+  int IN = 10; // vocabulary size
+  int OUT = 5;  // embedding size
+  int HOT = 4; // word index
+  Graph g;
+
+  Constant one_hot(g, 1, 1);
+  one_hot.value() << HOT;
+
+  Embedding E(g, one_hot, IN, OUT);
+
+  Tensor hot = E.E().value().col(HOT);
+  ASSERT(E() == hot);
+
+  TEST_END()
+}
+
+void test_embedding_backward()
+{
+  TEST_BEGIN("Embedding Backward")
+
+  // size
+  int IN = 10; // vocabulary size
+  int OUT = 5;  // embedding size
+  Graph g;
+
+  Constant& one_hot = *g.new_constant( 2, 1);
+  one_hot.value() << 2, 3;
+
+  Embedding& E = *g.new_embedding(one_hot, IN, OUT);
+  auto& W = E.E();
+
+  E.forward();
+  E.gradient() = Tensor::Ones(OUT, 1);
+
+  auto& dEdW = W.backward();
+  auto dEdW_num = g.dFdX(E, W);
+
+  ASSERT(dEdW.isApprox(dEdW_num, 0.001));
 
   TEST_END()
 }
@@ -3367,6 +3414,9 @@ int main(int argc, char* argv[]) {
 
   test_hopfield_forward();
   test_hopfield_backward();
+
+  test_embedding_forward();
+  test_embedding_backward();
 
   test_gaussian_sampler();
   test_step_regression();

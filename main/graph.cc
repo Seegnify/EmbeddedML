@@ -656,7 +656,7 @@ const Tensor& Max::forward()
 // Function Linear
 ///////////////////////////////////////////
 
-Linear::Linear(Graph& graph, Function&x, int in, int out) : 
+Linear::Linear(Graph& graph, Function& x, int in, int out) :
 Function(graph), _x(x)
 {
   // construct new variables
@@ -2239,7 +2239,7 @@ Function(graph), _x(x)
   auto& var = *graph.new_sum(power(x_mean, 2)) / *_H;
   auto& std = power(var + eps, 0.5);
 
-  auto& A = *graph.new_broadcast(g / (std + eps), x);
+  auto& A = *graph.new_broadcast(g / std, x);
   auto& B = *graph.new_broadcast(scalar(graph, b), x);
 
   _N = &(A * x_mean + B);
@@ -2501,6 +2501,87 @@ const Tensor& Hopfield::forward()
 
   // update value
   _value = _H->forward();
+
+  // return value
+  return _value;
+}
+
+///////////////////////////////////////////
+// Function Embedding
+///////////////////////////////////////////
+
+Embedding::Embedding(Graph& graph, Constant& i, int in, int out) :
+Function(graph), _i(i)
+{
+  // construct new variables
+  _E = graph.new_variable(out, in);
+
+  init();
+}
+
+Embedding::Embedding(Graph& graph, Constant& i, const Embedding& other) :
+Function(graph), _i(i)
+{
+  // share variables with the "other"
+  _E = other._E;
+
+  init();
+}
+
+void Embedding::init()
+{
+  // Derivative with respect to E
+  class Derivative_E : public Function
+  {
+  public:
+    Derivative_E(Graph& graph, Embedding& base) :
+    Function(graph), _base(base) { graph.keep(this); }
+
+    // dFdE = x(i)
+    virtual const Tensor& forward()
+    {
+      // return cached value
+      if (_value.size()) return _value;
+
+      auto& g = _base.backward();
+      auto& E = _base._E->forward();
+
+      // update gradient value
+      _value = Tensor::Zero(E.rows(), E.cols());
+      auto& index = _base._i();
+
+      for (int i=0; i<index.size(); i++)
+      {
+        _value.col((int)index(i)) = g;
+      }
+
+      return _value;
+    }
+
+  private:
+    Embedding& _base;
+  };
+
+  _E->derivative(new Derivative_E(_graph, *this));
+}
+
+// F = E * x(i)
+const Tensor& Embedding::forward()
+{
+  // return cached value
+  if (_value.size()) return _value;
+
+  // get variables
+  auto& E = _E->forward();
+
+  // create cached value
+  _value = Tensor::Zero(E.rows(), 1);
+  auto& index = _i();
+
+  for (int i=0; i<index.size(); i++)
+  {
+    _value += E.col((int)index(i));
+  }
 
   // return value
   return _value;
