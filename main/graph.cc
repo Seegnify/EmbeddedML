@@ -1440,7 +1440,7 @@ const Tensor& Softmax::forward()
   // get input vector
   auto& x = _x.forward();
 
-  // for numerical stability subtract max(_value) before exponential
+  // for numerical stability subtract max(_x) before exponential
   auto exp_x = (x.array() - x.maxCoeff()).exp();
 
   // create cached value
@@ -1557,21 +1557,26 @@ const Tensor LogSoftmax::softmax()
   // get input vector
   auto& x = _x.forward();
 
-  // for numerical stability subtract max(_value) before exponential
+  // for numerical stability subtract max(_x) before exponential
   auto exp_x = (x.array() - x.maxCoeff()).exp();
 
   // calculate softmax
   return exp_x / exp_x.sum();
 }
 
-// F = log(exp(x) / sum(exp(x)))
+// F = log(exp(x) / sum(exp(x))) = x - log(sum(exp(x)))
 const Tensor& LogSoftmax::forward()
 {
   // return cached value
   if (_value.size()) return _value;
 
+  auto& x = _x.forward();
+
+  // for numerical stability subtract max(_x) before exponential
+  auto x_C = x.array() - x.maxCoeff();
+
   // create cached value
-  _value = softmax().array().log();
+  _value = x_C - std::log(x_C.exp().sum());
 
   // return value
   return _value;
@@ -2230,14 +2235,13 @@ const Tensor& Sampler::forward()
 Norm::Norm(Graph& graph, Function& x, DTYPE g, DTYPE b) :
 Function(graph), _x(x)
 {
-  DTYPE eps = EPSILON; // numerical stability
   _H = graph.new_constant(1,1); // dimension placeholder
 
   auto& mean = *graph.new_sum(x) / *_H;
   auto& x_mean = x - *graph.new_broadcast(mean, x);
 
-  auto& var = *graph.new_sum(power(x_mean, 2)) / *_H;
-  auto& std = power(var + eps, 0.5);
+  auto& var = *graph.new_sum(x_mean * x_mean) / *_H;
+  auto& std = power(var + EPSILON, 0.5);
 
   auto& A = *graph.new_broadcast(g / std, x);
   auto& B = *graph.new_broadcast(scalar(graph, b), x);
