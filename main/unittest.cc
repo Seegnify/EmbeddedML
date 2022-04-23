@@ -1702,20 +1702,21 @@ void test_dropout_forward()
   Graph g;
 
   // size
-  int N = 100000;
+  int N = 100;
+  int M = 500;
 
   // dropout rate
   DTYPE R = 0.2;
 
   // dropout input
-  Constant x(g, N, 1);
-  x.value() = Tensor::Ones(N, 1);
+  Constant x(g, N, M);
+  x.value() = Tensor::Ones(N, M);
 
   Dropout y(g, x, R);
 
   // compute the actual dropout rate
   DTYPE ones = y().sum();
-  DTYPE rate = (N - ones) / N;
+  DTYPE rate = (N*M - ones) / (N*M);
   ASSERT(abs(rate - R) < 0.01)
 
   TEST_END()
@@ -1726,7 +1727,8 @@ void test_dropout_backward()
   TEST_BEGIN("Dropout Backward")
 
   // size
-  int N = 100000;
+  int N = 100;
+  int M = 500;
 
   // dropout rate
   DTYPE R = 0.2;
@@ -1734,18 +1736,18 @@ void test_dropout_backward()
   Graph g;
 
   // softmax input
-  auto& x = *g.new_variable(N, 1);
-  x.value() = Tensor::Ones(N, 1);
+  auto& x = *g.new_variable(N, M);
+  x.value() = Tensor::Ones(N, M);
 
   // gradient
   auto& y = *g.new_dropout(x, R);
   y.forward();
-  y.gradient() = Tensor::Ones(N, 1);
+  y.gradient() = Tensor::Ones(N, M);
 
   // dFdx
   auto& dFdx = x.backward();
   ASSERT(dFdx.rows() == N);
-  ASSERT(dFdx.cols() == 1);
+  ASSERT(dFdx.cols() == M);
   ASSERT(y() == dFdx)
 
   TEST_END()
@@ -2876,9 +2878,9 @@ void test_hopfield_backward()
   TEST_END()
 }
 
-void test_embedding_forward()
+void test_word2vec_forward()
 {
-  TEST_BEGIN("Embedding Forward")
+  TEST_BEGIN("Word2Vec Forward")
 
   // size
   int IN = 10; // vocabulary size
@@ -2889,7 +2891,7 @@ void test_embedding_forward()
   Constant one_hot(g, 1, 1);
   one_hot.value() << HOT;
 
-  Embedding E(g, one_hot, IN, OUT);
+  Word2Vec E(g, one_hot, IN, OUT);
 
   Tensor hot = E.E().value().col(HOT);
   ASSERT(E() == hot);
@@ -2897,9 +2899,9 @@ void test_embedding_forward()
   TEST_END()
 }
 
-void test_embedding_backward()
+void test_word2vec_backward()
 {
-  TEST_BEGIN("Embedding Backward")
+  TEST_BEGIN("Word2Vec Backward")
 
   // size
   int IN = 10; // vocabulary size
@@ -2909,7 +2911,7 @@ void test_embedding_backward()
   Constant& one_hot = *g.new_constant( 2, 1);
   one_hot.value() << 2, 3;
 
-  Embedding& E = *g.new_embedding(one_hot, IN, OUT);
+  Word2Vec& E = *g.new_word2vec(one_hot, IN, OUT);
   auto& W = E.E();
 
   E.forward();
@@ -3415,8 +3417,8 @@ int main(int argc, char* argv[]) {
   test_hopfield_forward();
   test_hopfield_backward();
 
-  test_embedding_forward();
-  test_embedding_backward();
+  test_word2vec_forward();
+  test_word2vec_backward();
 
   test_gaussian_sampler();
   test_step_regression();

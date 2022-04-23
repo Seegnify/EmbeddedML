@@ -1342,7 +1342,7 @@ Function(graph), _x(x), _rate(rate)
     Derivative_x(Graph& graph, Dropout& base) :
     Function(graph), _base(base) { graph.keep(this); }
 
-    // dFdy = x.T
+    // dFdy = x * mask
     virtual const Tensor& forward()
     {
       // return cached value
@@ -2243,10 +2243,17 @@ Function(graph), _x(x)
   auto& var = *graph.new_sum(x_mean * x_mean) / *_H;
   auto& std = power(var + EPSILON, 0.5);
 
-  auto& A = *graph.new_broadcast(g / std, x);
-  auto& B = *graph.new_broadcast(scalar(graph, b), x);
+  _N = &(x_mean / *graph.new_broadcast(std, x_mean));
 
-  _N = &(A * x_mean + B);
+  if (g != 1)
+  {
+    _N = &(*_N * g);
+  }
+
+  if (b != 0)
+  {
+    _N = &(*_N + b);
+  }
 
   _N->derivative(new IDerivative(_graph, *this));
 }
@@ -2511,10 +2518,10 @@ const Tensor& Hopfield::forward()
 }
 
 ///////////////////////////////////////////
-// Function Embedding
+// Function Word2Vec
 ///////////////////////////////////////////
 
-Embedding::Embedding(Graph& graph, Constant& i, int in, int out) :
+Word2Vec::Word2Vec(Graph& graph, Constant& i, int in, int out) :
 Function(graph), _i(i)
 {
   // construct new variables
@@ -2523,7 +2530,7 @@ Function(graph), _i(i)
   init();
 }
 
-Embedding::Embedding(Graph& graph, Constant& i, const Embedding& other) :
+Word2Vec::Word2Vec(Graph& graph, Constant& i, const Word2Vec& other) :
 Function(graph), _i(i)
 {
   // share variables with the "other"
@@ -2532,13 +2539,13 @@ Function(graph), _i(i)
   init();
 }
 
-void Embedding::init()
+void Word2Vec::init()
 {
   // Derivative with respect to E
   class Derivative_E : public Function
   {
   public:
-    Derivative_E(Graph& graph, Embedding& base) :
+    Derivative_E(Graph& graph, Word2Vec& base) :
     Function(graph), _base(base) { graph.keep(this); }
 
     // dFdE = x(i)
@@ -2563,14 +2570,14 @@ void Embedding::init()
     }
 
   private:
-    Embedding& _base;
+    Word2Vec& _base;
   };
 
   _E->derivative(new Derivative_E(_graph, *this));
 }
 
 // F = E * x(i)
-const Tensor& Embedding::forward()
+const Tensor& Word2Vec::forward()
 {
   // return cached value
   if (_value.size()) return _value;
