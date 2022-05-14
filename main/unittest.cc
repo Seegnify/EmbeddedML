@@ -230,7 +230,7 @@ void test_audio_file()
 
 void test_image_file()
 {
-  TEST_BEGIN("Image File")
+  TEST_BEGIN("Image Scale & Crop")
 
   int rows = 100;
   int cols = 200;
@@ -249,8 +249,7 @@ void test_image_file()
   // scale nearest
   int rows_nearest = 150;
   int cols_nearest = 88;
-  auto im_nearest = im.scale(rows_nearest, cols_nearest,
-    Image::INTERPOLATE_NEAREST);
+  auto im_nearest = im.scale(rows_nearest, cols_nearest, Image::INTERPOLATE_NEAREST);
   ASSERT(im_nearest.rows() == rows_nearest);
   ASSERT(im_nearest.cols() == cols_nearest);
   ASSERT(im_nearest.bits_per_pixel() == channels * 8);
@@ -258,8 +257,7 @@ void test_image_file()
   // scale bilinear
   int rows_bilinear = 150;
   int cols_bilinear = 88;
-  auto im_bilinear = im.scale(rows_bilinear, cols_bilinear,
-    Image::INTERPOLATE_BILINEAR);
+  auto im_bilinear = im.scale(rows_bilinear, cols_bilinear, Image::INTERPOLATE_BILINEAR);
   ASSERT(im_bilinear.rows() == rows_bilinear);
   ASSERT(im_bilinear.cols() == cols_bilinear);
   ASSERT(im_bilinear.bits_per_pixel() == channels * 8);
@@ -273,6 +271,34 @@ void test_image_file()
   ASSERT(im_cropped.rows() == rows_cropped);
   ASSERT(im_cropped.cols() == cols_cropped);
   ASSERT(im_cropped.bits_per_pixel() == channels * 8);
+
+  TEST_END()
+
+  TEST_BEGIN("Image Save & Load")
+  int rows = 100;
+  int cols = 200;
+  int channels = 3;
+  Image im(rows, cols, channels * 8);
+
+  int rows_nearest = 150;
+  int cols_nearest = 88;
+  auto im_nearest = im.scale(rows_nearest, cols_nearest, Image::INTERPOLATE_NEAREST);
+
+  im_nearest.save("/tmp/seegnify-unittest.bmp");
+  im.load("/tmp/seegnify-unittest.bmp");
+  ASSERT(im_nearest.rows() == im.rows());
+  ASSERT(im_nearest.cols() == im.cols());
+  ASSERT(im_nearest.bits_per_pixel() == im.bits_per_pixel());
+
+  int rows_bilinear = 150;
+  int cols_bilinear = 88;
+  auto im_bilinear = im.scale(rows_bilinear, cols_bilinear, Image::INTERPOLATE_BILINEAR);
+
+  im_bilinear.save("/tmp/seegnify-unittest.bmp");
+  im.load("/tmp/seegnify-unittest.bmp");
+  ASSERT(im_bilinear.rows() == im.rows());
+  ASSERT(im_bilinear.cols() == im.cols());
+  ASSERT(im_bilinear.bits_per_pixel() == im.bits_per_pixel());
 
   TEST_END()
 }
