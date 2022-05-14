@@ -76,7 +76,7 @@ void Image::read_row (uint32_t row, std::ifstream& f)
   f.read (reinterpret_cast<char*> (_data + row * row_len), row_len);
 }
 
-Image::Status Image::load(const std::string& path)
+Image::Status Image::load(const std::string& filename)
 {
   clear();
 
@@ -84,7 +84,7 @@ Image::Status Image::load(const std::string& path)
   BMPHeader header;
 
   // Open the image file in binary mode
-  std::ifstream f_img (path.c_str (), std::ios::binary);
+  std::ifstream f_img (filename.c_str(), std::ios::binary);
 
   if (!f_img.is_open ())
     return BMP_FILE_NOT_OPENED;
@@ -126,7 +126,7 @@ Image::Status Image::load(const std::string& path)
   return BMP_OK;
 }
 
-Image::Status Image::save(const std::string& path)
+Image::Status Image::save(const std::string& filename)
 {
   // Init header
   BMPHeader header;
@@ -136,7 +136,7 @@ Image::Status Image::save(const std::string& path)
   header.biBitCount = _bits_per_pixel;
 
   // Open the image file in binary mode
-  std::ofstream f_img (path.c_str (), std::ios::binary);
+  std::ofstream f_img (filename.c_str(), std::ios::binary);
 
   if (!f_img.is_open ())
     return BMP_FILE_NOT_OPENED;

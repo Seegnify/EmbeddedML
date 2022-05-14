@@ -71,9 +71,9 @@ public:
 
   uint8_t blue (uint32_t row, uint32_t col);
 
-  Status load (const std::string& path);
+  Status load (const std::string& filename);
 
-  Status save (const std::string& path);
+  Status save (const std::string& filename);
 
   Image crop (uint32_t row, uint32_t col, uint32_t rows, uint32_t cols);
 
