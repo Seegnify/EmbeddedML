@@ -27,13 +27,10 @@
 #include <google/protobuf/io/coded_stream.h>
 
 #include <Magick++.h>
-#include <QImage>
-#include <QString>
-#include <QPainter>
-#include <QColor>
 #include <sndfile.hh>
 
 #include "storage.hh"
+#include "image.hh"
 
 namespace seegnify {
 
@@ -386,22 +383,23 @@ int num_channels, int sample_rate)
 // read image file
 void load_image(const std::string& filename, std::vector<uint8_t>& data, int& rows, int& cols, int& bits_per_pixel)
 {
-  QImage image(QString(filename));
-/*
-  uint32_t size = image.sizeInBytes();
-  data.resize(size);
-  rows = qimage.size().height();
-  cols = qimage.size().width();
-  memcpy(image.data(), qimage.bits(), size);
-  bits_per_pixel = 8 * qimage.bytesPerLine() / cols;
-*/
+  Image im;
+  if (im.load(filename) == Image::BMP_OK)
+  {
+    rows = im.rows();
+    cols = im.cols();
+    bits_per_pixel = im.bits_per_pixel();
+    data.resize(rows * cols * bits_per_pixel / 8);
+    memcpy(data.data(), im.data(), data.size());
+  }
 }
 
 // write image file
 void save_image(const std::string& filename, const uint8_t* data, int rows, int cols, int bits_per_pixel)
 {
-  QImage image(data, cols, rows, QImage::Format_RGB888);
-  image.save(QString(filename.data()));
+  Image im(rows, cols, bits_per_pixel);
+  memcpy(im.data(), data, rows * cols * bits_per_pixel / 8);
+  im.save(filename);
 }
 
 } /* namespace */
