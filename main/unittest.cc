@@ -280,6 +280,11 @@ void test_image_file()
   int channels = 3;
   Image im(rows, cols, channels * 8);
 
+  // set background color
+  auto data = im.data();
+  memset(data, 128, rows * cols * channels / 2);
+  memset(data + rows * cols * channels / 2, 64, rows * cols * channels / 2);
+
   int rows_nearest = 150;
   int cols_nearest = 88;
   auto im_nearest = im.scale(rows_nearest, cols_nearest, Image::INTERPOLATE_NEAREST);
