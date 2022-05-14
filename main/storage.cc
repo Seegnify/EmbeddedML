@@ -383,23 +383,85 @@ int num_channels, int sample_rate)
 // read image file
 void load_image(const std::string& filename, std::vector<uint8_t>& data, int& rows, int& cols, int& bits_per_pixel)
 {
-  Image im;
-  if (im.load(filename) == Image::BMP_OK)
+  Magick::Image image;
+  image.read(filename);
+
+  rows = image.rows();
+  cols = image.columns();
+  bits_per_pixel = image.depth();
+
+  Magick::Blob blob;
+
+  switch(bits_per_pixel)
   {
-    rows = im.rows();
-    cols = im.cols();
-    bits_per_pixel = im.bits_per_pixel();
-    data.resize(rows * cols * bits_per_pixel / 8);
-    memcpy(data.data(), im.data(), data.size());
-  }
+    case 8:
+    {
+      image.magick("R");
+      image.type(Magick::GrayscaleType);
+      image.write(&blob);
+    }
+    case 16:
+    {
+      image.magick("R");
+      image.type(Magick::GrayscaleType);
+      image.depth(16);
+      image.write(&blob);
+    }
+    case 24:
+    {
+      image.magick("RGB");
+      image.write(&blob);
+    }
+    case 32:
+    {
+      image.magick("RGBA");
+      image.write(&blob);
+    }
+  };
+
+  data.resize(blob.length());
+  std::copy_n((uint8_t*)blob.data(), blob.length(), (uint8_t*)data.data());
 }
 
 // write image file
 void save_image(const std::string& filename, const uint8_t* data, int rows, int cols, int bits_per_pixel)
 {
-  Image im(rows, cols, bits_per_pixel);
-  memcpy(im.data(), data, rows * cols * bits_per_pixel / 8);
-  im.save(filename);
+  switch(bits_per_pixel)
+  {
+    case 8:
+    {
+      Magick::Image image(cols, rows, "R", Magick::CharPixel, data);
+      image.type(Magick::GrayscaleType);
+      image.write(filename);
+      break;
+    }
+    case 16:
+    {
+      Magick::Image image(cols, rows, "R", Magick::CharPixel, data);
+      image.type(Magick::GrayscaleType);
+      image.depth(16);
+      image.write(filename);
+      break;
+    }
+    case 24:
+    {
+      Magick::Image image(cols, rows, "RGB", Magick::CharPixel, data);
+      image.write(filename);
+      break;
+    }
+    case 32:
+    {
+      Magick::Image image(cols, rows, "RGBA", Magick::CharPixel, data);
+      image.write(filename);
+      break;
+    }
+    default:
+    {
+      std::ostringstream msg;
+      msg << "Unsupported image depth " << bits_per_pixel;
+      throw std::runtime_error(msg.str());
+    }
+  };
 }
 
 } /* namespace */

@@ -284,7 +284,8 @@ void test_image_file()
   int cols_nearest = 88;
   auto im_nearest = im.scale(rows_nearest, cols_nearest, Image::INTERPOLATE_NEAREST);
 
-  im_nearest.save("/tmp/seegnify-unittest.bmp");
+  save_image("/tmp/seegnify-unittest.bmp", im_nearest.data(),
+    im_nearest.rows(), im_nearest.cols(), im_nearest.bits_per_pixel());
   im.load("/tmp/seegnify-unittest.bmp");
   ASSERT(im_nearest.rows() == im.rows());
   ASSERT(im_nearest.cols() == im.cols());
