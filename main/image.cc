@@ -1,97 +1,172 @@
 #include "image.hh"
 
 #include <sstream>
+#include <fstream>
 #include <cstring>
-
-#include <Magick++.h>
 
 namespace seegnify {
 
-void Image::load(const std::string& path)
+#define BMP_MAGIC         19778
+#define BMP_PADDING(a)    ((a) % 4)
+
+//////////////////////////////////////////////////////////////////////////////
+// BMP Header
+//////////////////////////////////////////////////////////////////////////////
+
+struct BMPHeader {
+  unsigned int bfSize = 0;
+  unsigned int bfReserved = 0;
+  unsigned int bfOffBits = 54;
+  unsigned int biSize = 40;
+  int biWidth = 0;
+  int biHeight = 0;
+  unsigned short biPlanes = 1;
+  unsigned short biBitCount = 24;
+  unsigned int biCompression = 0;
+  unsigned int biSizeImage = 0;
+  int biXPelsPerMeter = 0;
+  int biYPelsPerMeter = 0;
+  unsigned int biClrUsed = 0;
+  unsigned int biClrImportant = 0;
+};
+
+//////////////////////////////////////////////////////////////////////////////
+// Image
+//////////////////////////////////////////////////////////////////////////////
+
+void Image::set(uint32_t row, uint32_t col, uint8_t r, uint8_t g, uint8_t b)
+{
+  uint8_t bytes_per_pixel = _bits_per_pixel / 8;
+  const size_t index = row * _cols * bytes_per_pixel + col * bytes_per_pixel;
+  _data[index + 0] = b;
+  _data[index + 1] = g;
+  _data[index + 2] = r;
+}
+
+uint8_t Image::red(uint32_t row, uint32_t col)
+{
+  uint8_t bytes_per_pixel = _bits_per_pixel / 8;
+  const size_t index = row * _cols * bytes_per_pixel + col * bytes_per_pixel;
+  return _data[index + 2];
+}
+
+uint8_t Image::green(uint32_t row, uint32_t col)
+{
+  uint8_t bytes_per_pixel = _bits_per_pixel / 8;
+  const size_t index = row * _cols * bytes_per_pixel + col * bytes_per_pixel;
+  return _data[index + 1];
+}
+
+uint8_t Image::blue(uint32_t row, uint32_t col)
+{
+  uint8_t bytes_per_pixel = _bits_per_pixel / 8;
+  const size_t index = row * _cols * bytes_per_pixel + col * bytes_per_pixel;
+  return _data[index + 0];
+}
+
+void Image::write_row (uint32_t row, std::ofstream& f)
+{
+  const size_t row_len = _cols * _bits_per_pixel / 8;
+  f.write (reinterpret_cast<char*> (_data + row * row_len), row_len);
+}
+
+void Image::read_row (uint32_t row, std::ifstream& f)
+{
+  const size_t row_len = _cols * _bits_per_pixel / 8;
+  f.read (reinterpret_cast<char*> (_data + row * row_len), row_len);
+}
+
+Image::Status Image::load(const std::string& path)
 {
   clear();
 
-  Magick::Image image;
-  image.read(path);
+  // Default header
+  BMPHeader header;
 
-  _rows = image.rows();
-  _cols = image.columns();
-  _bits_per_pixel = image.depth();
+  // Open the image file in binary mode
+  std::ifstream f_img (path.c_str (), std::ios::binary);
 
-  Magick::Blob blob;
+  if (!f_img.is_open ())
+    return BMP_FILE_NOT_OPENED;
 
-  switch(_bits_per_pixel)
+  // Since an adress must be passed to fread, create a variable!
+  unsigned short magic;
+
+  // Check if its an bmp file by comparing the magic nbr
+  f_img.read(reinterpret_cast<char*>(&magic), sizeof (magic));
+
+  if (magic != BMP_MAGIC)
   {
-    case 8:
-    {
-      image.magick("R");
-      image.type(Magick::GrayscaleType);
-      image.write(&blob);
-    }
-    case 16:
-    {
-      image.magick("R");
-      image.type(Magick::GrayscaleType);
-      image.depth(16);
-      image.write(&blob);
-    }
-    case 24:
-    {
-      image.magick("RGB");
-      image.write(&blob);
-    }
-    case 32:
-    {
-      image.magick("RGBA");
-      image.write(&blob);
-    }
-  };
+    f_img.close ();
+    return BMP_INVALID_FILE;
+  }
 
-  _data = new uint8_t[blob.length()];
-  std::copy_n((uint8_t*)blob.data(), blob.length(), (uint8_t*)_data);
+  // Read the header structure into header
+  f_img.read (reinterpret_cast<char*>(&header), sizeof (header));
+
+  // Select the mode (bottom-up or top-down)
+  const int h = std::abs (header.biHeight);
+  const int offset = (header.biHeight > 0 ? 0 : h - 1);
+  const int padding = BMP_PADDING (header.biWidth);
+
+  // Allocate the pixel buffer
+  init (h, header.biWidth, header.biBitCount);
+
+  for (int y = h - 1; y >= 0; y--)
+  {
+    // Read a whole row of pixels from the file
+    read_row ((int)std::abs (y - offset), f_img);
+
+    // Skip the padding
+    f_img.seekg (padding, std::ios::cur);
+  }
+
+  // NOTE: All good
+  f_img.close ();
+  return BMP_OK;
 }
 
-void Image::save(const std::string& path)
+Image::Status Image::save(const std::string& path)
 {
-  switch(_bits_per_pixel)
+  // Init header
+  BMPHeader header;
+  header.bfSize = (_cols * _bits_per_pixel / 8 + BMP_PADDING (_cols)) * _rows;
+  header.biWidth = _cols;
+  header.biHeight = _rows;
+  header.biBitCount = _bits_per_pixel;
+
+  // Open the image file in binary mode
+  std::ofstream f_img (path.c_str (), std::ios::binary);
+
+  if (!f_img.is_open ())
+    return BMP_FILE_NOT_OPENED;
+
+  // Since an adress must be passed to fwrite, create a variable!
+  const unsigned short magic = BMP_MAGIC;
+
+  f_img.write (reinterpret_cast<const char*>(&magic), sizeof (magic));
+  f_img.write (reinterpret_cast<const char*>(&header), sizeof (header));
+
+  // Select the mode (bottom-up or top-down)
+  const int h = std::abs (header.biHeight);
+  const int offset = (header.biHeight > 0 ? 0 : h - 1);
+  const int padding = BMP_PADDING (header.biWidth);
+
+  for (int y = h - 1; y >= 0; y--)
   {
-    case 8:
-    {
-      Magick::Image image(_cols, _rows, "R", Magick::CharPixel, _data);
-      image.type(Magick::GrayscaleType);
-      image.write(path);
-      break;
-    }
-    case 16:
-    {
-      Magick::Image image(_cols, _rows, "R", Magick::CharPixel, _data);
-      image.type(Magick::GrayscaleType);
-      image.depth(16);
-      image.write(path);
-      break;
-    }
-    case 24:
-    {
-      Magick::Image image(_cols, _rows, "RGB", Magick::CharPixel, _data);
-      image.write(path);
-      break;
-    }
-    case 32:
-    {
-      Magick::Image image(_cols, _rows, "RGBA", Magick::CharPixel, _data);
-      image.write(path);
-      break;
-    }
-    default:
-    {
-      std::ostringstream msg;
-      msg << "Unsupported image depth " << _bits_per_pixel;
-      throw std::runtime_error(msg.str());
-    }
-  };
+    // Write a whole row of pixels into the file
+    write_row ((int)std::abs (y - offset), f_img);
+
+    // Write the padding
+    f_img.write ("\0\0\0", padding);
+  }
+
+  // NOTE: All good
+  f_img.close ();
+  return BMP_OK;  
 }
 
-Image Image::crop(int row, int col, uint32_t rows, uint32_t cols)
+Image Image::crop(uint32_t row, uint32_t col, uint32_t rows, uint32_t cols)
 {
   Image im(rows,  cols, _bits_per_pixel);
 
@@ -125,8 +200,7 @@ Image Image::crop(int row, int col, uint32_t rows, uint32_t cols)
   return im;
 }
 
-Image Image::scale(uint32_t rows, uint32_t cols,
-Interpolation interp)
+Image Image::scale(uint32_t rows, uint32_t cols, Interpolation interp)
 {
   switch(interp)
   {

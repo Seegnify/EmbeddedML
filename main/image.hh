@@ -9,6 +9,15 @@ class Image
 {
 public:
 
+  enum Status
+  {
+    BMP_OK = 0,
+    BMP_ERROR,
+    BMP_INVALID_FILE,
+    BMP_HEADER_NOT_INITIALIZED,
+    BMP_FILE_NOT_OPENED
+  };
+
   enum Interpolation
   {
     INTERPOLATE_NEAREST = 1,
@@ -23,12 +32,9 @@ public:
     _bits_per_pixel = 0;
   }
 
-  Image(uint32_t rows, uint32_t cols, uint8_t bits_per_pixel = 24)
+  Image(uint32_t rows, uint32_t cols, uint8_t bpp = 24)
   {
-    _rows = rows;
-    _cols = cols;
-    _bits_per_pixel = bits_per_pixel;
-    _data = new uint8_t[rows * cols * bits_per_pixel / 8];
+    init(rows, cols, bpp);
   }
 
   Image(Image&& other)
@@ -49,6 +55,45 @@ public:
     clear();
   }
 
+  uint8_t *data() { return _data; }
+
+  int32_t rows() { return _rows; }
+
+  int32_t cols() { return _cols; }
+
+  uint8_t bits_per_pixel() { return _bits_per_pixel; }  
+
+  void set (uint32_t row, uint32_t col, uint8_t r, uint8_t g, uint8_t b);
+
+  uint8_t red (uint32_t row, uint32_t col);
+
+  uint8_t green (uint32_t row, uint32_t col);
+
+  uint8_t blue (uint32_t row, uint32_t col);
+
+  Status load (const std::string& path);
+
+  Status save (const std::string& path);
+
+  Image crop (uint32_t row, uint32_t col, uint32_t rows, uint32_t cols);
+
+  Image scale (uint32_t rows, uint32_t cols, Interpolation interp = INTERPOLATE_NEAREST);
+
+protected:
+  Image scale_nearest (uint32_t rows, uint32_t cols);
+  Image scale_bilinear (uint32_t rows, uint32_t cols);
+
+  void write_row (uint32_t row, std::ofstream& f);
+  void read_row (uint32_t row, std::ifstream& f);
+
+  void init(uint32_t rows, uint32_t cols, uint8_t bpp)
+  {
+    _rows = rows;
+    _cols = cols;
+    _bits_per_pixel = bpp;
+    _data = new uint8_t[rows * cols * bpp / 8];
+  }
+
   void clear()
   {
     delete [] _data;
@@ -58,29 +103,8 @@ public:
     _bits_per_pixel = 0;
   }
 
-  uint8_t *data() { return _data; }
-
-  int32_t rows() { return _rows; }
-
-  int32_t cols() { return _cols; }
-
-  uint8_t bits_per_pixel() { return _bits_per_pixel; }  
-
-  void load(const std::string& path);
-
-  void save(const std::string& path);
-
-  Image crop(int roq, int col, uint32_t rows, uint32_t cols);
-
-  Image scale(uint32_t rows, uint32_t cols,
-  Interpolation interp = INTERPOLATE_NEAREST);
-
-protected:
-  Image scale_nearest(uint32_t rows, uint32_t cols);
-  Image scale_bilinear(uint32_t rows, uint32_t cols);
-
 private:
-  uint8_t *_data;
+  uint8_t* _data;
   uint32_t _rows;
   uint32_t _cols;
   uint8_t _bits_per_pixel;
