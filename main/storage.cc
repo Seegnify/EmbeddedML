@@ -399,6 +399,7 @@ void load_image(const std::string& filename, std::vector<uint8_t>& data, int& ro
       image.magick("R");
       image.type(Magick::GrayscaleType);
       image.write(&blob);
+      break;
     }
     case 16:
     {
@@ -406,16 +407,25 @@ void load_image(const std::string& filename, std::vector<uint8_t>& data, int& ro
       image.type(Magick::GrayscaleType);
       image.depth(16);
       image.write(&blob);
+      break;
     }
     case 24:
     {
       image.magick("RGB");
       image.write(&blob);
+      break;
     }
     case 32:
     {
       image.magick("RGBA");
       image.write(&blob);
+      break;
+    }
+    default:
+    {
+      std::ostringstream msg;
+      msg << "Unsupported image depth " << bits_per_pixel;
+      throw std::runtime_error(msg.str());
     }
   };
 
