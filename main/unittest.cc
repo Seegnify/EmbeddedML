@@ -2687,19 +2687,36 @@ void test_norm_backward()
   Graph g;
 
   auto& x = *g.new_variable(IN,1);
-  x.value() << 1, 1, 1, 1, 1;
+  x.value() << -0.5, 0.6, 0.2, -0.3, 0.8;
 
   auto& N = *g.new_norm(x);
 
   N.forward();
-  N.gradient() = Tensor::Ones(IN,1);
-  N.gradient()(0) = IN; // gradient[0] == sum(gradient,1,N)
+  N.gradient() = Tensor::Zero(IN,1);
+  N.gradient()(0) = 1; // dN(0)dx
 
   auto& dNdx = x.backward();
-  Tensor dNdx_hat(IN, 1);
-  dNdx_hat <<   3200, -800, -800, -800, -800;
 
-  ASSERT(dNdx.isApprox(dNdx_hat, 0.001))
+  // numerical derivative of N(0) wrt x(0:N)
+  Tensor dNdx_num(IN, 1);
+  for (int i=0; i<IN; i++)
+  {
+    auto v = x.value()(i);
+
+    g.recache();
+    x.value()(i) = v + EPSILON;
+    auto N2 = N();
+
+    g.recache();
+    x.value()(i) = v - EPSILON;
+    auto N1 = N();
+
+    dNdx_num(i) = (N2(0) - N1(0)) / (2 * EPSILON);
+
+    x.value()(i) = v;
+  }
+
+  ASSERT(dNdx.isApprox(dNdx_num, 0.1))
 
   TEST_END()
 }

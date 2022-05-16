@@ -2241,7 +2241,7 @@ Function(graph), _x(x)
   auto& x_mean = x - *graph.new_broadcast(mean, x);
 
   auto& var = *graph.new_sum(x_mean * x_mean) / *_H;
-  auto& std = power(var + EPSILON, 0.5);
+  auto& std = power(var, 0.5);
 
   _N = &(x_mean / *graph.new_broadcast(std, x_mean));
 
