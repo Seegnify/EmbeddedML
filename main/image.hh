@@ -11,11 +11,11 @@ public:
 
   enum Status
   {
-    BMP_OK = 0,
-    BMP_ERROR,
-    BMP_INVALID_FILE,
-    BMP_HEADER_NOT_INITIALIZED,
-    BMP_FILE_NOT_OPENED
+    STATUS_OK = 0,
+    STATUS_ERROR,
+    STATUS_INVALID_FILE,
+    STATUS_HEADER_NOT_INITIALIZED,
+    STATUS_FILE_NOT_OPENED
   };
 
   enum Interpolation

@@ -87,7 +87,7 @@ Image::Status Image::load(const std::string& filename)
   std::ifstream f_img (filename.c_str(), std::ios::binary);
 
   if (!f_img.is_open ())
-    return BMP_FILE_NOT_OPENED;
+    return STATUS_FILE_NOT_OPENED;
 
   // Since an adress must be passed to fread, create a variable!
   unsigned short magic;
@@ -98,7 +98,7 @@ Image::Status Image::load(const std::string& filename)
   if (magic != BMP_MAGIC)
   {
     f_img.close ();
-    return BMP_INVALID_FILE;
+    return STATUS_INVALID_FILE;
   }
 
   // Read the header structure into header
@@ -123,7 +123,7 @@ Image::Status Image::load(const std::string& filename)
 
   // NOTE: All good
   f_img.close ();
-  return BMP_OK;
+  return STATUS_OK;
 }
 
 Image::Status Image::save(const std::string& filename)
@@ -139,7 +139,7 @@ Image::Status Image::save(const std::string& filename)
   std::ofstream f_img (filename.c_str(), std::ios::binary);
 
   if (!f_img.is_open ())
-    return BMP_FILE_NOT_OPENED;
+    return STATUS_FILE_NOT_OPENED;
 
   // Since an adress must be passed to fwrite, create a variable!
   const unsigned short magic = BMP_MAGIC;
@@ -163,7 +163,7 @@ Image::Status Image::save(const std::string& filename)
 
   // NOTE: All good
   f_img.close ();
-  return BMP_OK;  
+  return STATUS_OK;  
 }
 
 Image Image::crop(uint32_t row, uint32_t col, uint32_t rows, uint32_t cols)
