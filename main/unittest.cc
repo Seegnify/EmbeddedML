@@ -2996,6 +2996,7 @@ void test_gaussian_sampler()
   auto x = Tensor(N, M);
   for (auto i=0; i<M; i++)
   {
+    g.recache();
     n.recache();
     x.block(0,i, N,1) = n.forward();
   }

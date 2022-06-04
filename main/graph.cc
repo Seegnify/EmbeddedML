@@ -2203,8 +2203,15 @@ void FGU::init()
 Sampler::Sampler(Graph& graph, Function& m, Function& s) : 
 Function(graph), _m(m), _s(s)
 {
-  // random sampling is not differentiatable,
-  // therefore no derivatives are created for m or s.
+  // random sampling with parametrization trick for back-propagation
+  // Auto-Encoding Variational Bayes by Diederik P. Kingma, Max Welling
+  // https://arxiv.org/pdf/1312.6114.pdf
+
+  _e = _graph.new_constant();
+
+  _Z = &(_m + *_e * _s);
+
+  _Z->derivative(new IDerivative(_graph, *this));
 }
 
 const Tensor& Sampler::forward()
@@ -2212,17 +2219,15 @@ const Tensor& Sampler::forward()
   // return cached value
   if (_value.size()) return _value;
 
-  // initialize value
-  _value.resize(_m().rows(), _m().cols());
+  int rows = _m().rows();
+  int cols = _m().cols();
 
-  auto m = _m().data();
-  auto s = _s().data();
-  auto v = _value.data();
-  auto& rng = _graph.random();
+  // sample random constant
+  auto random = [&]() { return _graph.random().normal_dec(0, 1); };
+  _e->value() = Tensor::NullaryExpr(rows, cols, random);
 
-  // sample value
-  auto size = std::min(_m().size(), _s().size());
-  for (auto i=0; i<size; i++) { v[i] = rng.normal_dec(m[i], s[i]); }
+  // update value
+  _value = _Z->forward();
 
   // return value
   return _value;

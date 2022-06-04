@@ -23,6 +23,7 @@
 
 #include "types.hh"
 #include "random.hh"
+#include "image.hh"
 
 namespace seegnify {
 
@@ -610,18 +611,6 @@ protected:
   Function *_FGU;
 };
 
-// Sampler
-class Sampler : public Function
-{
-public:
-  Sampler(Graph& graph, Function& m, Function& s);
-
-  virtual const Tensor& forward();
-
-protected:
-  Function &_m, &_s;
-};
-
 // Norm
 class Norm : public Function
 {
@@ -634,6 +623,20 @@ protected:
   Function &_x;
   Function *_N;
   Constant *_H;
+};
+
+// Sampler
+class Sampler : public Function
+{
+public:
+  Sampler(Graph& graph, Function& m, Function& s);
+
+  virtual const Tensor& forward();
+
+protected:
+  Function &_m, &_s;
+  Constant *_e;
+  Function *_Z;
 };
 
 // Gaussian
