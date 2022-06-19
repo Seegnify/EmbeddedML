@@ -59,6 +59,8 @@ public:
 
   const uint8_t *data() const { return _data; }
 
+  uint32_t size() { return _rows * _cols * _bits_per_pixel / 8; }
+
   int32_t rows() const { return _rows; }
 
   int32_t cols() const { return _cols; }
