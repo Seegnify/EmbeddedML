@@ -3,11 +3,12 @@
 #include <sstream>
 #include <fstream>
 #include <cstring>
+#include <cmath>
 
 namespace seegnify {
 
-#define BMP_MAGIC         19778
-#define BMP_PADDING(a)    ((a) % 4)
+#define BMP_MAGIC                 19778
+#define BMP_PADDING(cols, bpp)    ((4 - (((cols) * (bpp) / 8) % 4)) % 4)
 
 //////////////////////////////////////////////////////////////////////////////
 // BMP Header
@@ -43,28 +44,28 @@ void Image::set(uint32_t row, uint32_t col, uint8_t r, uint8_t g, uint8_t b)
   _data[index + 2] = r;
 }
 
-uint8_t Image::red(uint32_t row, uint32_t col)
+uint8_t Image::red(uint32_t row, uint32_t col) const
 {
   uint8_t bytes_per_pixel = _bits_per_pixel / 8;
   const size_t index = row * _cols * bytes_per_pixel + col * bytes_per_pixel;
   return _data[index + 2];
 }
 
-uint8_t Image::green(uint32_t row, uint32_t col)
+uint8_t Image::green(uint32_t row, uint32_t col) const
 {
   uint8_t bytes_per_pixel = _bits_per_pixel / 8;
   const size_t index = row * _cols * bytes_per_pixel + col * bytes_per_pixel;
   return _data[index + 1];
 }
 
-uint8_t Image::blue(uint32_t row, uint32_t col)
+uint8_t Image::blue(uint32_t row, uint32_t col) const
 {
   uint8_t bytes_per_pixel = _bits_per_pixel / 8;
   const size_t index = row * _cols * bytes_per_pixel + col * bytes_per_pixel;
   return _data[index + 0];
 }
 
-void Image::write_row (uint32_t row, std::ofstream& f)
+void Image::write_row (uint32_t row, std::ofstream& f) const
 {
   const size_t row_len = _cols * _bits_per_pixel / 8;
   f.write (reinterpret_cast<char*> (_data + row * row_len), row_len);
@@ -107,7 +108,7 @@ Image::Status Image::load(const std::string& filename)
   // Select the mode (bottom-up or top-down)
   const int h = std::abs (header.biHeight);
   const int offset = (header.biHeight > 0 ? 0 : h - 1);
-  const int padding = BMP_PADDING (header.biWidth);
+  const int padding = BMP_PADDING (header.biWidth, header.biBitCount);
 
   // Allocate the pixel buffer
   init (h, header.biWidth, header.biBitCount);
@@ -126,14 +127,17 @@ Image::Status Image::load(const std::string& filename)
   return STATUS_OK;
 }
 
-Image::Status Image::save(const std::string& filename)
+Image::Status Image::save(const std::string& filename) const
 {
+  const int padding = BMP_PADDING(_cols, _bits_per_pixel);
+
   // Init header
   BMPHeader header;
-  header.bfSize = (_cols * _bits_per_pixel / 8 + BMP_PADDING (_cols)) * _rows;
   header.biWidth = _cols;
   header.biHeight = _rows;
   header.biBitCount = _bits_per_pixel;
+  header.biSizeImage = (_cols * _bits_per_pixel / 8 + padding) * _rows;
+  header.bfSize = sizeof(short) /*magic*/ + sizeof(header) + header.biSizeImage;
 
   // Open the image file in binary mode
   std::ofstream f_img (filename.c_str(), std::ios::binary);
@@ -150,7 +154,6 @@ Image::Status Image::save(const std::string& filename)
   // Select the mode (bottom-up or top-down)
   const int h = std::abs (header.biHeight);
   const int offset = (header.biHeight > 0 ? 0 : h - 1);
-  const int padding = BMP_PADDING (header.biWidth);
 
   for (int y = h - 1; y >= 0; y--)
   {
@@ -166,7 +169,7 @@ Image::Status Image::save(const std::string& filename)
   return STATUS_OK;  
 }
 
-Image Image::crop(uint32_t row, uint32_t col, uint32_t rows, uint32_t cols)
+Image Image::crop(uint32_t row, uint32_t col, uint32_t rows, uint32_t cols) const
 {
   Image im(rows,  cols, _bits_per_pixel);
 
@@ -200,7 +203,7 @@ Image Image::crop(uint32_t row, uint32_t col, uint32_t rows, uint32_t cols)
   return im;
 }
 
-Image Image::scale(uint32_t rows, uint32_t cols, Interpolation interp)
+Image Image::scale(uint32_t rows, uint32_t cols, Interpolation interp) const
 {
   switch(interp)
   {
@@ -211,7 +214,7 @@ Image Image::scale(uint32_t rows, uint32_t cols, Interpolation interp)
   }
 }
 
-Image Image::scale_nearest(uint32_t rows, uint32_t cols)
+Image Image::scale_nearest(uint32_t rows, uint32_t cols) const
 {
   Image im(rows,  cols, _bits_per_pixel);
 
@@ -238,7 +241,7 @@ Image Image::scale_nearest(uint32_t rows, uint32_t cols)
   return im;
 }
 
-Image Image::scale_bilinear(uint32_t rows, uint32_t cols)
+Image Image::scale_bilinear(uint32_t rows, uint32_t cols) const
 {
   Image im(rows,  cols, _bits_per_pixel);
 

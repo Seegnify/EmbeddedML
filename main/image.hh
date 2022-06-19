@@ -57,33 +57,35 @@ public:
 
   uint8_t *data() { return _data; }
 
-  int32_t rows() { return _rows; }
+  const uint8_t *data() const { return _data; }
 
-  int32_t cols() { return _cols; }
+  int32_t rows() const { return _rows; }
 
-  uint8_t bits_per_pixel() { return _bits_per_pixel; }  
+  int32_t cols() const { return _cols; }
+
+  uint8_t bits_per_pixel() const { return _bits_per_pixel; }
 
   void set (uint32_t row, uint32_t col, uint8_t r, uint8_t g, uint8_t b);
 
-  uint8_t red (uint32_t row, uint32_t col);
+  uint8_t red (uint32_t row, uint32_t col) const;
 
-  uint8_t green (uint32_t row, uint32_t col);
+  uint8_t green (uint32_t row, uint32_t col) const;
 
-  uint8_t blue (uint32_t row, uint32_t col);
+  uint8_t blue (uint32_t row, uint32_t col) const;
 
   Status load (const std::string& filename);
 
-  Status save (const std::string& filename);
+  Status save (const std::string& filename) const;
 
-  Image crop (uint32_t row, uint32_t col, uint32_t rows, uint32_t cols);
+  Image crop (uint32_t row, uint32_t col, uint32_t rows, uint32_t cols) const;
 
-  Image scale (uint32_t rows, uint32_t cols, Interpolation interp = INTERPOLATE_NEAREST);
+  Image scale (uint32_t rows, uint32_t cols, Interpolation interp = INTERPOLATE_NEAREST) const;
 
 protected:
-  Image scale_nearest (uint32_t rows, uint32_t cols);
-  Image scale_bilinear (uint32_t rows, uint32_t cols);
+  Image scale_nearest (uint32_t rows, uint32_t cols) const;
+  Image scale_bilinear (uint32_t rows, uint32_t cols) const;
 
-  void write_row (uint32_t row, std::ofstream& f);
+  void write_row (uint32_t row, std::ofstream& f) const;
   void read_row (uint32_t row, std::ifstream& f);
 
   void init(uint32_t rows, uint32_t cols, uint8_t bpp)
