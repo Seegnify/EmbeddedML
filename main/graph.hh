@@ -706,6 +706,18 @@ protected:
   Variable* _E;
 };
 
+// Identity (pass-through) derivarive
+class IDerivative : public Function
+{
+public:
+  IDerivative(Graph& graph, Function& base);
+
+  virtual const Tensor& forward();
+
+protected:
+  Function& _base;
+};
+
 // No Value computed in the graph exception
 class NoValueException : public std::exception
 {
@@ -785,6 +797,13 @@ public:
   ///////////////////////////////////////////
   // node constructors
   ///////////////////////////////////////////
+
+  IDerivative* new_iderivative(Function& base)
+  {
+    auto node = new IDerivative(*this, base);
+    keep(node);
+    return node;
+  }
 
   Constant* new_constant(int rows = 0, int cols = 0)
   {

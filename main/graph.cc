@@ -127,40 +127,6 @@ Function& operator/(Function& x, Function& y)
 }
 
 ///////////////////////////////////////////
-// Identity Derivarive impl
-///////////////////////////////////////////
-
-// equivalent of "static class"
-namespace
-{
-  // Identity (pass-through) derivative
-  class IDerivative : public Function
-  {
-  public:
-    IDerivative(Graph& graph, Function& base) :
-    Function(graph), _base(base) { graph.keep(this); }
-
-    // dFdx = base.dFdx
-    virtual const Tensor& forward()
-    {
-      // return cached value
-      if (_value.size()) return _value;
-
-      auto& g = _base.backward();
-
-      // update gradient value
-      _value = g;
-
-      // return gradient value
-      return _value;
-    }    
-
-  private:
-    Function& _base;
-  };
-}
-
-///////////////////////////////////////////
 // Tensor routines
 ///////////////////////////////////////////
 
@@ -185,6 +151,28 @@ static Tensor clip(const Tensor& t, DTYPE min_val, DTYPE max_val)
   auto lo = Tensor::Constant(t.rows(), t.cols(), min_val);
   auto up = Tensor::Constant(t.rows(), t.cols(), max_val);
   return t.array().min(up.array()).max(lo.array());
+}
+
+///////////////////////////////////////////
+// Identity Derivarive impl
+///////////////////////////////////////////
+
+IDerivative::IDerivative(Graph& graph, Function& base) :
+Function(graph), _base(base) {}
+
+// dFdx = base.dFdx
+const Tensor& IDerivative::forward()
+{
+  // return cached value
+  if (_value.size()) return _value;
+
+  auto& g = _base.backward();
+
+  // update gradient value
+  _value = g;
+
+  // return gradient value
+  return _value;
 }
 
 ///////////////////////////////////////////
@@ -1284,7 +1272,7 @@ Function(graph)
   _relu = graph.new_max(x, *graph.new_broadcast(zero, x));
 
   // let output handle the gradient directly
-  _relu->derivative(new IDerivative(_graph, *this));
+  _relu->derivative(_graph.new_iderivative(*this));
 }
 
 // F = max(x, 0)
@@ -1308,7 +1296,7 @@ Step::Step(Graph& graph, Function& x, DTYPE lo, DTYPE hi) :
 Function(graph), _x(x), _lo(lo), _hi(hi)
 {
   // assume 'on purpose' that the derivarive of 'step' is 1
-  x.derivative(new IDerivative(_graph, *this));
+  x.derivative(_graph.new_iderivative(*this));
 }
 
 // F = {lo for x <= 0, hi for x > 0}
@@ -1929,7 +1917,7 @@ void GRU::init()
   _GRU = &(z * _h + (1-z) * c);
 
   // let output handle the gradient directly
-  _GRU->derivative(new IDerivative(_graph, *this));
+  _GRU->derivative(_graph.new_iderivative(*this));
 }
 
 ///////////////////////////////////////////
@@ -2030,7 +2018,7 @@ void AGRU::init()
   _AGRU = &(z * _h + (1-z) * c);
 
   // let output handle the gradient directly
-  _AGRU->derivative(new IDerivative(_graph, *this));
+  _AGRU->derivative(_graph.new_iderivative(*this));
 }
 
 ///////////////////////////////////////////
@@ -2134,7 +2122,7 @@ void LSTM::init()
   _LSTM = &h;
 
   // let output handle the gradient directly
-  _LSTM->derivative(new IDerivative(_graph, *this));
+  _LSTM->derivative(_graph.new_iderivative(*this));
 }
 
 ///////////////////////////////////////////
@@ -2193,7 +2181,7 @@ void FGU::init()
   _FGU = &(q * *_graph.new_tanh(product(*_Wh,p * _x) + *_bh));
 
   // let output handle the gradient directly
-  _FGU->derivative(new IDerivative(_graph, *this));
+  _FGU->derivative(_graph.new_iderivative(*this));
 }
 
 ///////////////////////////////////////////
@@ -2211,7 +2199,7 @@ Function(graph), _m(m), _s(s)
 
   _Z = &(_m + *_e * _s);
 
-  _Z->derivative(new IDerivative(_graph, *this));
+  _Z->derivative(_graph.new_iderivative(*this));
 }
 
 const Tensor& Sampler::forward()
@@ -2260,7 +2248,7 @@ Function(graph), _x(x)
     _N = &(*_N + b);
   }
 
-  _N->derivative(new IDerivative(_graph, *this));
+  _N->derivative(_graph.new_iderivative(*this));
 }
 
 // F = g * (x - m) / s - b
@@ -2506,7 +2494,7 @@ void Hopfield::init(Function& x)
   _H = _graph.new_product(*_W, softmax);
 
   // let output handle the gradient directly
-  _H->derivative(new IDerivative(_graph, *this));
+  _H->derivative(_graph.new_iderivative(*this));
 }
 
 // F = W * softmax(b * W.T * x)
