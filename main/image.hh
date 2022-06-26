@@ -39,6 +39,16 @@ public:
 
   Image(Image&& other)
   {
+    *this = std::move(other);
+  }
+
+  ~Image()
+  {
+    clear();
+  }
+
+  Image& operator=(Image&& other)
+  {
     _rows = other._rows;
     _cols = other._cols;
     _bits_per_pixel = other._bits_per_pixel;
@@ -48,11 +58,6 @@ public:
     other._rows = 0;
     other._cols = 0;
     other._bits_per_pixel = 0;
-  }
-
-  ~Image()
-  {
-    clear();
   }
 
   uint8_t *data() { return _data; }

@@ -225,8 +225,8 @@ Image Image::scale_nearest(uint32_t rows, uint32_t cols) const
   for (auto r=0; r<rows; r++)
   for (auto c=0; c<cols; c++)
   {
-    uint32_t this_c = scale_c * c;
-    uint32_t this_r = scale_r * r;
+    uint32_t this_c = std::round(scale_c * c);
+    uint32_t this_r = std::round(scale_r * r);
 
     auto offset = bytes_per_pixel * (r * cols + c);
     auto this_offset = bytes_per_pixel * (this_r * _cols + this_c);
