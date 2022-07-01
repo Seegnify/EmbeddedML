@@ -49,6 +49,8 @@ public:
 
   Image& operator=(Image&& other)
   {
+    if (this == &other) return *this;
+
     _rows = other._rows;
     _cols = other._cols;
     _bits_per_pixel = other._bits_per_pixel;
@@ -64,7 +66,7 @@ public:
 
   const uint8_t *data() const { return _data; }
 
-  uint32_t size() { return _rows * _cols * _bits_per_pixel / 8; }
+  uint32_t size() const { return _rows * _cols * _bits_per_pixel / 8; }
 
   int32_t rows() const { return _rows; }
 
@@ -87,6 +89,8 @@ public:
   Image crop (uint32_t row, uint32_t col, uint32_t rows, uint32_t cols) const;
 
   Image scale (uint32_t rows, uint32_t cols, Interpolation interp = INTERPOLATE_NEAREST) const;
+
+  Image norm() const;
 
 protected:
   Image scale_nearest (uint32_t rows, uint32_t cols) const;

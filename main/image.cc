@@ -4,6 +4,7 @@
 #include <fstream>
 #include <cstring>
 #include <cmath>
+#include <limits>
 
 namespace seegnify {
 
@@ -198,6 +199,39 @@ Image Image::crop(uint32_t row, uint32_t col, uint32_t rows, uint32_t cols) cons
         }
       }
     }
+  }
+
+  return im;
+}
+
+Image Image::norm() const
+{
+  Image im(_rows,  _cols, _bits_per_pixel);
+
+  auto this_data = data();
+
+  short max_value = std::numeric_limits<short>::min();
+  short min_value = std::numeric_limits<short>::max();
+
+  for (int i=size(); i>0; i--)
+  {
+    max_value = std::max<short>(this_data[i-1], max_value);
+    min_value = std::min<short>(this_data[i-1], min_value);
+  }
+
+  if (max_value == min_value)
+  {
+    max_value = 255;
+    min_value = 0;
+  }
+
+  auto scale = 255.0 / (max_value - min_value);
+
+  auto im_data = im.data();
+
+  for (int i=size(); i>0; i--)
+  {
+    im_data[i-1] = std::round(scale * (this_data[i-1] - min_value));
   }
 
   return im;
