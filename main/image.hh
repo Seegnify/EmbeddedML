@@ -26,10 +26,7 @@ public:
 
   Image()
   {
-    _data = nullptr;
-    _rows = 0;
-    _cols = 0;
-    _bits_per_pixel = 0;
+    init();
   }
 
   Image(uint32_t rows, uint32_t cols, uint8_t bpp = 24)
@@ -39,6 +36,8 @@ public:
 
   Image(Image&& other)
   {
+    init();
+
     *this = std::move(other);
   }
 
@@ -51,15 +50,14 @@ public:
   {
     if (this == &other) return *this;
 
+    clear();
+
     _rows = other._rows;
     _cols = other._cols;
     _bits_per_pixel = other._bits_per_pixel;
     _data = other._data;
 
-    other._data = nullptr;
-    other._rows = 0;
-    other._cols = 0;
-    other._bits_per_pixel = 0;
+    other.init();
   }
 
   uint8_t *data() { return _data; }
@@ -99,6 +97,14 @@ protected:
   void write_row (uint32_t row, std::ofstream& f) const;
   void read_row (uint32_t row, std::ifstream& f);
 
+  void init()
+  {
+    _data = nullptr;
+    _rows = 0;
+    _cols = 0;
+    _bits_per_pixel = 0;
+  }
+
   void init(uint32_t rows, uint32_t cols, uint8_t bpp)
   {
     _rows = rows;
@@ -110,10 +116,7 @@ protected:
   void clear()
   {
     delete [] _data;
-    _data = nullptr;
-    _rows = 0;
-    _cols = 0;
-    _bits_per_pixel = 0;
+    init();
   }
 
 private:

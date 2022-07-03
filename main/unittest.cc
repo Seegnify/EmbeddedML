@@ -27,6 +27,7 @@
 #include "optimizer.hh"
 #include "storage.hh"
 #include "image.hh"
+#include "examples/selector.hh"
 
 using namespace seegnify;
 
@@ -45,6 +46,14 @@ void print(const char* name, const Tensor& tensor)
 void print(const char* name, Function& f)
 {
   print(name, f.forward());
+}
+
+void print(const char* name, const Image& image)
+{
+  std::cout << name
+  << " [" << image.rows() << " x " << image.cols() << "]"
+  << " x " << (int) image.bits_per_pixel()
+  << std::endl;
 }
 
 Tensor tensor(int rows, int cols, std::initializer_list<DTYPE> vals)
@@ -305,6 +314,27 @@ void test_image_file()
   ASSERT(im_bilinear.rows() == im.rows());
   ASSERT(im_bilinear.cols() == im.cols());
   ASSERT(im_bilinear.bits_per_pixel() == im.bits_per_pixel());
+
+  TEST_END()
+
+  TEST_BEGIN("Image Normalization")
+  int rows = 100;
+  int cols = 200;
+  int channels = 3;
+  Image im(rows, cols, channels * 8);
+
+  // set background color
+  auto data = im.data();
+  memset(data, 128, im.size() / 2);
+  memset(data + im.size() / 2, 64, im.size() / 2);
+
+  ASSERT(im.data()[0] == 128);
+  ASSERT(im.data()[im.size()-1] == 64);
+
+  Image norm = im.norm();
+
+  ASSERT(norm.data()[0] == 255);
+  ASSERT(norm.data()[im.size()-1] == 0);
 
   TEST_END()
 }
@@ -3350,10 +3380,96 @@ void test_adam_optimizer()
   TEST_END()
 }
 
+void test_image_sampler()
+{
+  const std::string img_path1 = "/home/greg/Pictures/test1.bmp";
+  const std::string img_path2 = "/home/greg/Pictures/test2.bmp";
+  const std::string img_path3 = "/home/greg/Pictures/test3.bmp";
+
+  TEST_BEGIN("Image Move")
+
+  Image img;
+
+  ASSERT(Image::Status::STATUS_OK == img.load(img_path1));
+  ASSERT(Image::Status::STATUS_OK == img.save(img_path2));
+
+  Image img2;
+  img2 = std::move(img);
+
+  TEST_END()
+
+  TEST_BEGIN("Image Storage")
+
+  Image img;
+
+  ASSERT(Image::Status::STATUS_OK == img.load(img_path1));
+  ASSERT(Image::Status::STATUS_OK == img.save(img_path2));
+
+  TEST_END()
+
+  TEST_BEGIN("Image Selector")
+
+  int ROWS = 163;
+  int COLS = 157;
+
+  Image img;
+  ASSERT(Image::Status::STATUS_OK == img.load(img_path1));
+
+  Graph g;
+  Constant abs_pos(g, 2,1);
+  Constant rel_pos(g, 2,1);
+  Constant radius(g, 2,1);
+
+  abs_pos.value() << 0.5, 0.5;
+  rel_pos.value() << 0.5, 0.5;
+  radius.value() << 0.1, 0.1;
+
+  ImageSelector is(g, abs_pos, rel_pos, radius, img, ROWS, COLS);
+  Image selected = is.select();
+
+  ASSERT(Image::Status::STATUS_OK == selected.save(img_path3));
+  ASSERT(selected.rows() == ROWS);
+  ASSERT(selected.cols() == COLS);
+  ASSERT(selected.bits_per_pixel() == img.bits_per_pixel());
+
+  TEST_END()
+
+  TEST_BEGIN("Selector Model")
+
+  Image img;
+  ASSERT(Image::Status::STATUS_OK == img.load(img_path1));
+
+  Graph g;
+  ASSERT(g.variables().size() == 0);
+
+  SelectorModel model(g);
+  ASSERT(g.variables().size() > 0);
+
+  auto label = model.forward(img);
+
+  for (auto v: g.variables())
+  {
+    ASSERT(v->gradient().size() == 0);
+  }
+
+  model.backward(label);
+
+  for (auto v: g.variables())
+  {
+    ASSERT(v->gradient().size() > 0);
+  }
+
+  model.save_image_selection("/home/greg/Pictures/selection.gif");
+
+  TEST_END()
+}
+
 /**
  * test entry point
  */ 
 int main(int argc, char* argv[]) {
+  test_image_sampler();
+
   test_eigen_fft();
   test_audio_file();
   test_image_file();
