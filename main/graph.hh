@@ -719,10 +719,10 @@ protected:
 };
 
 // No Value computed in the graph exception
-class NoValueException : public std::exception
+class NoValueException : public std::runtime_error
 {
 public:
-  NoValueException() : std::exception() {}
+  NoValueException() : std::runtime_error("NoValueException") {}
 };
 
 // Gradient Aggregator
