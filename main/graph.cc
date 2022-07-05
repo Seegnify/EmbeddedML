@@ -33,9 +33,7 @@ Function& scalar(Graph&g, DTYPE y)
 
 Function& power(Function& x, DTYPE y)
 {
-  auto& s = scalar(x.graph(), y);
-  auto& c = *x.graph().new_broadcast(s, x);
-  return *x.graph().new_power(x, c);
+  return *x.graph().new_power(x, y);
 }
 
 Function& product(Function& x, Function& y)

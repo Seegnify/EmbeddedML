@@ -914,6 +914,13 @@ public:
     return node; 
   }
 
+  Power* new_power(Function& x, DTYPE y)
+  {
+    auto& p = *new_constant(1,1);
+    p.value() << y;
+    return new_power(x, *new_broadcast(p, x));
+  }
+
   Power* new_power(Function& x, Function& y)
   {
     auto node = new Power(*this, x, y);
