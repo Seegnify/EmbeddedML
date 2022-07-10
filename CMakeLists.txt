@@ -62,6 +62,7 @@ add_library (seegnify-common STATIC
 main/graph.cc
 main/storage.cc
 main/image.cc
+main/tokenizer.cc
 )
 
 # client / server
@@ -93,6 +94,16 @@ rl/plot.cc
 # RL GUI
 add_executable (seegnify-rl-gui
 rl/main.cc
+)
+
+# SELECTOR-GAUSSIAN
+add_library (example-selector-gaussian SHARED
+examples/selector-gaussian.cc
+)
+
+# SELECTOR-SOFTMAX
+add_library (example-selector-softmax SHARED
+examples/selector-softmax.cc
 )
 
 # MNIST
@@ -129,6 +140,8 @@ target_link_libraries(seegnify-fulltest ${DL_LIBS})
 target_link_libraries(seegnify-rl Qt5::Widgets)
 target_link_libraries(seegnify-rl-gui seegnify-rl Qt5::Widgets)
 
+target_link_libraries(example-selector-gaussian ${DL_LIBS})
+target_link_libraries(example-selector-softmax ${DL_LIBS})
 target_link_libraries(example-mnist ${DL_LIBS})
 target_link_libraries(example-cifar ${DL_LIBS})
 target_link_libraries(example-mnistRL ${DL_LIBS} seegnify-rl)
