@@ -27,7 +27,9 @@
 #include "optimizer.hh"
 #include "storage.hh"
 #include "image.hh"
-#include "examples/selector.hh"
+#include "examples/selector-gaussian.hh"
+#include "examples/selector-softmax.hh"
+#include "examples/selector-sequence.hh"
 
 using namespace seegnify;
 
@@ -3385,6 +3387,8 @@ void test_image_sampler()
   const std::string img_path1 = "/home/greg/Pictures/test1.bmp";
   const std::string img_path2 = "/home/greg/Pictures/test2.bmp";
   const std::string img_path3 = "/home/greg/Pictures/test3.bmp";
+  const std::string img_path4 = "/home/greg/Pictures/test4.bmp";
+  const std::string img_path5 = "/home/greg/Pictures/test5.bmp";
 
   TEST_BEGIN("Image Move")
 
@@ -3407,7 +3411,7 @@ void test_image_sampler()
 
   TEST_END()
 
-  TEST_BEGIN("Image Selector")
+  TEST_BEGIN("Gaussian Image Selector")
 
   int ROWS = 163;
   int COLS = 157;
@@ -3416,15 +3420,13 @@ void test_image_sampler()
   ASSERT(Image::Status::STATUS_OK == img.load(img_path1));
 
   Graph g;
-  Constant abs_pos(g, 2,1);
-  Constant rel_pos(g, 2,1);
+  Constant center(g, 2,1);
   Constant radius(g, 2,1);
 
-  abs_pos.value() << 0.5, 0.5;
-  rel_pos.value() << 0.5, 0.5;
+  center.value() << 1.0, 1.0;
   radius.value() << 0.1, 0.1;
 
-  ImageSelector is(g, abs_pos, rel_pos, radius, img, ROWS, COLS);
+  GaussianImageSelector is(g, center, radius, img, ROWS, COLS);
   Image selected = is.select();
 
   ASSERT(Image::Status::STATUS_OK == selected.save(img_path3));
@@ -3434,7 +3436,7 @@ void test_image_sampler()
 
   TEST_END()
 
-  TEST_BEGIN("Selector Model")
+  TEST_BEGIN("Gaussian Selector Model")
 
   Image img;
   ASSERT(Image::Status::STATUS_OK == img.load(img_path1));
@@ -3442,7 +3444,7 @@ void test_image_sampler()
   Graph g;
   ASSERT(g.variables().size() == 0);
 
-  SelectorModel model(g);
+  GaussianSelectorModel model(g);
   ASSERT(g.variables().size() > 0);
 
   auto label = model.forward(img);
@@ -3459,7 +3461,107 @@ void test_image_sampler()
     ASSERT(v->gradient().size() > 0);
   }
 
-  model.save_image_selection("/home/greg/Pictures/selection.gif");
+  model.save_image_selection("/home/greg/Pictures/selection-gaussian.gif");
+
+  TEST_END()
+
+  TEST_BEGIN("Softmax Image Selector")
+
+  int ROWS = 663;
+  int COLS = 457;
+
+  Image img;
+  ASSERT(Image::Status::STATUS_OK == img.load(img_path1));
+
+  Graph g;
+  Constant softmax(g, 4, 1);
+  softmax.value() << 0.5, 0.0, 0.0, 0.5;
+
+  SoftmaxImageSelector is(g, softmax, img, 2, 2, ROWS, COLS);
+  Image selected = is.select();
+
+  ASSERT(Image::Status::STATUS_OK == selected.save(img_path4));
+  ASSERT(selected.rows() == ROWS);
+  ASSERT(selected.cols() == COLS);
+  ASSERT(selected.bits_per_pixel() == img.bits_per_pixel());
+
+  TEST_END()
+
+  TEST_BEGIN("Softmax Selector Model")
+
+  Image img;
+  ASSERT(Image::Status::STATUS_OK == img.load(img_path1));
+
+  Graph g;
+  ASSERT(g.variables().size() == 0);
+
+  SoftmaxSelectorModel model(g);
+  ASSERT(g.variables().size() > 0);
+
+  auto label = model.forward(img);
+
+  for (auto v: g.variables())
+  {
+    ASSERT(v->gradient().size() == 0);
+  }
+
+  model.backward(label);
+
+  for (auto v: g.variables())
+  {
+    ASSERT(v->gradient().size() > 0);
+  }
+
+  model.save_image_selection("/home/greg/Pictures/selection-softmax.gif");
+
+  TEST_END()
+
+  TEST_BEGIN("Sequence Image Selector")
+
+  int ROWS = 663;
+  int COLS = 457;
+
+  Image img;
+  ASSERT(Image::Status::STATUS_OK == img.load(img_path1));
+
+  Graph g;
+
+  SequenceImageSelector is(g, img, 3, 2, 2, ROWS, COLS);
+  Image selected = is.select();
+
+  ASSERT(Image::Status::STATUS_OK == selected.save(img_path5));
+  ASSERT(selected.rows() == ROWS);
+  ASSERT(selected.cols() == COLS);
+  ASSERT(selected.bits_per_pixel() == img.bits_per_pixel());
+
+  TEST_END()
+
+  TEST_BEGIN("Sequence Selector Model")
+
+  Image img;
+  ASSERT(Image::Status::STATUS_OK == img.load(img_path1));
+
+  Graph g;
+  ASSERT(g.variables().size() == 0);
+
+  SequenceSelectorModel model(g);
+  ASSERT(g.variables().size() > 0);
+
+  auto label = model.forward(img);
+
+  for (auto v: g.variables())
+  {
+    ASSERT(v->gradient().size() == 0);
+  }
+
+  model.backward(label);
+
+  for (auto v: g.variables())
+  {
+    ASSERT(v->gradient().size() > 0);
+  }
+
+  model.save_image_selection("/home/greg/Pictures/selection-sequence.gif");
 
   TEST_END()
 }

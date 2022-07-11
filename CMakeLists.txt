@@ -106,6 +106,11 @@ add_library (example-selector-softmax SHARED
 examples/selector-softmax.cc
 )
 
+# SELECTOR-SEQUENCE
+add_library (example-selector-sequence SHARED
+examples/selector-sequence.cc
+)
+
 # MNIST
 add_library (example-mnist SHARED
 examples/mnist.cc
@@ -142,6 +147,7 @@ target_link_libraries(seegnify-rl-gui seegnify-rl Qt5::Widgets)
 
 target_link_libraries(example-selector-gaussian ${DL_LIBS})
 target_link_libraries(example-selector-softmax ${DL_LIBS})
+target_link_libraries(example-selector-sequence ${DL_LIBS})
 target_link_libraries(example-mnist ${DL_LIBS})
 target_link_libraries(example-cifar ${DL_LIBS})
 target_link_libraries(example-mnistRL ${DL_LIBS} seegnify-rl)

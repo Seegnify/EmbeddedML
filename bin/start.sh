@@ -16,9 +16,21 @@
 # limitations under the License.
 #
 
-IMPL=seegnify-fulltest
-PORT=9090
+
+start() {
+  PORT=$1
+  IMPL=$2
+  CMD=./build/seegnify-training
+  LIB=./build/lib$IMPL.so
+  echo Starting $IMPL at port $PORT
+  nice -n 10 $CMD master $IMPL.graph $PORT >> $IMPL.master.log 2>&1 &
+  sleep 1
+  nice -n 10 $CMD worker 127.0.0.1 $PORT $LIB >> $IMPL.client.log 2>&1 &
+  #valgrind $CMD worker 127.0.0.1 $PORT $LIB >> $IMPL.client.log 2>&1 &
+}
+
 ulimit -c unlimited
-nice -n 10 ./build/seegnify-training master $IMPL.graph $PORT >> master.log 2>&1 &
-sleep 1
-nice -n 10 ./build/seegnify-training worker 127.0.0.1 $PORT ./build/lib$IMPL.so >> worker.log 2>&1 &
+
+start 9091 example-selector-gaussian
+start 9092 example-selector-softmax
+start 9093 example-selector-sequence
