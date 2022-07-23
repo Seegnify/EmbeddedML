@@ -340,10 +340,13 @@ public:
 
   virtual const Tensor& forward();
 
+  void enable(bool enable) { _enabled = enable; }
+
 protected:
   DTYPE _rate;
   Tensor _mask;
   Function& _x;
+  bool _enabled;
 };
 
 // Softmax function
@@ -633,10 +636,13 @@ public:
 
   virtual const Tensor& forward();
 
+  void enable(bool enable) { _enabled = enable; }
+
 protected:
   Function &_m, &_s;
   Constant *_e;
   Function *_Z;
+  bool _enabled;
 };
 
 // Gaussian

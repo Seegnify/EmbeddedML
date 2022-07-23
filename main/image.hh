@@ -24,6 +24,13 @@ public:
     INTERPOLATE_BILINEAR = 2
   };
 
+  enum Channel
+  {
+    CHANNEL_BLUE = 0,
+    CHANNEL_GREEN = 1,
+    CHANNEL_RED = 2
+  };
+
   Image()
   {
     init();
@@ -72,13 +79,28 @@ public:
 
   uint8_t bits_per_pixel() const { return _bits_per_pixel; }
 
+  uint8_t channels() const { return _bits_per_pixel / 8; }
+
+  void set (uint32_t row, uint32_t col, uint8_t channel, uint8_t val);
+
+  uint8_t get (uint32_t row, uint32_t col, uint8_t channel) const;
+
   void set (uint32_t row, uint32_t col, uint8_t r, uint8_t g, uint8_t b);
 
-  uint8_t red (uint32_t row, uint32_t col) const;
+  uint8_t red (uint32_t row, uint32_t col) const
+  {
+    return get(row, col, CHANNEL_RED);
+  }
 
-  uint8_t green (uint32_t row, uint32_t col) const;
+  uint8_t green (uint32_t row, uint32_t col) const
+  {
+    return get(row, col, CHANNEL_GREEN);
+  }
 
-  uint8_t blue (uint32_t row, uint32_t col) const;
+  uint8_t blue (uint32_t row, uint32_t col) const
+  {
+    return get(row, col, CHANNEL_BLUE);
+  }
 
   Status load (const std::string& filename);
 

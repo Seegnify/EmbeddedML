@@ -1319,7 +1319,7 @@ const Tensor& Step::forward()
 ///////////////////////////////////////////
 
 Dropout::Dropout(Graph& graph, Function& x, DTYPE rate) :
-Function(graph), _x(x), _rate(rate)
+Function(graph), _x(x), _rate(rate), _enabled(true)
 {
   // Derivative with respect to x
   class Derivative_x : public Function
@@ -1361,11 +1361,18 @@ const Tensor& Dropout::forward()
   auto& x = _x.forward();
 
   // compute dropout mask
-  auto random = [&]() { return _graph.random().uniform_dec(0, 1); };
-  auto mask = Tensor::NullaryExpr(x.rows(), x.cols(), random);
-  auto zero = Tensor::Constant(x.rows(), x.cols(), 0);
-  auto ones = Tensor::Constant(x.rows(), x.cols(), 1);
-  _mask = (mask.array() < _rate).select(zero, ones);
+  if (_enabled)
+  {
+    auto random = [&]() { return _graph.random().uniform_dec(0, 1); };
+    auto mask = Tensor::NullaryExpr(x.rows(), x.cols(), random);
+    auto zero = Tensor::Constant(x.rows(), x.cols(), 0);
+    auto ones = Tensor::Constant(x.rows(), x.cols(), 1);
+    _mask = (mask.array() < _rate).select(zero, ones);
+  }
+  else
+  {
+    _mask = Tensor::Constant(x.rows(), x.cols(), 1);
+  }
 
   // update value
   _value = x.array() * _mask.array();
@@ -2187,7 +2194,7 @@ void FGU::init()
 ///////////////////////////////////////////
 
 Sampler::Sampler(Graph& graph, Function& m, Function& s) : 
-Function(graph), _m(m), _s(s)
+Function(graph), _m(m), _s(s), _enabled(true)
 {
   // random sampling with parametrization trick for back-propagation
   // Auto-Encoding Variational Bayes by Diederik P. Kingma, Max Welling
@@ -2209,8 +2216,15 @@ const Tensor& Sampler::forward()
   int cols = _m().cols();
 
   // sample random constant
-  auto random = [&]() { return _graph.random().normal_dec(0, 1); };
-  _e->value() = Tensor::NullaryExpr(rows, cols, random);
+  if (_enabled)
+  {
+    auto random = [&]() { return _graph.random().normal_dec(0, 1); };
+    _e->value() = Tensor::NullaryExpr(rows, cols, random);
+  }
+  else
+  {
+    _e->value() = Tensor::Zero(rows, cols);
+  }
 
   // update value
   _value = _Z->forward();

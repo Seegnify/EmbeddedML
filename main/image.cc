@@ -36,34 +36,27 @@ struct BMPHeader {
 // Image
 //////////////////////////////////////////////////////////////////////////////
 
+void Image::set(uint32_t row, uint32_t col, uint8_t channel, uint8_t value)
+{
+  uint8_t bytes_per_pixel = _bits_per_pixel / 8;
+  const size_t index = row * _cols * bytes_per_pixel + col * bytes_per_pixel;
+  _data[index + channel] = value;
+}
+
+uint8_t Image::get(uint32_t row, uint32_t col, uint8_t channel) const
+{
+  uint8_t bytes_per_pixel = _bits_per_pixel / 8;
+  const size_t index = row * _cols * bytes_per_pixel + col * bytes_per_pixel;
+  return _data[index + channel];
+}
+
 void Image::set(uint32_t row, uint32_t col, uint8_t r, uint8_t g, uint8_t b)
 {
   uint8_t bytes_per_pixel = _bits_per_pixel / 8;
   const size_t index = row * _cols * bytes_per_pixel + col * bytes_per_pixel;
-  _data[index + 0] = b;
-  _data[index + 1] = g;
-  _data[index + 2] = r;
-}
-
-uint8_t Image::red(uint32_t row, uint32_t col) const
-{
-  uint8_t bytes_per_pixel = _bits_per_pixel / 8;
-  const size_t index = row * _cols * bytes_per_pixel + col * bytes_per_pixel;
-  return _data[index + 2];
-}
-
-uint8_t Image::green(uint32_t row, uint32_t col) const
-{
-  uint8_t bytes_per_pixel = _bits_per_pixel / 8;
-  const size_t index = row * _cols * bytes_per_pixel + col * bytes_per_pixel;
-  return _data[index + 1];
-}
-
-uint8_t Image::blue(uint32_t row, uint32_t col) const
-{
-  uint8_t bytes_per_pixel = _bits_per_pixel / 8;
-  const size_t index = row * _cols * bytes_per_pixel + col * bytes_per_pixel;
-  return _data[index + 0];
+  _data[index + CHANNEL_BLUE] = b;
+  _data[index + CHANNEL_GREEN] = g;
+  _data[index + CHANNEL_RED] = r;
 }
 
 void Image::write_row (uint32_t row, std::ofstream& f) const

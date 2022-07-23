@@ -31,6 +31,7 @@
 
 #include "storage.hh"
 #include "image.hh"
+#include "fpimage.hh"
 
 namespace seegnify {
 
@@ -472,6 +473,36 @@ void save_image(const std::string& filename, const uint8_t* data, int rows, int 
       throw std::runtime_error(msg.str());
     }
   };
+}
+
+// Image to FP Image
+FPImage toFPImage(const Image& image)
+{
+  FPImage fpi(image.rows(), image.cols(), image.channels());
+  auto data = fpi.data();
+
+  auto im_data = image.data();
+  auto im_size = image.size();
+
+  for (auto i=im_size-1; i>=0; i--) data[i] = im_data[i];
+
+  return fpi;
+}
+
+// FPImage to Image
+Image toImage(const FPImage& fpi)
+{
+  Image image(fpi.rows(), fpi.cols(), fpi.channels() * 8);
+
+  FPImage norm = fpi.norm(255);
+  auto data = norm.data();
+
+  auto im_data = image.data();
+  auto im_size = image.size();
+
+  for (auto i=im_size-1; i>=0; i--) im_data[i] = std::round(data[i]);
+
+  return image;
 }
 
 } /* namespace */
