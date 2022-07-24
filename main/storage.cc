@@ -476,7 +476,7 @@ void save_image(const std::string& filename, const uint8_t* data, int rows, int 
 }
 
 // Image to FP Image
-FPImage toFPImage(const Image& image)
+FPImage to_fpimage(const Image& image)
 {
   FPImage fpi(image.rows(), image.cols(), image.channels());
   auto data = fpi.data();
@@ -484,15 +484,15 @@ FPImage toFPImage(const Image& image)
   auto im_data = image.data();
   auto im_size = image.size();
 
-  for (auto i=im_size-1; i>=0; i--) data[i] = im_data[i];
+  for (auto i=im_size; i>0; i--) data[i-1] = im_data[i-1];
 
   return fpi;
 }
 
 // FPImage to Image
-Image toImage(const FPImage& fpi)
+Image to_image(const FPImage& fpi)
 {
-  Image image(fpi.rows(), fpi.cols(), fpi.channels() * 8);
+  Image image(fpi.rows(), fpi.cols(), fpi.channels());
 
   FPImage norm = fpi.norm(255);
   auto data = norm.data();
@@ -500,7 +500,7 @@ Image toImage(const FPImage& fpi)
   auto im_data = image.data();
   auto im_size = image.size();
 
-  for (auto i=im_size-1; i>=0; i--) im_data[i] = std::round(data[i]);
+  for (auto i=im_size; i>0; i--) im_data[i-1] = std::round(data[i-1]);
 
   return image;
 }

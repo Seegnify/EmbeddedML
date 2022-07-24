@@ -23,6 +23,7 @@
 #include <google/protobuf/message.h>
 
 #include "types.hh"
+#include "fpimage.hh"
 
 namespace seegnify {
 

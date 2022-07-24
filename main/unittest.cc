@@ -27,9 +27,11 @@
 #include "optimizer.hh"
 #include "storage.hh"
 #include "image.hh"
+#include "fpimage.hh"
 #include "examples/selector-gaussian.hh"
 #include "examples/selector-softmax.hh"
 #include "examples/selector-sequence.hh"
+#include "examples/selector-net2.hh"
 
 using namespace seegnify;
 
@@ -54,7 +56,7 @@ void print(const char* name, const Image& image)
 {
   std::cout << name
   << " [" << image.rows() << " x " << image.cols() << "]"
-  << " x " << (int) image.bits_per_pixel()
+  << " x " << (int) image.channels()
   << std::endl;
 }
 
@@ -247,10 +249,10 @@ void test_image_file()
   int cols = 200;
   int channels = 3;
 
-  Image im(rows, cols, channels * 8);
+  Image im(rows, cols, channels);
   ASSERT(im.rows() == rows);
   ASSERT(im.cols() == cols);
-  ASSERT(im.bits_per_pixel() == channels * 8);
+  ASSERT(im.channels() == channels);
 
   // set background color
   auto data = im.data();
@@ -263,7 +265,7 @@ void test_image_file()
   auto im_nearest = im.scale(rows_nearest, cols_nearest, Image::INTERPOLATE_NEAREST);
   ASSERT(im_nearest.rows() == rows_nearest);
   ASSERT(im_nearest.cols() == cols_nearest);
-  ASSERT(im_nearest.bits_per_pixel() == channels * 8);
+  ASSERT(im_nearest.channels() == channels);
 
   // scale bilinear
   int rows_bilinear = 150;
@@ -271,7 +273,7 @@ void test_image_file()
   auto im_bilinear = im.scale(rows_bilinear, cols_bilinear, Image::INTERPOLATE_BILINEAR);
   ASSERT(im_bilinear.rows() == rows_bilinear);
   ASSERT(im_bilinear.cols() == cols_bilinear);
-  ASSERT(im_bilinear.bits_per_pixel() == channels * 8);
+  ASSERT(im_bilinear.channels() == channels);
 
   // crop image
   int r_cropped = -20;
@@ -281,7 +283,7 @@ void test_image_file()
   auto im_cropped = im.crop(r_cropped, c_cropped, rows_cropped, cols_cropped);
   ASSERT(im_cropped.rows() == rows_cropped);
   ASSERT(im_cropped.cols() == cols_cropped);
-  ASSERT(im_cropped.bits_per_pixel() == channels * 8);
+  ASSERT(im_cropped.channels() == channels);
 
   TEST_END()
 
@@ -289,7 +291,7 @@ void test_image_file()
   int rows = 100;
   int cols = 200;
   int channels = 3;
-  Image im(rows, cols, channels * 8);
+  Image im(rows, cols, channels);
 
   // set background color
   auto data = im.data();
@@ -301,11 +303,11 @@ void test_image_file()
   auto im_nearest = im.scale(rows_nearest, cols_nearest, Image::INTERPOLATE_NEAREST);
 
   save_image("/tmp/seegnify-unittest.bmp", im_nearest.data(),
-    im_nearest.rows(), im_nearest.cols(), im_nearest.bits_per_pixel());
+    im_nearest.rows(), im_nearest.cols(), im_nearest.channels() * 8);
   im.load("/tmp/seegnify-unittest.bmp");
   ASSERT(im_nearest.rows() == im.rows());
   ASSERT(im_nearest.cols() == im.cols());
-  ASSERT(im_nearest.bits_per_pixel() == im.bits_per_pixel());
+  ASSERT(im_nearest.channels() == im.channels());
 
   int rows_bilinear = 150;
   int cols_bilinear = 88;
@@ -315,7 +317,7 @@ void test_image_file()
   im.load("/tmp/seegnify-unittest.bmp");
   ASSERT(im_bilinear.rows() == im.rows());
   ASSERT(im_bilinear.cols() == im.cols());
-  ASSERT(im_bilinear.bits_per_pixel() == im.bits_per_pixel());
+  ASSERT(im_bilinear.channels() == im.channels());
 
   TEST_END()
 
@@ -323,7 +325,7 @@ void test_image_file()
   int rows = 100;
   int cols = 200;
   int channels = 3;
-  Image im(rows, cols, channels * 8);
+  Image im(rows, cols, channels);
 
   // set background color
   auto data = im.data();
@@ -3432,7 +3434,7 @@ void test_image_sampler()
   ASSERT(Image::Status::STATUS_OK == selected.save(img_path3));
   ASSERT(selected.rows() == ROWS);
   ASSERT(selected.cols() == COLS);
-  ASSERT(selected.bits_per_pixel() == img.bits_per_pixel());
+  ASSERT(selected.channels() == img.channels());
 
   TEST_END()
 
@@ -3483,7 +3485,7 @@ void test_image_sampler()
   ASSERT(Image::Status::STATUS_OK == selected.save(img_path4));
   ASSERT(selected.rows() == ROWS);
   ASSERT(selected.cols() == COLS);
-  ASSERT(selected.bits_per_pixel() == img.bits_per_pixel());
+  ASSERT(selected.channels() == img.channels());
 
   TEST_END()
 
@@ -3532,7 +3534,7 @@ void test_image_sampler()
   ASSERT(Image::Status::STATUS_OK == selected.save(img_path5));
   ASSERT(selected.rows() == ROWS);
   ASSERT(selected.cols() == COLS);
-  ASSERT(selected.bits_per_pixel() == img.bits_per_pixel());
+  ASSERT(selected.channels() == img.channels());
 
   TEST_END()
 
@@ -3564,6 +3566,91 @@ void test_image_sampler()
   model.save_image_selection("/home/greg/Pictures/selection-sequence.gif");
 
   TEST_END()
+
+  TEST_BEGIN("2xNet Selector Model")
+
+  Image img;
+  ASSERT(Image::Status::STATUS_OK == img.load(img_path1));
+
+  Graph g;
+  ASSERT(g.variables().size() == 0);
+
+  Net2SelectorModel model(g);
+  ASSERT(g.variables().size() > 0);
+
+  auto label = model.forward(img, true);
+
+  for (auto v: g.variables())
+  {
+    ASSERT(v->gradient().size() == 0);
+  }
+
+  model.backward(label);
+
+  for (auto v: g.variables())
+  {
+    ASSERT(v->gradient().size() > 0);
+  }
+
+  model.save_image_selection("/home/greg/Pictures/selection-net2.gif");
+
+  TEST_END()
+}
+
+void test_fpimage()
+{
+  TEST_BEGIN("FPImage")
+
+  const std::string img_path1 = "/home/greg/Pictures/test1.bmp";
+
+  Image img;
+  ASSERT(Image::Status::STATUS_OK == img.load(img_path1));
+
+  // image to FP-image
+
+  FPImage fpi(img.rows(), img.cols(), img.channels());
+
+  auto data = fpi.data();
+  auto im_data = img.data();
+
+  ASSERT(fpi.rows() == img.rows());
+  ASSERT(fpi.cols() == img.cols());
+  ASSERT(fpi.size() == img.size());
+  ASSERT(fpi.channels() == img.channels());
+
+  for(auto i=img.size(); i>0; i--) data[i-1] = im_data[i-1];
+
+  FPImage fp_cropped = fpi.crop(-100,-100, fpi.rows()/2, fpi.cols()/2);
+  Image cropped(fp_cropped.rows(), fp_cropped.cols(), fp_cropped.channels());
+
+  data = fp_cropped.data();
+  im_data = cropped.data();
+
+  for(auto i=cropped.size(); i>0; i--) im_data[i-1] = data[i-1];
+    
+  ASSERT(fp_cropped.rows() == cropped.rows());
+  ASSERT(fp_cropped.cols() == cropped.cols());
+  ASSERT(fp_cropped.size() == cropped.size());
+  ASSERT(fp_cropped.channels() == cropped.channels());
+
+  ASSERT(Image::Status::STATUS_OK == cropped.save("/home/greg/Pictures/fp-cropped.bmp"));
+
+  FPImage fp_scaled = fp_cropped.scale(img.rows(), img.cols());
+  Image scaled(fp_scaled.rows(), fp_scaled.cols(), fp_scaled.channels());
+
+  data = fp_scaled.data();
+  im_data = scaled.data();
+
+  for(auto i=scaled.size(); i>0; i--) im_data[i-1] = data[i-1];
+    
+  ASSERT(fp_scaled.rows() == scaled.rows());
+  ASSERT(fp_scaled.cols() == scaled.cols());
+  ASSERT(fp_scaled.size() == scaled.size());
+  ASSERT(fp_scaled.channels() == scaled.channels());
+
+  ASSERT(Image::Status::STATUS_OK == scaled.save("/home/greg/Pictures/fp-scaled.bmp"));
+
+  TEST_END()
 }
 
 /**
@@ -3571,6 +3658,7 @@ void test_image_sampler()
  */ 
 int main(int argc, char* argv[]) {
   test_image_sampler();
+  test_fpimage();
 
   test_eigen_fft();
   test_audio_file();

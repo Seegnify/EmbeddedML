@@ -36,9 +36,9 @@ public:
     init();
   }
 
-  Image(uint32_t rows, uint32_t cols, uint8_t bpp = 24)
+  Image(uint32_t rows, uint32_t cols, uint8_t channels = 3)
   {
-    init(rows, cols, bpp);
+    init(rows, cols, channels);
   }
 
   Image(Image&& other)
@@ -61,7 +61,7 @@ public:
 
     _rows = other._rows;
     _cols = other._cols;
-    _bits_per_pixel = other._bits_per_pixel;
+    _channels = other._channels;
     _data = other._data;
 
     other.init();
@@ -71,15 +71,13 @@ public:
 
   const uint8_t *data() const { return _data; }
 
-  uint32_t size() const { return _rows * _cols * _bits_per_pixel / 8; }
+  uint32_t size() const { return _rows * _cols * _channels; }
 
   int32_t rows() const { return _rows; }
 
   int32_t cols() const { return _cols; }
 
-  uint8_t bits_per_pixel() const { return _bits_per_pixel; }
-
-  uint8_t channels() const { return _bits_per_pixel / 8; }
+  uint8_t channels() const { return _channels; }
 
   void set (uint32_t row, uint32_t col, uint8_t channel, uint8_t val);
 
@@ -124,15 +122,15 @@ protected:
     _data = nullptr;
     _rows = 0;
     _cols = 0;
-    _bits_per_pixel = 0;
+    _channels = 0;
   }
 
-  void init(uint32_t rows, uint32_t cols, uint8_t bpp)
+  void init(uint32_t rows, uint32_t cols, uint8_t channels)
   {
     _rows = rows;
     _cols = cols;
-    _bits_per_pixel = bpp;
-    _data = new uint8_t[rows * cols * bpp / 8];
+    _channels = channels;
+    _data = new uint8_t[rows * cols * channels];
   }
 
   void clear()
@@ -145,7 +143,7 @@ private:
   uint8_t* _data;
   uint32_t _rows;
   uint32_t _cols;
-  uint8_t _bits_per_pixel;
+  uint8_t _channels;
 };
 
 } /* namespace */

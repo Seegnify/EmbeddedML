@@ -9,7 +9,7 @@
 namespace seegnify {
 
 #define BMP_MAGIC                 19778
-#define BMP_PADDING(cols, bpp)    ((4 - (((cols) * (bpp) / 8) % 4)) % 4)
+#define BMP_PADDING(cols, channels)    ((4 - (((cols) * (channels)) % 4)) % 4)
 
 //////////////////////////////////////////////////////////////////////////////
 // BMP Header
@@ -38,22 +38,19 @@ struct BMPHeader {
 
 void Image::set(uint32_t row, uint32_t col, uint8_t channel, uint8_t value)
 {
-  uint8_t bytes_per_pixel = _bits_per_pixel / 8;
-  const size_t index = row * _cols * bytes_per_pixel + col * bytes_per_pixel;
+  const size_t index = _channels * (row * _cols  + col);
   _data[index + channel] = value;
 }
 
 uint8_t Image::get(uint32_t row, uint32_t col, uint8_t channel) const
 {
-  uint8_t bytes_per_pixel = _bits_per_pixel / 8;
-  const size_t index = row * _cols * bytes_per_pixel + col * bytes_per_pixel;
+  const size_t index = _channels * (row * _cols  + col);
   return _data[index + channel];
 }
 
 void Image::set(uint32_t row, uint32_t col, uint8_t r, uint8_t g, uint8_t b)
 {
-  uint8_t bytes_per_pixel = _bits_per_pixel / 8;
-  const size_t index = row * _cols * bytes_per_pixel + col * bytes_per_pixel;
+  const size_t index = _channels * (row * _cols  + col);
   _data[index + CHANNEL_BLUE] = b;
   _data[index + CHANNEL_GREEN] = g;
   _data[index + CHANNEL_RED] = r;
@@ -61,13 +58,13 @@ void Image::set(uint32_t row, uint32_t col, uint8_t r, uint8_t g, uint8_t b)
 
 void Image::write_row (uint32_t row, std::ofstream& f) const
 {
-  const size_t row_len = _cols * _bits_per_pixel / 8;
+  const size_t row_len = _cols * _channels;
   f.write (reinterpret_cast<char*> (_data + row * row_len), row_len);
 }
 
 void Image::read_row (uint32_t row, std::ifstream& f)
 {
-  const size_t row_len = _cols * _bits_per_pixel / 8;
+  const size_t row_len = _cols * _channels;
   f.read (reinterpret_cast<char*> (_data + row * row_len), row_len);
 }
 
@@ -102,10 +99,11 @@ Image::Status Image::load(const std::string& filename)
   // Select the mode (bottom-up or top-down)
   const int h = std::abs (header.biHeight);
   const int offset = (header.biHeight > 0 ? 0 : h - 1);
-  const int padding = BMP_PADDING (header.biWidth, header.biBitCount);
+  const int channels = header.biBitCount / 8;
+  const int padding = BMP_PADDING (header.biWidth, channels);
 
   // Allocate the pixel buffer
-  init (h, header.biWidth, header.biBitCount);
+  init (h, header.biWidth, channels);
 
   for (int y = h - 1; y >= 0; y--)
   {
@@ -123,14 +121,14 @@ Image::Status Image::load(const std::string& filename)
 
 Image::Status Image::save(const std::string& filename) const
 {
-  const int padding = BMP_PADDING(_cols, _bits_per_pixel);
+  const int padding = BMP_PADDING(_cols, _channels);
 
   // Init header
   BMPHeader header;
   header.biWidth = _cols;
   header.biHeight = _rows;
-  header.biBitCount = _bits_per_pixel;
-  header.biSizeImage = (_cols * _bits_per_pixel / 8 + padding) * _rows;
+  header.biBitCount = _channels * 8;
+  header.biSizeImage = (_cols * _channels + padding) * _rows;
   header.bfSize = sizeof(short) /*magic*/ + sizeof(header) + header.biSizeImage;
 
   // Open the image file in binary mode
@@ -165,11 +163,9 @@ Image::Status Image::save(const std::string& filename) const
 
 Image Image::crop(uint32_t row, uint32_t col, uint32_t rows, uint32_t cols) const
 {
-  Image im(rows,  cols, _bits_per_pixel);
+  Image im(rows,  cols, _channels);
 
-  auto bytes_per_pixel = _bits_per_pixel / 8;
-
-  std::memset(im._data, 0, rows * cols * bytes_per_pixel);
+  std::memset(im._data, 0, rows * cols * _channels);
 
   for (int r=0; r<rows; r++)
   {
@@ -182,11 +178,11 @@ Image Image::crop(uint32_t row, uint32_t col, uint32_t rows, uint32_t cols) cons
       if (this_c >= 0 and this_c < _cols)
       {
         // compute array offset given row order
-        auto offset = bytes_per_pixel * (r * cols + c);
-        auto this_offset = bytes_per_pixel * (this_r * _cols + this_c);
+        auto offset = _channels * (r * cols + c);
+        auto this_offset = _channels * (this_r * _cols + this_c);
 
         // copy pixel bytes
-        for (int b=0; b<bytes_per_pixel; b++)
+        for (int b=0; b<_channels; b++)
         {
           im._data[offset + b] = _data[this_offset + b];
         }
@@ -199,7 +195,7 @@ Image Image::crop(uint32_t row, uint32_t col, uint32_t rows, uint32_t cols) cons
 
 Image Image::norm() const
 {
-  Image im(_rows,  _cols, _bits_per_pixel);
+  Image im(_rows,  _cols, _channels);
 
   auto this_data = data();
 
@@ -243,11 +239,10 @@ Image Image::scale(uint32_t rows, uint32_t cols, Interpolation interp) const
 
 Image Image::scale_nearest(uint32_t rows, uint32_t cols) const
 {
-  Image im(rows,  cols, _bits_per_pixel);
+  Image im(rows,  cols, _channels);
 
   auto scale_r = (float)(_rows - 1)/(rows - 1);
   auto scale_c = (float)(_cols - 1)/(cols - 1);
-  auto bytes_per_pixel = _bits_per_pixel / 8;
 
   for (auto r=0; r<rows; r++)
   for (auto c=0; c<cols; c++)
@@ -255,11 +250,11 @@ Image Image::scale_nearest(uint32_t rows, uint32_t cols) const
     uint32_t this_c = std::round(scale_c * c);
     uint32_t this_r = std::round(scale_r * r);
 
-    auto offset = bytes_per_pixel * (r * cols + c);
-    auto this_offset = bytes_per_pixel * (this_r * _cols + this_c);
+    auto offset = _channels * (r * cols + c);
+    auto this_offset = _channels * (this_r * _cols + this_c);
 
     // copy pixel bytes
-    for (int b=0; b<bytes_per_pixel; b++)
+    for (int b=0; b<_channels; b++)
     {
       im._data[offset + b] = _data[this_offset + b];
     }
@@ -270,11 +265,10 @@ Image Image::scale_nearest(uint32_t rows, uint32_t cols) const
 
 Image Image::scale_bilinear(uint32_t rows, uint32_t cols) const
 {
-  Image im(rows,  cols, _bits_per_pixel);
+  Image im(rows,  cols, _channels);
 
   auto scale_r = (float)(_rows - 1)/(rows - 1);
   auto scale_c = (float)(_cols - 1)/(cols - 1);
-  auto bytes_per_pixel = _bits_per_pixel / 8;
 
   for (auto r=0; r<rows; r++)
   for (auto c=0; c<cols; c++)
@@ -288,18 +282,18 @@ Image Image::scale_bilinear(uint32_t rows, uint32_t cols) const
     uint32_t this_r1 = std::min<uint32_t>(this_r0 + 1, _rows - 1); 
     uint32_t this_c1 = std::min<uint32_t>(this_c0 + 1, _cols - 1); 
 
-    auto r0_c0 = bytes_per_pixel * (this_r0 * _cols + this_c0);
-    auto r1_c0 = bytes_per_pixel * (this_r1 * _cols + this_c0);
-    auto r0_c1 = bytes_per_pixel * (this_r0 * _cols + this_c1);
-    auto r1_c1 = bytes_per_pixel * (this_r1 * _cols + this_c1);
+    auto r0_c0 = _channels * (this_r0 * _cols + this_c0);
+    auto r1_c0 = _channels * (this_r1 * _cols + this_c0);
+    auto r0_c1 = _channels * (this_r0 * _cols + this_c1);
+    auto r1_c1 = _channels * (this_r1 * _cols + this_c1);
 
     float sr = float_r - this_r0;
     float sc = float_c - this_c0;
 
-    auto offset = bytes_per_pixel * (r * cols + c);
+    auto offset = _channels * (r * cols + c);
 
     // interpolate pixel bytes
-    for (int b=0; b<bytes_per_pixel; b++)
+    for (int b=0; b<_channels; b++)
     {
       // linear along rows
       auto col_r0 = (1 - sr) * _data[r0_c0 + b] + sr * _data[r1_c0 + b];
