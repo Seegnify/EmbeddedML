@@ -1,10 +1,10 @@
-#include "image.hh"
-
 #include <sstream>
 #include <fstream>
 #include <cstring>
 #include <cmath>
 #include <limits>
+
+#include "image.hh"
 
 namespace seegnify {
 

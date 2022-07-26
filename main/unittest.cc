@@ -27,7 +27,7 @@
 #include "optimizer.hh"
 #include "storage.hh"
 #include "image.hh"
-#include "fpimage.hh"
+#include "imageFP.hh"
 #include "examples/selector-gaussian.hh"
 #include "examples/selector-softmax.hh"
 #include "examples/selector-sequence.hh"
@@ -3597,9 +3597,9 @@ void test_image_sampler()
   TEST_END()
 }
 
-void test_fpimage()
+void test_ImageFP()
 {
-  TEST_BEGIN("FPImage")
+  TEST_BEGIN("ImageFP")
 
   const std::string img_path1 = "/home/greg/Pictures/test1.bmp";
 
@@ -3608,7 +3608,7 @@ void test_fpimage()
 
   // image to FP-image
 
-  FPImage fpi(img.rows(), img.cols(), img.channels());
+  ImageFP fpi(img.rows(), img.cols(), img.channels());
 
   auto data = fpi.data();
   auto im_data = img.data();
@@ -3620,7 +3620,7 @@ void test_fpimage()
 
   for(auto i=img.size(); i>0; i--) data[i-1] = im_data[i-1];
 
-  FPImage fp_cropped = fpi.crop(-100,-100, fpi.rows()/2, fpi.cols()/2);
+  ImageFP fp_cropped = fpi.crop(-100,-100, fpi.rows()/2, fpi.cols()/2);
   Image cropped(fp_cropped.rows(), fp_cropped.cols(), fp_cropped.channels());
 
   data = fp_cropped.data();
@@ -3635,7 +3635,7 @@ void test_fpimage()
 
   ASSERT(Image::Status::STATUS_OK == cropped.save("/home/greg/Pictures/fp-cropped.bmp"));
 
-  FPImage fp_scaled = fp_cropped.scale(img.rows(), img.cols());
+  ImageFP fp_scaled = fp_cropped.scale(img.rows(), img.cols());
   Image scaled(fp_scaled.rows(), fp_scaled.cols(), fp_scaled.channels());
 
   data = fp_scaled.data();
@@ -3658,7 +3658,7 @@ void test_fpimage()
  */ 
 int main(int argc, char* argv[]) {
   test_image_sampler();
-  test_fpimage();
+  test_ImageFP();
 
   test_eigen_fft();
   test_audio_file();

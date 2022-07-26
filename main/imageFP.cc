@@ -1,32 +1,111 @@
-#include "fpimage.hh"
-
 #include <sstream>
 #include <fstream>
 #include <cstring>
 #include <cmath>
 #include <limits>
 
+#include "imageFP.hh"
+
 namespace seegnify {
 
 //////////////////////////////////////////////////////////////////////////////
-// FPImage
+// FP Header
 //////////////////////////////////////////////////////////////////////////////
 
-void FPImage::set(uint32_t row, uint32_t col, uint8_t channel, DTYPE value)
+struct FPHeader {
+  unsigned int version = 1;
+  unsigned int rows = 0;
+  unsigned int cols = 0;
+  unsigned int channels = 0;
+  unsigned int imagesize = 0;
+  unsigned int filesize = 0;
+};
+
+//////////////////////////////////////////////////////////////////////////////
+// Floating Point Image
+//////////////////////////////////////////////////////////////////////////////
+
+void ImageFP::set(uint32_t row, uint32_t col, uint8_t channel, DTYPE value)
 {
-  const size_t index = row * _cols * _channels + col * _channels;
+  const size_t index = _channels * (row * _cols + col);
   _data[index + channel] = value;
 }
 
-DTYPE FPImage::get(uint32_t row, uint32_t col, uint8_t channel) const
+DTYPE ImageFP::get(uint32_t row, uint32_t col, uint8_t channel) const
 {
-  const size_t index = row * _cols * _channels + col * _channels;
+  const size_t index = _channels * (row * _cols + col);
   return _data[index + channel];
 }
 
-FPImage FPImage::crop(uint32_t row, uint32_t col, uint32_t rows, uint32_t cols) const
+ImageFP::Status ImageFP::load(const std::string& filename)
 {
-  FPImage im(rows,  cols, _channels);
+  clear();
+
+  // Default header
+  FPHeader header;
+
+  // Open the image file in binary mode
+  std::ifstream f_img(filename.c_str(), std::ios::binary);
+
+  if (!f_img.is_open())
+    return STATUS_FILE_NOT_OPENED;
+
+  // Read the header structure into header
+  f_img.read(reinterpret_cast<char*>(&header), sizeof (header));
+
+  if (header.version != 1)
+  {
+    f_img.close();
+    return STATUS_INVALID_FILE;    
+  }
+
+  unsigned int rows = header.rows;
+  unsigned int cols = header.cols;
+  unsigned int channels = header.channels;
+
+  if (rows * cols * channels != header.imagesize)
+  {
+    f_img.close();
+    return STATUS_INVALID_FILE;    
+  }
+
+  init(rows, cols, channels);
+
+  unsigned int data_size = header.imagesize * sizeof(DTYPE);
+  f_img.read(reinterpret_cast<char*>(_data), data_size);
+
+  f_img.close();
+  return STATUS_OK;
+}
+
+ImageFP::Status ImageFP::save(const std::string& filename) const
+{
+  // Init header
+  FPHeader header;
+  header.rows = _rows;
+  header.cols = _cols;
+  header.channels = _channels;
+  header.imagesize = size();
+  header.filesize = header.imagesize * sizeof(DTYPE) + sizeof(header);
+
+  // Open the image file in binary mode
+  std::ofstream f_img(filename.c_str(), std::ios::binary);
+
+  if (!f_img.is_open())
+    return STATUS_FILE_NOT_OPENED;
+
+  unsigned int data_size = header.imagesize * sizeof(DTYPE);
+  f_img.write(reinterpret_cast<const char*>(&header), sizeof(header));
+  f_img.write(reinterpret_cast<const char*>(_data), data_size);
+
+  // NOTE: All good
+  f_img.close();
+  return STATUS_OK;  
+}
+
+ImageFP ImageFP::crop(uint32_t row, uint32_t col, uint32_t rows, uint32_t cols) const
+{
+  ImageFP im(rows,  cols, _channels);
 
   std::memset(im._data, 0, rows * cols * _channels);
 
@@ -56,9 +135,9 @@ FPImage FPImage::crop(uint32_t row, uint32_t col, uint32_t rows, uint32_t cols) 
   return im;
 }
 
-FPImage FPImage::norm(DTYPE range) const
+ImageFP ImageFP::norm(DTYPE range) const
 {
-  FPImage im(_rows,  _cols, _channels);
+  ImageFP im(_rows,  _cols, _channels);
 
   auto this_data = data();
 
@@ -89,7 +168,7 @@ FPImage FPImage::norm(DTYPE range) const
   return im;
 }
 
-FPImage FPImage::scale(uint32_t rows, uint32_t cols, Interpolation interp) const
+ImageFP ImageFP::scale(uint32_t rows, uint32_t cols, Interpolation interp) const
 {
   switch(interp)
   {
@@ -100,9 +179,9 @@ FPImage FPImage::scale(uint32_t rows, uint32_t cols, Interpolation interp) const
   }
 }
 
-FPImage FPImage::scale_nearest(uint32_t rows, uint32_t cols) const
+ImageFP ImageFP::scale_nearest(uint32_t rows, uint32_t cols) const
 {
-  FPImage im(rows,  cols, _channels);
+  ImageFP im(rows,  cols, _channels);
 
   auto scale_r = (float)(_rows - 1)/(rows - 1);
   auto scale_c = (float)(_cols - 1)/(cols - 1);
@@ -126,9 +205,9 @@ FPImage FPImage::scale_nearest(uint32_t rows, uint32_t cols) const
   return im;
 }
 
-FPImage FPImage::scale_bilinear(uint32_t rows, uint32_t cols) const
+ImageFP ImageFP::scale_bilinear(uint32_t rows, uint32_t cols) const
 {
-  FPImage im(rows,  cols, _channels);
+  ImageFP im(rows,  cols, _channels);
 
   auto scale_r = (float)(_rows - 1)/(rows - 1);
   auto scale_c = (float)(_cols - 1)/(cols - 1);

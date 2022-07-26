@@ -1,13 +1,22 @@
-#ifndef _SEEGNIFY_FP_IMAGE_H_
-#define _SEEGNIFY_FP_IMAGE_H_
+#ifndef _SEEGNIFY_IMAGE_FP_H_
+#define _SEEGNIFY_IMAGE_FP_H_
 
 #include "types.hh"
 
 namespace seegnify {
 
-class FPImage
+class ImageFP
 {
 public:
+
+  enum Status
+  {
+    STATUS_OK = 0,
+    STATUS_ERROR,
+    STATUS_INVALID_FILE,
+    STATUS_HEADER_NOT_INITIALIZED,
+    STATUS_FILE_NOT_OPENED
+  };
 
   enum Interpolation
   {
@@ -15,29 +24,29 @@ public:
     INTERPOLATE_BILINEAR = 2
   };
 
-  FPImage()
+  ImageFP()
   {
     init();
   }
 
-  FPImage(uint32_t rows, uint32_t cols, uint8_t channels = 1)
+  ImageFP(uint32_t rows, uint32_t cols, uint8_t channels = 1)
   {
     init(rows, cols, channels);
   }
 
-  FPImage(FPImage&& other)
+  ImageFP(ImageFP&& other)
   {
     init();
 
     *this = std::move(other);
   }
 
-  ~FPImage()
+  ~ImageFP()
   {
     clear();
   }
 
-  FPImage& operator=(FPImage&& other)
+  ImageFP& operator=(ImageFP&& other)
   {
     if (this == &other) return *this;
 
@@ -67,15 +76,19 @@ public:
 
   DTYPE get (uint32_t row, uint32_t col, uint8_t channel) const;
 
-  FPImage crop (uint32_t row, uint32_t col, uint32_t rows, uint32_t cols) const;
+  Status load(const std::string& filename);
 
-  FPImage scale (uint32_t rows, uint32_t cols, Interpolation interp = INTERPOLATE_NEAREST) const;
+  Status save(const std::string& filename) const;
 
-  FPImage norm(DTYPE range = 1.0) const;
+  ImageFP crop (uint32_t row, uint32_t col, uint32_t rows, uint32_t cols) const;
+
+  ImageFP scale (uint32_t rows, uint32_t cols, Interpolation interp = INTERPOLATE_NEAREST) const;
+
+  ImageFP norm(DTYPE range = 1.0) const;
 
 protected:
-  FPImage scale_nearest (uint32_t rows, uint32_t cols) const;
-  FPImage scale_bilinear (uint32_t rows, uint32_t cols) const;
+  ImageFP scale_nearest (uint32_t rows, uint32_t cols) const;
+  ImageFP scale_bilinear (uint32_t rows, uint32_t cols) const;
 
   void init()
   {
@@ -108,4 +121,4 @@ private:
 
 } /* namespace */
 
-#endif /* _SEEGNIFY_FP_IMAGE_H_ */
+#endif /* _SEEGNIFY_IMAGE_FP_H_ */
