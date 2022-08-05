@@ -165,7 +165,7 @@ Image Image::crop(uint32_t row, uint32_t col, uint32_t rows, uint32_t cols) cons
 {
   Image im(rows,  cols, _channels);
 
-  std::memset(im._data, 0, rows * cols * _channels);
+  std::memset(im._data, 0, im.size());
 
   for (int r=0; r<rows; r++)
   {

@@ -34,6 +34,11 @@ public:
     init(rows, cols, channels);
   }
 
+  ImageFP(DTYPE* data, uint32_t rows, uint32_t cols, uint8_t channels = 1)
+  {
+    init(data, rows, cols, channels);
+  }
+
   ImageFP(ImageFP&& other)
   {
     init();
@@ -56,6 +61,7 @@ public:
     _cols = other._cols;
     _channels = other._channels;
     _data = other._data;
+    _mydata = other._mydata;
 
     other.init();
   }
@@ -93,6 +99,7 @@ protected:
   void init()
   {
     _data = nullptr;
+    _mydata = nullptr;
     _rows = 0;
     _cols = 0;
     _channels = 0;
@@ -104,16 +111,27 @@ protected:
     _cols = cols;
     _channels = channels;
     _data = new DTYPE[rows * cols * channels];
+    _mydata = _data;
+  }
+
+  void init(DTYPE* data, uint32_t rows, uint32_t cols, uint8_t channels)
+  {
+    _rows = rows;
+    _cols = cols;
+    _channels = channels;
+    _data = data;
+    _mydata = nullptr;
   }
 
   void clear()
   {
-    delete [] _data;
+    delete [] _mydata;
     init();
   }
 
 private:
   DTYPE* _data;
+  DTYPE* _mydata;
   uint32_t _rows;
   uint32_t _cols;
   uint8_t _channels;
