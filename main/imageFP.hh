@@ -64,6 +64,8 @@ public:
     _mydata = other._mydata;
 
     other.init();
+
+    return *this;
   }
 
   DTYPE *data() { return _data; }

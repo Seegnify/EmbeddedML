@@ -27,9 +27,9 @@
 #include <google/protobuf/io/coded_stream.h>
 
 #include <Magick++.h>
-#include <sndfile.hh>
 
 #include "storage.hh"
+#include "audio.hh"
 
 namespace seegnify {
 
@@ -167,7 +167,7 @@ bool read_uint32(uint32_t &val, std::istream& stream) {
 
 // write protobuf message in envelope
 void write_pb(const ::google::protobuf::Message& pb, std::ostream& output) {
-  write_uint32(pb.ByteSize(), output);
+  write_uint32(pb.ByteSizeLong(), output);
   google::protobuf::io::OstreamOutputStream ostream(&output);
   google::protobuf::io::CodedOutputStream ocoded(&ostream);
   pb.SerializeWithCachedSizes(&ocoded);
@@ -353,30 +353,42 @@ const std::vector<const uint8_t*>& rgb, int width, int height, int delay) {
 void load_audio(const std::string& filename, std::vector<DTYPE>& samples,
 int& num_channels, int& sample_rate)
 {
-  SndfileHandle file(filename);
+  AudioFile<DTYPE> file;
+  if (!file.load(filename))
+    return;
 
-  uint32_t format = file.format();
-  bool is_wav = format & SF_FORMAT_WAV;
-  bool is_pcm16 = format & SF_FORMAT_PCM_16;
-  uint32_t num_samples = file.frames();
-  uint32_t sample_bits = (is_wav && is_pcm16) ? 16 : 0;
+  uint32_t num_samples = file.getNumSamplesPerChannel();
+  uint32_t sample_bits = file.getBitDepth();
 
-  num_channels = file.channels();
-  sample_rate = file.samplerate();
+  num_channels = file.getNumChannels();
+  sample_rate = file.getSampleRate();
 
   samples.resize(num_channels * num_samples);
-  file.read(samples.data(), samples.size());
+  for (auto c=0; c<num_channels; c++)
+  for (auto s=0; s<num_samples; s++)
+    samples[c * num_samples + s] = file.samples[c][s];
 }
 
 // write audio file
 void save_audio(const std::string& filename, const std::vector<DTYPE>& samples,
 int num_channels, int sample_rate)
 {
-  int format = SF_FORMAT_WAV | SF_FORMAT_PCM_16;
+  AudioFile<DTYPE> file;
 
-  SndfileHandle file(filename, SFM_WRITE, format, num_channels, sample_rate);
+  auto num_samples = samples.size() / num_channels;
 
-  file.write(samples.data(), samples.size());\
+  file.setBitDepth(16);
+  file.setSampleRate(sample_rate);
+
+  file.setNumSamplesPerChannel(num_samples);
+  file.setNumChannels(num_channels);
+
+  file.setAudioBufferSize(num_channels, num_samples);
+  for (auto c=0; c<num_channels; c++)
+  for (auto s=0; s<num_samples; s++)
+    file.samples[c][s] = samples[c * num_samples + s];
+
+  file.save(filename, AudioFileFormat::Wave);
 }
 
 // read image file

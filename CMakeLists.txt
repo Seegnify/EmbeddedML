@@ -23,16 +23,15 @@ project (SEEGNIFY)
 # Build type
 # set(CMAKE_BUILD_TYPE Release)
 
+# CMake policies
+cmake_policy(SET CMP0100 OLD) 
+
 # Set build flags
 set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -DDEBUG -g")
 set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -DRELEASE -O3 -g")
 
 # Find includes in corresponding build directories
 set(CMAKE_INCLUDE_CURRENT_DIR ON)
-# Instruct CMake to run moc automatically when needed
-set(CMAKE_AUTOMOC ON)
-# Create code from a list of Qt designer ui files
-set(CMAKE_AUTOUIC ON)
 
 # Show compiler stdout
 set(CMAKE_VERBOSE_MAKEFILE ON)
@@ -48,9 +47,6 @@ include_directories(/usr/include/eigen3)
 include_directories(examples/mnist/include)
 include_directories(examples/cifar10/include)
 
-# Find the QtWidgets library
-find_package(Qt5Widgets CONFIG REQUIRED)
-
 # Find Image Magick++
 find_package(ImageMagick COMPONENTS Magick++)
 include_directories(${ImageMagick_INCLUDE_DIRS})
@@ -62,7 +58,9 @@ add_library (seegnify-common STATIC
 main/graph.cc
 main/storage.cc
 main/image.cc
+main/imageFP.cc
 main/tokenizer.cc
+main/graph.pb.cc
 )
 
 # client / server
@@ -70,7 +68,6 @@ add_executable (seegnify-training
 main/main.cc
 main/master.cc
 main/worker.cc
-main/graph.pb.cc
 )
 
 # unit tests
@@ -81,19 +78,6 @@ main/unittest.cc
 # full test
 add_library (seegnify-fulltest SHARED
 main/fulltest.cc
-)
-
-# RL
-add_library (seegnify-rl STATIC
-rl/env.cc
-rl/gui.cc
-rl/slider.cc
-rl/plot.cc
-)
-
-# RL GUI
-add_executable (seegnify-rl-gui
-rl/main.cc
 )
 
 # SELECTOR-GAUSSIAN
@@ -111,6 +95,16 @@ add_library (example-selector-sequence SHARED
 examples/selector-sequence.cc
 )
 
+# SELECTOR-NET2
+add_library (example-selector-net2 SHARED
+examples/selector-net2.cc
+)
+
+# COMPOSER-NET2
+add_library (example-composer-net2 SHARED
+examples/composer-net2.cc
+)
+
 # MNIST
 add_library (example-mnist SHARED
 examples/mnist.cc
@@ -122,34 +116,38 @@ examples/cifar10.cc
 )
 
 # CIFAR RL
-add_library (example-cifarRL SHARED
-examples/cifarRL.cc
-)
+#add_library (example-cifarRL SHARED
+#examples/cifarRL.cc
+#)
 
 # MNIST RL
-add_library (example-mnistRL SHARED
-examples/mnistRL.cc
-)
+#add_library (example-mnistRL SHARED
+#examples/mnistRL.cc
+#)
 
 # set dependency libs
-list(APPEND DL_LIBS pthread protobuf dl sndfile seegnify-common)
+list(APPEND DL_LIBS seegnify-common)
+list(APPEND DL_LIBS pthread protobuf dl)
 list(APPEND DL_LIBS PocoFoundation PocoNet)
-list(APPEND DL_LIBS Qt5::Widgets Magick++-6.Q16 MagickCore-6.Q16)
+list(APPEND DL_LIBS Magick++-6.Q16 MagickCore-6.Q16)
+
+# library build options
+target_compile_options(
+    seegnify-common PRIVATE 
+    -fPIC
+)
 
 # link targets
-target_link_libraries(seegnify-common Qt5::Widgets)
+target_link_libraries(seegnify-common)
 target_link_libraries(seegnify-training ${DL_LIBS})
 target_link_libraries(seegnify-unittest ${DL_LIBS})
 target_link_libraries(seegnify-fulltest ${DL_LIBS})
 
-target_link_libraries(seegnify-rl Qt5::Widgets)
-target_link_libraries(seegnify-rl-gui seegnify-rl Qt5::Widgets)
-
 target_link_libraries(example-selector-gaussian ${DL_LIBS})
 target_link_libraries(example-selector-softmax ${DL_LIBS})
 target_link_libraries(example-selector-sequence ${DL_LIBS})
+target_link_libraries(example-selector-net2 ${DL_LIBS})
+target_link_libraries(example-composer-net2 ${DL_LIBS})
 target_link_libraries(example-mnist ${DL_LIBS})
 target_link_libraries(example-cifar ${DL_LIBS})
-target_link_libraries(example-mnistRL ${DL_LIBS} seegnify-rl)
-target_link_libraries(example-cifarRL ${DL_LIBS} seegnify-rl)
 

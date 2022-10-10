@@ -176,6 +176,8 @@ ImageFP ImageFP::scale(uint32_t rows, uint32_t cols, Interpolation interp) const
       return scale_nearest(rows, cols);
     case INTERPOLATE_BILINEAR:
       return scale_bilinear(rows, cols);
+    default:
+      return ImageFP(rows,  cols, _channels);
   }
 }
 

@@ -71,6 +71,8 @@ public:
     _mydata = other._mydata;
 
     other.init();
+
+    return *this;
   }
 
   uint8_t *data() { return _data; }
