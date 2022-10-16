@@ -31,6 +31,8 @@ start() {
 
 ulimit -c unlimited
 
-start 9091 example-selector-gaussian
-start 9092 example-selector-softmax
-start 9093 example-selector-sequence
+#start 9091 example-selector-gaussian
+#start 9092 example-selector-softmax
+#start 9093 example-selector-sequence
+#start 9094 example-selector-net2
+start 9095 example-composer-net2

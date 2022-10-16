@@ -31,7 +31,7 @@
 #include "examples/selector-gaussian.hh"
 #include "examples/selector-softmax.hh"
 #include "examples/selector-sequence.hh"
-#include "examples/selector-net2.hh"
+#include "examples/composer-net2.hh"
 
 using namespace seegnify;
 
@@ -621,6 +621,9 @@ void test_back_propagation()
   auto& x = *g.new_variable(IN, 1);
   x.value() << 1, 2;
 
+  // diable backprop on X
+  x.backprop(false);
+
   // F = Wx + b
   auto& y = *g.new_linear(x, IN, OUT);
   
@@ -641,36 +644,42 @@ void test_back_propagation()
   ASSERT(F.rows() == OUT)
   ASSERT(F.cols() == 1)
 
-  // diable backprop on X
-  x.backprop(false);
+  y.gradient() = Tensor::Ones(OUT, 1);
+  auto& dFdW = W.backward();
+  auto& dFdb = b.backward();
+  auto& dFdx = x.backward();
 
   // dFdx
-  y.gradient() = Tensor::Ones(OUT, 1);
-  auto& dFdx = x.backward();
   ASSERT(dFdx.rows() == x.value().rows())
   ASSERT(dFdx.cols() == x.value().cols())
   ASSERT(dFdx == Tensor::Zero(IN, 1))
 
-  // dFdW
-  Tensor dFdW = g.dFdX(y, W);
-  ASSERT(dFdW.rows() == W.value().rows())
-  ASSERT(dFdW.cols() == W.value().cols())
+  // dFdW num
+  Tensor dFdW_num = g.dFdX(y, W);
+  ASSERT(dFdW_num.rows() == W.value().rows())
+  ASSERT(dFdW_num.cols() == W.value().cols())
 
   // dFdW_hat = x
   Tensor dFdW_hat(OUT, IN);
   dFdW_hat << 1, 2,
               1, 2,
-              1, 2,
-  ASSERT(dFdW.isApprox(dFdW_hat, 0.01))
+              1, 2;
+  ASSERT(dFdW_num.isApprox(dFdW_hat, 0.01))
 
-  // dFdb
-  Tensor dFdb = g.dFdX(y, b);
-  ASSERT(dFdb.rows() == b.value().rows())
-  ASSERT(dFdb.cols() == b.value().cols())
+  // dFdW
+  ASSERT(dFdW == dFdW_hat)
+
+  // dFdb num
+  Tensor dFdb_num = g.dFdX(y, b);
+  ASSERT(dFdb_num.rows() == b.value().rows())
+  ASSERT(dFdb_num.cols() == b.value().cols())
 
   // dFdb_hat = 1
   Tensor dFdb_hat = Tensor::Ones(OUT, 1);
-  ASSERT(dFdb.isApprox(dFdb_hat, 0.01))
+  ASSERT(dFdb_num.isApprox(dFdb_hat, 0.01))
+
+  // dFdb
+  ASSERT(dFdb == dFdb_hat)
 
   TEST_END()
 }
@@ -922,7 +931,7 @@ void test_join_backward()
 
   TEST_END()
 }
-/*
+
 void test_min_forward()
 {
   TEST_BEGIN("Min Forward")
@@ -982,7 +991,7 @@ void test_clip_backward()
 
   TEST_END()
 }
-*/
+
 void test_linear_forward()
 {
   TEST_BEGIN("Linear Forward")
@@ -3478,7 +3487,7 @@ void test_image_sampler()
   Graph g;
   Constant softmax(g, 4, 1);
   softmax.value() << 0.5, 0.0, 0.0, 0.5;
-
+  
   SoftmaxImageSelector is(g, softmax, img, 2, 2, ROWS, COLS);
   Image selected = is.select();
 
@@ -3566,7 +3575,7 @@ void test_image_sampler()
   model.save_image_selection("/home/greg/Pictures/selection-sequence.gif");
 
   TEST_END()
-
+/* 
   TEST_BEGIN("2xNet Selector Model")
 
   Image img;
@@ -3594,6 +3603,36 @@ void test_image_sampler()
 
   model.save_image_selection("/home/greg/Pictures/selection-net2.gif");
 
+  TEST_END()
+*/
+  TEST_BEGIN("2xNet Composer Model")
+  /*
+
+  Image img;
+  ASSERT(Image::Status::STATUS_OK == img.load(img_path1));
+
+  Graph g;
+  ASSERT(g.variables().size() == 0);
+
+  Net2ComposerModel model(g);
+  ASSERT(g.variables().size() > 0);
+
+  model.forward(img, true);
+
+  for (auto v: g.variables())
+  {
+    ASSERT(v->gradient().size() == 0);
+  }
+
+  model.backward();
+
+  for (auto v: g.variables())
+  {
+    ASSERT(v->gradient().size() > 0);
+  }
+
+  model.save_image_selection("/home/greg/Pictures/selection-net2.gif");
+  */
   TEST_END()
 }
 
@@ -3653,12 +3692,62 @@ void test_ImageFP()
   TEST_END()
 }
 
+void test_selector_composer()
+{
+  TEST_BEGIN("Image Selector/Composer")
+
+  const std::string img_path1 = "/home/greg/Pictures/test1.bmp";
+
+  Image image;
+  ASSERT(Image::Status::STATUS_OK == image.load(img_path1));
+
+  const int SELECTOR_ROWS = 100;
+  const int SELECTOR_COLS = 150;
+  const int COMPOSER_ROWS = image.rows();
+  const int COMPOSER_COLS = image.cols();
+
+  Graph g;
+
+  Constant center(g, 2, 1);
+  Constant radius(g, 2, 1);
+
+  center.value() << 0.25, 0.25;
+  radius.value() << 0.25, 0.25;
+
+  // selector
+  ImageSelector selector(g, center, radius, image,
+    SELECTOR_ROWS, SELECTOR_COLS);
+  Image selected = selector.select();
+
+  ASSERT(selected.rows() == SELECTOR_ROWS);
+  ASSERT(selected.cols() == SELECTOR_COLS);
+  ASSERT(selected.size() == SELECTOR_ROWS * SELECTOR_COLS * image.channels());
+  ASSERT(selected.channels() == image.channels());
+
+  ASSERT(Image::Status::STATUS_OK == selected.save("/home/greg/Pictures/selected.bmp"));
+
+  // composer
+  ImageComposer composer(g, center + 0.5, radius, selector,
+    SELECTOR_ROWS, SELECTOR_COLS, COMPOSER_ROWS, COMPOSER_COLS);
+  Image composed = composer.compose();
+
+  ASSERT(composed.rows() == COMPOSER_ROWS);
+  ASSERT(composed.cols() == COMPOSER_COLS);
+  ASSERT(composed.size() == COMPOSER_ROWS * COMPOSER_COLS * image.channels());
+  ASSERT(composed.channels() == image.channels());
+
+  ASSERT(Image::Status::STATUS_OK == composed.save("/home/greg/Pictures/composed.bmp"));
+
+  TEST_END()
+}
+
 /**
  * test entry point
  */ 
 int main(int argc, char* argv[]) {
   test_image_sampler();
   test_ImageFP();
+  test_selector_composer();
 
   test_eigen_fft();
   test_audio_file();
@@ -3684,7 +3773,6 @@ int main(int argc, char* argv[]) {
   test_join_forward();
   test_join_backward();
 
-/*
   test_min_forward();
   test_min_backward();
 
@@ -3693,7 +3781,6 @@ int main(int argc, char* argv[]) {
 
   test_clip_forward();
   test_clip_backward();
-*/
 
   test_linear_forward();
   test_linear_backward();
@@ -3783,7 +3870,7 @@ int main(int argc, char* argv[]) {
 
   test_average_convergence();
   test_adam_optimizer();
-  
+
   return 0;
 }
 
