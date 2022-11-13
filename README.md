@@ -50,6 +50,7 @@ the framework runs it in a distributed mode automatically.
 | main      | Distributed automatic differentiation library      |
 | rl        | Reinforcement-Learning environment                 |
 | examples  | Neural Network models and training samples         |
+| stream    | Alternative streaming-based weights aggregation    |
 
 ### Dependencies
 
