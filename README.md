@@ -137,4 +137,4 @@ Stop the training by sending SIGINT (Ctrl-C) signal to the master process.
 
 ## License
 
-Seegnify is licensed under the Apache License, Version 2.0, as found in the [LICENSE](LICENSE) file.
+All Rights Reserved.
