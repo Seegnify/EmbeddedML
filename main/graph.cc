@@ -2612,15 +2612,21 @@ void Graph::clear()
   for (auto e: _nodes) delete e;
   _nodes.clear();
   _vars.clear();
+  _names.clear();
 }
 
-// get function by id
-Function* Graph::function(int id) const
+// set function name
+Function* Graph::name(Function* f, const char* name)
 {
-  if (id < 0 or id >= _nodes.size())
-    return nullptr;
+  auto fit = std::find(_nodes.begin(), _nodes.end(), f);
+  if (fit != _nodes.end())
+  {
+    return _names[name] = f;
+  }
   else
-    return _nodes[id];
+  {
+    return nullptr;
+  }
 }
 
 // get function by name

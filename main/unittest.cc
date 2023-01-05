@@ -492,6 +492,24 @@ void test_function_negative()
   TEST_END()
 }
 
+void test_function_names()
+{
+  TEST_BEGIN("Function Names")
+  Graph g;
+
+  auto& c = *g.new_constant(2,3);
+  c.value() << -1,2,-3, 4,-5,6;
+  auto& mc = -c;
+
+  const char* name = "Negative Constant";
+  g.name(&mc, name);
+
+  auto named_mc = g.function(name);
+  ASSERT(named_mc == &mc);
+
+  TEST_END()
+}
+
 void test_constant()
 {
   TEST_BEGIN("Constant")
@@ -3483,6 +3501,7 @@ void test_image_sampler()
 
   Image img;
   ASSERT(Image::Status::STATUS_OK == img.load(img_path1));
+  ASSERT(img.channels() == SOFTMAX_SELECTED_CHANNELS);
 
   Graph g;
   Constant softmax(g, 4, 1);
@@ -3729,7 +3748,13 @@ void test_selector_composer()
   // composer
   ImageComposer composer(g, center + 0.5, radius, selector,
     SELECTOR_ROWS, SELECTOR_COLS, COMPOSER_ROWS, COMPOSER_COLS);
-  Image composed = composer.compose();
+  ImageFP ifp = composer.compose().norm(255);
+  Image composed(ifp.rows(), ifp.cols(), ifp.channels());
+
+  auto data = ifp.data();
+  auto im_data = composed.data();
+  auto im_size = composed.size();
+  for (auto i=im_size; i>0; i--) im_data[i-1] = std::round(data[i-1]);
 
   ASSERT(composed.rows() == COMPOSER_ROWS);
   ASSERT(composed.cols() == COMPOSER_COLS);
@@ -3757,6 +3782,7 @@ int main(int argc, char* argv[]) {
   test_random_numbers();
   test_discount_reward();
   test_function_negative();
+  test_function_names();
 
   test_constant();
   test_variable();

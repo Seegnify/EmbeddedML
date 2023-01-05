@@ -758,8 +758,8 @@ public:
   // random number generator
   RNG& random() { return _rng; }
 
-  // get function by id
-  Function* function(int id) const;
+  // set function name
+  Function* name(Function* f, const char* name);
 
   // get function by name
   Function* function(const char* name) const;
