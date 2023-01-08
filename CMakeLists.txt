@@ -63,6 +63,12 @@ main/tokenizer.cc
 main/graph.pb.cc
 )
 
+# library build options
+target_compile_options(
+    seegnify-common PRIVATE
+    -fPIC
+)
+
 # client / server
 add_executable (seegnify-training
 main/main.cc
@@ -80,29 +86,19 @@ add_library (seegnify-fulltest SHARED
 main/fulltest.cc
 )
 
-# SELECTOR-GAUSSIAN
-add_library (example-selector-gaussian SHARED
-examples/selector-gaussian.cc
+# COMPOSER-NET2
+add_library (example-composer-net2 SHARED
+examples/composer-net2.cc
 )
 
-# SELECTOR-SOFTMAX
-add_library (example-selector-softmax SHARED
-examples/selector-softmax.cc
-)
-
-# SELECTOR-SEQUENCE
-add_library (example-selector-sequence SHARED
-examples/selector-sequence.cc
+# TWIN-NET2
+add_library (example-twin-net2 SHARED
+examples/twin-net2.cc
 )
 
 # SELECTOR-NET2
 add_library (example-selector-net2 SHARED
 examples/selector-net2.cc
-)
-
-# COMPOSER-NET2
-add_library (example-composer-net2 SHARED
-examples/composer-net2.cc
 )
 
 # MNIST
@@ -115,27 +111,11 @@ add_library (example-cifar SHARED
 examples/cifar10.cc
 )
 
-# CIFAR RL
-#add_library (example-cifarRL SHARED
-#examples/cifarRL.cc
-#)
-
-# MNIST RL
-#add_library (example-mnistRL SHARED
-#examples/mnistRL.cc
-#)
-
 # set dependency libs
 list(APPEND DL_LIBS seegnify-common)
 list(APPEND DL_LIBS pthread protobuf dl)
 list(APPEND DL_LIBS PocoFoundation PocoNet)
 list(APPEND DL_LIBS Magick++-6.Q16 MagickCore-6.Q16)
-
-# library build options
-target_compile_options(
-    seegnify-common PRIVATE 
-    -fPIC
-)
 
 # link targets
 target_link_libraries(seegnify-common)
@@ -143,11 +123,9 @@ target_link_libraries(seegnify-training ${DL_LIBS})
 target_link_libraries(seegnify-unittest ${DL_LIBS})
 target_link_libraries(seegnify-fulltest ${DL_LIBS})
 
-target_link_libraries(example-selector-gaussian ${DL_LIBS})
-target_link_libraries(example-selector-softmax ${DL_LIBS})
-target_link_libraries(example-selector-sequence ${DL_LIBS})
 target_link_libraries(example-selector-net2 ${DL_LIBS})
 target_link_libraries(example-composer-net2 ${DL_LIBS})
+target_link_libraries(example-twin-net2 ${DL_LIBS})
 target_link_libraries(example-mnist ${DL_LIBS})
 target_link_libraries(example-cifar ${DL_LIBS})
 
