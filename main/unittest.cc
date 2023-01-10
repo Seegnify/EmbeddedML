@@ -954,8 +954,21 @@ void test_min_forward()
 {
   TEST_BEGIN("Min Forward")
 
-  // TODO: not implemented
-  ASSERT(false)
+  int IN = 4;
+  Graph g;
+
+  Variable x(g, IN, 1);
+  x.value() << -10, -200, 200, 10;
+
+  Constant zero(g, IN, 1);
+  zero.value() = Tensor::Zero(IN, 1);
+
+  auto& min = *g.new_min(100 - x, zero);
+
+  Tensor min_hat(IN, 1);
+  min_hat << 0, 0, -100, 0;
+
+  ASSERT(min() == min_hat)
 
   TEST_END()
 }
@@ -964,8 +977,27 @@ void test_min_backward()
 {
   TEST_BEGIN("Min Backward")
 
-  // TODO: not implemented
-  ASSERT(false)
+  int IN = 4;
+  Graph g;
+
+  Variable x(g, IN, 1);
+  x.value() << -10, -200, 200, 10;
+
+  Constant zero(g, IN, 1);
+  zero.value() = Tensor::Zero(IN, 1);
+
+  auto& min = *g.new_min(100 - x, zero);
+
+  auto dmin_dx_num = g.dFdX(min, x);
+  Tensor dmin_dx_hat(IN, 1);
+  dmin_dx_hat << 0, 0, -1, 0;
+
+  ASSERT(dmin_dx_num.isApprox(dmin_dx_hat, 0.01))
+
+  min.gradient() = Tensor::Ones(IN, 1);
+  auto dmin_dx = x.backward();
+
+  ASSERT(dmin_dx == dmin_dx_hat)
 
   TEST_END()
 }
@@ -974,8 +1006,21 @@ void test_max_forward()
 {
   TEST_BEGIN("Max Forward")
 
-  // TODO: not implemented
-  ASSERT(false)
+  int IN = 4;
+  Graph g;
+
+  Variable x(g, IN, 1);
+  x.value() << -10, -200, 200, 10;
+
+  Constant zero(g, IN, 1);
+  zero.value() = Tensor::Zero(IN, 1);
+
+  auto& max = *g.new_max(100 - x, zero);
+
+  Tensor max_hat(IN, 1);
+  max_hat << 110, 300, 0, 90;
+
+  ASSERT(max() == max_hat)
 
   TEST_END()
 }
@@ -984,8 +1029,27 @@ void test_max_backward()
 {
   TEST_BEGIN("Max Backward")
 
-  // TODO: not implemented
-  ASSERT(false)
+  int IN = 4;
+  Graph g;
+
+  Variable x(g, IN, 1);
+  x.value() << -10, -200, 200, 10;
+
+  Constant zero(g, IN, 1);
+  zero.value() = Tensor::Zero(IN, 1);
+
+  auto& max = *g.new_max(100 - x, zero);
+
+  auto dmax_dx_num = g.dFdX(max, x);
+  Tensor dmax_dx_hat(IN, 1);
+  dmax_dx_hat << -1, -1, 0, -1;
+
+  ASSERT(dmax_dx_num.isApprox(dmax_dx_hat, 0.01))
+
+  max.gradient() = Tensor::Ones(IN, 1);
+  auto dmax_dx = x.backward();
+
+  ASSERT(dmax_dx == dmax_dx_hat)
 
   TEST_END()
 }
