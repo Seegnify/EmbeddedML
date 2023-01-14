@@ -3832,7 +3832,39 @@ void test_rl_env()
 {
   TEST_BEGIN("RL Environment")
 
-  ASSERT(false)
+  int rows = 100;
+  int cols = 150;
+  
+  RLEnv env;
+  
+  Image image(rows, cols, 3); // random image
+  
+  env.set_data_rgb(image.data(), 1, rows, cols);
+  
+  env.new_episode();
+  env.enable_view_frame(true);
+
+  auto full = env.get_data_rgb();  
+  auto view = env.get_view_rgb();
+  
+  full.save("/home/greg/Pictures/rl-full.bmp");
+  view.save("/home/greg/Pictures/rl-view.bmp");
+
+  ASSERT(full.data()[0] == image.data()[0])
+  
+  // find top-left corner of view in full image
+  int frame_col = (full.cols() - view.cols()) / 2;
+  int frame_row = (full.rows() - view.rows()) / 2;
+  
+  // check if view frame is yellow
+  ASSERT(full.red(frame_row-1, frame_col-1) == 0xFF)
+  ASSERT(full.green(frame_row-1, frame_col-1) == 0xFF)
+  ASSERT(full.blue(frame_row-1, frame_col-1) == 0)
+  
+  // check if view matches the full image
+  ASSERT(full.red(frame_row, frame_col) == view.red(0,0))
+  ASSERT(full.green(frame_row, frame_col) == view.green(0,0))
+  ASSERT(full.blue(frame_row, frame_col) == view.blue(0,0))
 
   TEST_END()
 }
