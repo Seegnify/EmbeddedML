@@ -28,6 +28,7 @@
 #include "storage.hh"
 #include "image.hh"
 #include "imageFP.hh"
+#include "painter.hh"
 #include "examples/selector-gaussian.hh"
 #include "examples/selector-softmax.hh"
 #include "examples/selector-sequence.hh"
@@ -3775,6 +3776,57 @@ void test_ImageFP()
   TEST_END()
 }
 
+void test_painter()
+{
+  TEST_BEGIN("Painter")
+
+  //
+  // Square polygon
+  //
+  // (2,4)  -> (10,4)
+  //            \|/
+  // (10,4) <- (10,8)
+  //
+
+  PointVector square = {
+    Point(2,4), Point(10,4), Point(10,8), Point(2,8),
+  };
+
+  int rows = 10;
+  int cols = 15;
+
+  Painter painter(rows, cols);
+  painter.draw_polygon(square);
+  auto output = painter.output();
+
+  /*
+  Image image(rows, cols, 3);
+  memset(image.data(), 0, image.size());
+  for (auto it=output.begin(); it!=output.end(); it++)
+  {
+    auto& pt = *it;
+    image.set(pt.y(), pt.x(), 255, 255, 255);
+  }
+  image.save("/home/greg/Pictures/painter-square.bmp");
+  */
+
+  for (int y=0; y<rows; y++)
+  for (int x=0; x<cols; x++)
+  {
+    if (x >= 2 && x <= 10 &&
+        y >= 4 && y <= 8)
+    {
+      ASSERT(output.find(Point(x,y)) != output.end())
+    }
+    else
+    {
+      ASSERT(output.find(Point(x,y)) == output.end())
+    }
+  }
+
+  TEST_END()
+}
+
 void test_selector_composer()
 {
   TEST_BEGIN("Image Selector/Composer")
@@ -3836,6 +3888,7 @@ void test_selector_composer()
 int main(int argc, char* argv[]) {
   test_image_sampler();
   test_ImageFP();
+  test_painter();
   test_selector_composer();
 
   test_eigen_fft();
