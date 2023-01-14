@@ -29,6 +29,7 @@
 #include "image.hh"
 #include "imageFP.hh"
 #include "painter.hh"
+#include "rlenv.hh"
 #include "examples/selector-gaussian.hh"
 #include "examples/selector-softmax.hh"
 #include "examples/selector-sequence.hh"
@@ -3827,6 +3828,15 @@ void test_painter()
   TEST_END()
 }
 
+void test_rl_env()
+{
+  TEST_BEGIN("RL Environment")
+
+  ASSERT(false)
+
+  TEST_END()
+}
+
 void test_selector_composer()
 {
   TEST_BEGIN("Image Selector/Composer")
@@ -3889,6 +3899,7 @@ int main(int argc, char* argv[]) {
   test_image_sampler();
   test_ImageFP();
   test_painter();
+  test_rl_env();
   test_selector_composer();
 
   test_eigen_fft();

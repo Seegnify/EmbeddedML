@@ -79,6 +79,7 @@ main/worker.cc
 # unit tests
 add_executable (seegnify-unittest
 main/unittest.cc
+main/rlenv.cc
 )
 
 # full test
