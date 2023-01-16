@@ -33,13 +33,8 @@ public:
 
     ////////////////////////// instance RL API /////////////////////////////////
 
-    uint16_t get_actions_count();
-
-    bool is_episode_finished();
-
-    float make_action(uint16_t action);
-
     void new_episode();
+    std::string get_info();
 
     void set_data_rgb(uint8_t* rgb, uint16_t depth, uint16_t rows, uint16_t cols);
     void set_view_size(uint16_t rows, uint16_t cols);
@@ -52,23 +47,9 @@ public:
     Image get_data_rgb();
     Image get_view_rgb();
 
-    std::string get_info();
     void enable_view_frame(bool show) { show_view_frame = show; }
 
-    ////////////////////////// instance actions ////////////////////////////////
-
-    enum ACTION
-    {
-      ACTION_UP,
-      ACTION_DOWN,
-      ACTION_LEFT,
-      ACTION_RIGHT,
-      ACTION_FORWARD,
-      ACTION_BACKWARD,
-      ACTION_ZOOM_IN,
-      ACTION_ZOOM_OUT,
-      ACTION_END,
-    };
+    ////////////////////////// discrete actions ////////////////////////////////
 
     void action_up();
     void action_down();
@@ -79,9 +60,11 @@ public:
     void action_zoom_in();
     void action_zoom_out();
 
+    ////////////////////////// continous actions ///////////////////////////////
+
     void action_horizontal(float rx);
     void action_vertical(float ry);
-    void action_deep(float rz);
+    void action_depth(float rz);
     void action_zoom(float zoom);
 
     ////////////////////////// private methods /////////////////////////////////
@@ -92,17 +75,13 @@ protected:
     uint32_t view_row(uint32_t data_row);
     uint32_t view_col(uint32_t data_col);
 
-    virtual void reset();
     virtual void clear();
 
     void draw_agent_frame(Image& img);
 
-    virtual float get_reward();
-
 protected:
 
     // data
-    bool finished;
     uint8_t *data;
     uint16_t slices;
     uint16_t data_rows;
@@ -116,8 +95,6 @@ protected:
     float scale;
 
     // action cache
-    float total_reward;
-    uint16_t last_action;
     uint32_t action_step;
 
     // UI

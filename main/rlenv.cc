@@ -26,26 +26,14 @@
 
 namespace seegnify {
 
-// view settings
-#define VIEW_ROWS 16 // must be 32-bit aligned for Qt
-#define VIEW_COLS 16 // must be 32-bit aligned for Qt
-#define VIEW_CHANNELS 3 // 3 RGB
-
-// default data settings
-#define DATA_SLICES 2
-#define DATA_COLS 100
-#define DATA_ROWS 100
-
-// termination codintions
-#define MAX_ACTIONS 1000
-#define MIN_REWARD -1000
+// default image settings
+#define VIEW_ROWS 16 // default number of view rows
+#define VIEW_COLS 16 // default number of view cols
+#define CHANNELS 3   // default channles - RGB
 
 // scale range
 #define MAX_SCALE 10.0
 #define MIN_SCALE 0.1
-
-// default colors
-#define BG_COLOR  16
 
 // rounding routine
 #define ROUND(a) ((int)round((a)))
@@ -74,13 +62,13 @@ RLEnv::RLEnv()
 
   show_view_frame = false;
 
-  slices = DATA_SLICES;
-  data_rows = DATA_ROWS;
-  data_cols = DATA_COLS;
+  slices = 0;
+  data_rows = 0;
+  data_cols = 0;
   view_rows = VIEW_ROWS;
   view_cols = VIEW_COLS;
 
-  reset();
+  new_episode();
 }
 
 RLEnv::~RLEnv()
@@ -90,48 +78,14 @@ RLEnv::~RLEnv()
 
 ////////////////////////// instance RL API /////////////////////////////////
 
-uint16_t RLEnv::get_actions_count()
-{
-  return ACTION_END;
-}
-
-bool RLEnv::is_episode_finished()
-{
-  return finished || action_step > MAX_ACTIONS || total_reward < MIN_REWARD;
-}
-
 void RLEnv::new_episode()
 {
-  finished = false;
-
-  last_action = ACTION_END;
   action_step = 0;
-  total_reward = 0;
-
   scale = 1.0;
-}
 
-float RLEnv::make_action(uint16_t action)
-{
-  last_action = action;
-
-  switch(action)
-  {
-    case ACTION_UP:         action_up(); break;
-    case ACTION_DOWN:       action_down(); break;
-    case ACTION_LEFT:       action_left(); break;
-    case ACTION_RIGHT:      action_right(); break;
-    case ACTION_FORWARD:    action_forward(); break;
-    case ACTION_BACKWARD:   action_backward(); break;
-    case ACTION_ZOOM_IN:    action_zoom_in(); break;
-    case ACTION_ZOOM_OUT:   action_zoom_out(); break;
-  };
-
-  if (last_action >= ACTION_END) finished = true;
-
-  auto r = get_reward();
-  total_reward += r;
-  return r;
+  slice = 0;
+  x = data_cols / 2;
+  y = data_rows / 2;
 }
 
 void RLEnv::set_data_rgb(uint8_t *data, uint16_t slices, uint16_t rows, uint16_t cols)
@@ -143,7 +97,7 @@ void RLEnv::set_data_rgb(uint8_t *data, uint16_t slices, uint16_t rows, uint16_t
     clear();
 
   // allocated data if needed  
-  int size = VIEW_CHANNELS * slices * rows * cols;
+  int size = CHANNELS * slices * rows * cols;
   if (this->data == nullptr) this->data = new uint8_t[size];
   memcpy(this->data, data, size);
 
@@ -151,8 +105,6 @@ void RLEnv::set_data_rgb(uint8_t *data, uint16_t slices, uint16_t rows, uint16_t
   this->slices = slices;
   this->data_rows = rows;
   this->data_cols = cols;
-
-  reset();
 }
 
 void RLEnv::set_view_size(uint16_t rows, uint16_t cols)
@@ -181,8 +133,8 @@ Image RLEnv::get_data_rgb()
   auto slice = ROUND(this->slice);
 
   // draw data view
-  int slice_offset = VIEW_CHANNELS * slice * data_rows * data_cols;
-  Image view(data + slice_offset, data_rows, data_cols, 3);
+  int slice_offset = CHANNELS * slice * data_rows * data_cols;
+  Image view(data + slice_offset, data_rows, data_cols, CHANNELS);
   
   // copy data view
   Image img(view.rows(), view.cols(), view.channels());
@@ -222,20 +174,15 @@ std::string RLEnv::get_info()
   auto x = ROUND(this->x);
   auto y = ROUND(this->y);
 
-  auto reward = get_reward();
-
   sprintf(buf, "Image %d / %d", slice+1, slices); os << buf << std::endl;
   sprintf(buf, "Image Size [%d %d]", data_cols, data_rows); os << buf << std::endl;
   sprintf(buf, "View [%d %d] [%d %d]", ax, ay, bx, by); os << buf << std::endl;
   sprintf(buf, "View Size [%d %d]", ac, ar); os << buf << std::endl;
-  sprintf(buf, "Channels %d", VIEW_CHANNELS); os << buf << std::endl;
-  sprintf(buf, "Actions %d", get_actions_count()); os << buf << std::endl;
+  sprintf(buf, "Channels %d", CHANNELS); os << buf << std::endl;
   sprintf(buf, "Step %d", action_step); os << buf << std::endl;
   sprintf(buf, "Scale %.3f", scale); os << buf << std::endl;
   sprintf(buf, "Position [%d %d]", x, y); os << buf << std::endl;
-  sprintf(buf, "Finished %s", (finished)?"Y":"N"); os << buf << std::endl;
-  sprintf(buf, "Reward %.4f", reward); os << buf << std::endl;
-  sprintf(buf, "All Reward %.4f", total_reward); os << buf << std::endl;
+  sprintf(buf, "Depth [%d]", slice); os << buf << std::endl;
 
   return os.str();
 }
@@ -306,17 +253,17 @@ void RLEnv::action_horizontal(float rx)
 {
   action_step += 1;
 
-  x += rx * VIEW_COLS / scale;
+  x += rx * view_cols / scale;
 }
 
 void RLEnv::action_vertical(float ry)
 {
   action_step += 1;
 
-  y += ry * VIEW_ROWS / scale;
+  y += ry * view_rows / scale;
 }
 
-void RLEnv::action_deep(float rz)
+void RLEnv::action_depth(float rz)
 {
   action_step += 1;
 
@@ -357,13 +304,6 @@ uint32_t RLEnv::view_col(uint32_t data_col)
   return DATA_X(data_col);
 }
 
-void RLEnv::reset()
-{
-  slice = 0;
-  x = data_cols / 2;
-  y = data_rows / 2;
-}
-
 void RLEnv::clear()
 {
   delete[] data;
@@ -391,11 +331,6 @@ void RLEnv::draw_agent_frame(Image& img)
       img.set(pt.y(), pt.x(), 0xFF, 0xFF, 0x00); // yellow
     }
   }
-}
-
-float RLEnv::get_reward()
-{
-  return 0;
 }
 
 } /* namespace */
