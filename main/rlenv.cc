@@ -78,7 +78,7 @@ void RLEnv::new_episode()
 
 void RLEnv::set_data_rgb(
   const uint8_t* rgb,
-  uint16_t depth, uint16_t rows, uint16_t cols
+  uint16_t slices, uint16_t rows, uint16_t cols
 )
 {
   // clear data if needed
@@ -90,7 +90,7 @@ void RLEnv::set_data_rgb(
   // allocated data if needed  
   int size = CHANNELS * slices * rows * cols;
   if (this->data == nullptr) this->data = new uint8_t[size];
-  memcpy(this->data, data, size);
+  memcpy(this->data, rgb, size);
 
   // update dimenstions
   this->slices = slices;

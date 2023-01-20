@@ -26,7 +26,7 @@ public:
 
     void set_data_rgb(
       const uint8_t* rgb,
-      uint16_t depth, uint16_t rows, uint16_t cols
+      uint16_t slices, uint16_t rows, uint16_t cols
     );
     void set_view_size(uint16_t rows, uint16_t cols);
 
