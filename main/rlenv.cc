@@ -76,7 +76,10 @@ void RLEnv::new_episode()
   y = data_rows / 2;
 }
 
-void RLEnv::set_data_rgb(uint8_t *data, uint16_t slices, uint16_t rows, uint16_t cols)
+void RLEnv::set_data_rgb(
+  const uint8_t* rgb,
+  uint16_t depth, uint16_t rows, uint16_t cols
+)
 {
   // clear data if needed
   if (this->slices != slices || 

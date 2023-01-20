@@ -24,7 +24,10 @@ public:
     void new_episode();
     std::string get_info();
 
-    void set_data_rgb(uint8_t* rgb, uint16_t depth, uint16_t rows, uint16_t cols);
+    void set_data_rgb(
+      const uint8_t* rgb,
+      uint16_t depth, uint16_t rows, uint16_t cols
+    );
     void set_view_size(uint16_t rows, uint16_t cols);
 
     ////////////////////////// instance UI API /////////////////////////////////
