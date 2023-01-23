@@ -31,9 +31,9 @@ namespace seegnify {
 #define OFFSET_Y() ROUND(this->y - this->view_cols/2.0/this->scale)
 
 // real dimensions
-#define DATA_X(ax) ROUND((ax) / this->scale + (OFFSET_X()))
-#define DATA_Y(ay) ROUND((ay) / this->scale + (OFFSET_Y()))
-#define DATA_L(al) ROUND((al) / this->scale) // data length
+#define FULL_X(ax) ROUND((ax) / this->scale + (OFFSET_X()))
+#define FULL_Y(ay) ROUND((ay) / this->scale + (OFFSET_Y()))
+#define FULL_L(al) ROUND((al) / this->scale) // data length
 
 // view dimensions
 #define VIEW_X(rx) ROUND((rx - (OFFSET_X())) * this->scale)
@@ -42,17 +42,21 @@ namespace seegnify {
 
 // view/data array index
 #define VIEW_I(x,y,channel) (3*((y)*this->view_cols + (x)) + (channel))
-#define DATA_I(x,y,channel) (3*((y)*this->data_cols + (x)) + (channel))
+#define DATA_I(x,y,channel) (3*((y)*this->full_cols + (x)) + (channel))
+
+// frame color
+#define FRAME_RGB 0x00FFFF
 
 RLEnv::RLEnv()
 {
   data = nullptr;
 
+  show_full_frame = false;
   show_view_frame = false;
 
   slices = 0;
-  data_rows = 0;
-  data_cols = 0;
+  full_rows = 0;
+  full_cols = 0;
   view_rows = VIEW_ROWS;
   view_cols = VIEW_COLS;
 
@@ -72,19 +76,19 @@ void RLEnv::new_episode()
   scale = 1.0;
 
   slice = 0;
-  x = data_cols / 2;
-  y = data_rows / 2;
+  x = full_cols / 2;
+  y = full_rows / 2;
 }
 
-void RLEnv::set_data_rgb(
+void RLEnv::set_full_rgb(
   const uint8_t* rgb,
   uint16_t slices, uint16_t rows, uint16_t cols
 )
 {
   // clear data if needed
   if (this->slices != slices || 
-      this->data_rows != rows || 
-      this->data_cols != cols)
+      this->full_rows != rows ||
+      this->full_cols != cols)
     clear();
 
   // allocated data if needed  
@@ -94,8 +98,8 @@ void RLEnv::set_data_rgb(
 
   // update dimenstions
   this->slices = slices;
-  this->data_rows = rows;
-  this->data_cols = cols;
+  this->full_rows = rows;
+  this->full_cols = cols;
 }
 
 void RLEnv::set_view_size(uint16_t rows, uint16_t cols)
@@ -106,45 +110,47 @@ void RLEnv::set_view_size(uint16_t rows, uint16_t cols)
 
 ////////////////////////// instance UI API /////////////////////////////////
 
-void RLEnv::get_data_size(uint16_t& data_rows, uint16_t& data_cols)
+void RLEnv::get_full_size(uint16_t& full_rows, uint16_t& full_cols)
 {
-  data_rows = this->data_rows;
-  data_cols = this->data_cols;
+  full_rows = this->full_rows;
+  full_cols = this->full_cols;
 }
 
-void RLEnv::get_view_size(uint16_t& data_rows, uint16_t& data_cols)
+void RLEnv::get_view_size(uint16_t& view_rows, uint16_t& view_cols)
 {
-  data_rows = this->view_rows;
-  data_cols = this->view_cols;
+  view_rows = this->view_rows;
+  view_cols = this->view_cols;
 }
 
-Image RLEnv::get_data_rgb()
+Image RLEnv::get_full_rgb()
 {
   // get slice index
   auto slice = ROUND(this->slice);
 
-  // draw data view
-  int slice_offset = CHANNELS * slice * data_rows * data_cols;
-  Image view(data + slice_offset, data_rows, data_cols, CHANNELS);
+  // copy full data
+  int slice_offset = CHANNELS * slice * full_rows * full_cols;
+  Image full(full_rows, full_cols, CHANNELS);
+  memcpy(full.data(), data + slice_offset, full.size());
   
-  // copy data view
-  Image img(view.rows(), view.cols(), view.channels());
-  memcpy(img.data(), view.data(), view.size());
+  // draw view frame
+  draw_view_frame(full);
 
-  // draw agent frame
-  draw_agent_frame(img);
-
-  return img;
+  return full;
 }
 
 Image RLEnv::get_view_rgb()
 {
   // crop data to agent view
-  Image real = get_data_rgb();
-  auto view = real.crop(DATA_Y(0), DATA_X(0), DATA_L(view_rows), DATA_L(view_cols));
+  Image full = get_full_rgb();
+  auto view = full.crop(FULL_Y(0), FULL_X(0), FULL_L(view_rows), FULL_L(view_cols));
 
   // zoom to fit agent view
-  return view.scale(view_rows, view_cols);
+  view = view.scale(view_rows, view_cols);
+
+  // draw full frame
+  draw_full_frame(view);
+
+  return view;
 }
 
 std::string RLEnv::get_info()
@@ -155,18 +161,18 @@ std::string RLEnv::get_info()
   auto ac = view_cols;
   auto ar = view_rows;
 
-  auto ax = DATA_X(0);
-  auto ay = DATA_Y(0);
+  auto ax = FULL_X(0);
+  auto ay = FULL_Y(0);
   
-  auto bx = DATA_X(ac);
-  auto by = DATA_Y(ar);
+  auto bx = FULL_X(ac);
+  auto by = FULL_Y(ar);
 
   auto slice = ROUND(this->slice);
   auto x = ROUND(this->x);
   auto y = ROUND(this->y);
 
   sprintf(buf, "Image %d / %d", slice+1, slices); os << buf << std::endl;
-  sprintf(buf, "Image Size [%d %d]", data_cols, data_rows); os << buf << std::endl;
+  sprintf(buf, "Image Size [%d %d]", full_cols, full_rows); os << buf << std::endl;
   sprintf(buf, "View [%d %d] [%d %d]", ax, ay, bx, by); os << buf << std::endl;
   sprintf(buf, "View Size [%d %d]", ac, ar); os << buf << std::endl;
   sprintf(buf, "Channels %d", CHANNELS); os << buf << std::endl;
@@ -233,7 +239,7 @@ void RLEnv::action_zoom_out()
 {
   action_step += 1;
 
-  float min_s = MIN_SCALE * std::fmin(float(view_rows) / data_rows, float(view_cols) / data_cols);
+  float min_s = MIN_SCALE * std::fmin(float(view_rows) / full_rows, float(view_cols) / full_cols);
  
   auto s = scale / 2;
 
@@ -277,22 +283,22 @@ void RLEnv::action_zoom(float zoom)
 
 uint32_t RLEnv::data_row(uint32_t view_row)
 {
-  return DATA_Y(view_row);
+  return FULL_Y(view_row);
 }
 
 uint32_t RLEnv::data_col(uint32_t view_col)
 {
-  return DATA_X(view_col);
+  return FULL_X(view_col);
 }
 
-uint32_t RLEnv::view_row(uint32_t data_row)
+uint32_t RLEnv::view_row(uint32_t full_row)
 {
-  return DATA_Y(data_row);
+  return VIEW_Y(full_row);
 }
 
-uint32_t RLEnv::view_col(uint32_t data_col)
+uint32_t RLEnv::view_col(uint32_t full_col)
 {
-  return DATA_X(data_col);
+  return VIEW_X(full_col);
 }
 
 void RLEnv::clear()
@@ -301,25 +307,56 @@ void RLEnv::clear()
   data = nullptr;
 }
 
-void RLEnv::draw_agent_frame(Image& img)
+void RLEnv::draw_full_frame(Image& img)
+{
+  if (show_full_frame)
+  {
+    PointVector frame = {
+      Point(VIEW_X(0)-1, VIEW_Y(0)-1),
+      Point(VIEW_X(0)-1 + VIEW_L(full_cols)+1, VIEW_Y(0)-1),
+      Point(VIEW_X(0)-1 + VIEW_L(full_cols)+1, VIEW_Y(0)-1 + VIEW_L(full_rows)+1),
+      Point(VIEW_X(0)-1, VIEW_Y(0)-1 + VIEW_L(full_rows)+1),
+    };
+
+    Painter painter(img.rows(), img.cols());
+    painter.draw_polyline(frame, true);
+    auto points = painter.output();
+
+    for (auto it=points.begin(); it!=points.end(); it++)
+    {
+      auto& pt = *it;
+      img.set(pt.y(), pt.x(),
+        (FRAME_RGB & 0xFF0000) >> 16,
+        (FRAME_RGB & 0x00FF00) >> 8,
+        (FRAME_RGB & 0x0000FF)
+      );
+    }
+  }
+}
+
+void RLEnv::draw_view_frame(Image& img)
 {
   if (show_view_frame)
   {
     PointVector frame = {
-      Point(DATA_X(0)-1, DATA_Y(0)-1),
-      Point(DATA_X(0)-1 + DATA_L(view_cols)+1, DATA_Y(0)-1),
-      Point(DATA_X(0)-1 + DATA_L(view_cols)+1, DATA_Y(0)-1 + DATA_L(view_rows)+1),
-      Point(DATA_X(0)-1, DATA_Y(0)-1 + DATA_L(view_rows)+1),
+      Point(FULL_X(0)-1, FULL_Y(0)-1),
+      Point(FULL_X(0)-1 + FULL_L(view_cols)+1, FULL_Y(0)-1),
+      Point(FULL_X(0)-1 + FULL_L(view_cols)+1, FULL_Y(0)-1 + FULL_L(view_rows)+1),
+      Point(FULL_X(0)-1, FULL_Y(0)-1 + FULL_L(view_rows)+1),
     };
-  
+
     Painter painter(img.rows(), img.cols());
     painter.draw_polyline(frame, true);
     auto points = painter.output();
-    
+
     for (auto it=points.begin(); it!=points.end(); it++)
     {
       auto& pt = *it;
-      img.set(pt.y(), pt.x(), 0xFF, 0xFF, 0x00); // yellow
+      img.set(pt.y(), pt.x(),
+        (FRAME_RGB & 0xFF0000) >> 16,
+        (FRAME_RGB & 0x00FF00) >> 8,
+        (FRAME_RGB & 0x0000FF)
+      );
     }
   }
 }

@@ -3830,7 +3830,7 @@ void test_painter()
 
 void test_rl_env()
 {
-  TEST_BEGIN("RL Environment")
+  TEST_BEGIN("RL Env Center")
 
   int rows = 100;
   int cols = 150;
@@ -3839,16 +3839,16 @@ void test_rl_env()
   
   Image image(rows, cols, 3); // random image
   
-  env.set_data_rgb(image.data(), 1, rows, cols);
+  env.set_full_rgb(image.data(), 1, rows, cols);
   
   env.new_episode();
   env.enable_view_frame(true);
 
-  auto full = env.get_data_rgb();  
+  auto full = env.get_full_rgb();
   auto view = env.get_view_rgb();
   
-  full.save("/home/greg/Pictures/rl-full.bmp");
-  view.save("/home/greg/Pictures/rl-view.bmp");
+  full.save("/home/greg/Pictures/rl-center-full.bmp");
+  view.save("/home/greg/Pictures/rl-center-view.bmp");
 
   ASSERT(full.data()[0] == image.data()[0])
   
@@ -3857,14 +3857,60 @@ void test_rl_env()
   int frame_row = (full.rows() - view.rows()) / 2;
   
   // check if view frame is yellow
-  ASSERT(full.red(frame_row-1, frame_col-1) == 0xFF)
+  ASSERT(full.red(frame_row-1, frame_col-1) == 0x00)
   ASSERT(full.green(frame_row-1, frame_col-1) == 0xFF)
-  ASSERT(full.blue(frame_row-1, frame_col-1) == 0)
+  ASSERT(full.blue(frame_row-1, frame_col-1) == 0xFF)
   
   // check if view matches the full image
   ASSERT(full.red(frame_row, frame_col) == view.red(0,0))
   ASSERT(full.green(frame_row, frame_col) == view.green(0,0))
   ASSERT(full.blue(frame_row, frame_col) == view.blue(0,0))
+
+  TEST_END()
+
+  TEST_BEGIN("RL Env Corner")
+
+  int rows = 100;
+  int cols = 150;
+  int view_rows = 20;
+  int view_cols = 20;
+    
+  RLEnv env;
+  env.set_view_size(view_rows, view_cols);
+  
+  Image image(rows, cols, 3); // random image
+  
+  env.set_full_rgb(image.data(), 1, rows, cols);
+  
+  env.new_episode();
+  env.enable_full_frame(true);
+  env.enable_view_frame(true);
+
+  // move view to bottom-right corner of the full image
+  env.action_horizontal(0.5*cols/view_cols);
+  env.action_vertical(0.5*rows/view_rows);
+
+  auto full = env.get_full_rgb();
+  auto view = env.get_view_rgb();
+  
+  full.save("/home/greg/Pictures/rl-corner-full.bmp");
+  view.save("/home/greg/Pictures/rl-corner-view.bmp");
+
+  ASSERT(full.data()[0] == image.data()[0])
+  
+  // find bottom-right corner of the full image in the view
+  int frame_col = view_cols / 2;
+  int frame_row = view_rows / 2;
+  
+  // check if full frame is yellow
+  ASSERT(view.red(frame_row, frame_col) == 0x00)
+  ASSERT(view.green(frame_row, frame_col) == 0xFF)
+  ASSERT(view.blue(frame_row, frame_col) == 0xFF)
+  
+  // check if view matches the full image
+  ASSERT(full.red(rows-1, cols-1) == view.red(frame_row-1, frame_col-1))
+  ASSERT(full.green(rows-1, cols-1) == view.green(frame_row-1, frame_col-1))
+  ASSERT(full.blue(rows-1, cols-1) == view.blue(frame_row-1, frame_col-1))
 
   TEST_END()
 }

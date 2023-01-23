@@ -24,7 +24,7 @@ public:
     void new_episode();
     std::string get_info();
 
-    void set_data_rgb(
+    void set_full_rgb(
       const uint8_t* rgb,
       uint16_t slices, uint16_t rows, uint16_t cols
     );
@@ -32,12 +32,13 @@ public:
 
     ////////////////////////// instance UI API /////////////////////////////////
 
-    void get_data_size(uint16_t& rows, uint16_t& cols);
+    void get_full_size(uint16_t& rows, uint16_t& cols);
     void get_view_size(uint16_t& rows, uint16_t& cols);
 
-    Image get_data_rgb();
+    Image get_full_rgb();
     Image get_view_rgb();
 
+    void enable_full_frame(bool show) { show_full_frame = show; }
     void enable_view_frame(bool show) { show_view_frame = show; }
 
     ////////////////////////// discrete actions ////////////////////////////////
@@ -68,15 +69,16 @@ protected:
 
     virtual void clear();
 
-    void draw_agent_frame(Image& img);
+    void draw_full_frame(Image& img);
+    void draw_view_frame(Image& img);
 
 protected:
 
     // data
     uint8_t *data;
     uint16_t slices;
-    uint16_t data_rows;
-    uint16_t data_cols;
+    uint16_t full_rows;
+    uint16_t full_cols;
     uint16_t view_rows;
     uint16_t view_cols;
 
@@ -89,6 +91,7 @@ protected:
     uint32_t action_step;
 
     // UI
+    bool show_full_frame;
     bool show_view_frame;
 };
 
