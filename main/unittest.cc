@@ -3934,38 +3934,53 @@ void test_selector_composer()
   Constant center(g, 2, 1);
   Constant radius(g, 2, 1);
 
+  // top left quarter of the image
   center.value() << 0.25, 0.25;
   radius.value() << 0.25, 0.25;
 
   // selector
   ImageSelector selector(g, center, radius, image,
     SELECTOR_ROWS, SELECTOR_COLS);
-  Image selected = selector.select();
+  Image selected = selector.to_image(selector());
 
   ASSERT(selected.rows() == SELECTOR_ROWS);
   ASSERT(selected.cols() == SELECTOR_COLS);
   ASSERT(selected.size() == SELECTOR_ROWS * SELECTOR_COLS * image.channels());
   ASSERT(selected.channels() == image.channels());
 
-  ASSERT(Image::Status::STATUS_OK == selected.save("/home/greg/Pictures/selected.bmp"));
+  ASSERT(Image::Status::STATUS_OK == selected.save(
+    "/home/greg/Pictures/selected.bmp"
+  ));
 
-  // composer
+  // composer @ bottom right quarter of the image
   ImageComposer composer(g, center + 0.5, radius, selector,
     SELECTOR_ROWS, SELECTOR_COLS, COMPOSER_ROWS, COMPOSER_COLS);
-  ImageFP ifp = composer.compose().norm(255);
-  Image composed(ifp.rows(), ifp.cols(), ifp.channels());
-
-  auto data = ifp.data();
-  auto im_data = composed.data();
-  auto im_size = composed.size();
-  for (auto i=im_size; i>0; i--) im_data[i-1] = std::round(data[i-1]);
+  Image composed = composer.to_image(composer());
 
   ASSERT(composed.rows() == COMPOSER_ROWS);
   ASSERT(composed.cols() == COMPOSER_COLS);
   ASSERT(composed.size() == COMPOSER_ROWS * COMPOSER_COLS * image.channels());
   ASSERT(composed.channels() == image.channels());
 
-  ASSERT(Image::Status::STATUS_OK == composed.save("/home/greg/Pictures/composed.bmp"));
+  ASSERT(Image::Status::STATUS_OK == composed.save(
+    "/home/greg/Pictures/composed.bmp"
+  ));
+
+  // back from composer to selector
+  ImageSelector selector2(g, center + 0.5, radius, composed,
+    SELECTOR_ROWS, SELECTOR_COLS);
+  Image selected2 = selector2.to_image(selector2());
+
+  ASSERT(selected2.rows() == SELECTOR_ROWS);
+  ASSERT(selected2.cols() == SELECTOR_COLS);
+  ASSERT(selected2.size() == SELECTOR_ROWS * SELECTOR_COLS * composed.channels());
+  ASSERT(selected2.channels() == composed.channels());
+
+  ASSERT(Image::Status::STATUS_OK == selected.save(
+    "/home/greg/Pictures/selected2.bmp"
+  ));
+
+  ASSERT(selector() == selector2());
 
   TEST_END()
 }
