@@ -481,8 +481,8 @@ Function(graph), _x(x), _y(y)
       auto& y = _base._y.forward();
 
       // compute gradient mask
-      auto one = Tensor::Constant(x.rows(), x.cols(), 1);
-      auto zero = Tensor::Constant(x.rows(), x.cols(), 0);
+      auto one = Tensor::Ones(x.rows(), x.cols());
+      auto zero = Tensor::Zero(x.rows(), x.cols());
       auto dFdx_mask = (x.array() < y.array()).select(one, zero);
       auto dFdy_mask = (x.array() > y.array()).select(one, zero);
 
@@ -513,8 +513,8 @@ Function(graph), _x(x), _y(y)
       auto& y = _base._y.forward();
 
       // compute gradient mask
-      auto one = Tensor::Constant(x.rows(), x.cols(), 1);
-      auto zero = Tensor::Constant(x.rows(), x.cols(), 0);
+      auto one = Tensor::Ones(x.rows(), x.cols());
+      auto zero = Tensor::Zero(x.rows(), x.cols());
       auto dFdx_mask = (x.array() < y.array()).select(one, zero);
       auto dFdy_mask = (x.array() > y.array()).select(one, zero);
 
@@ -573,8 +573,8 @@ Function(graph), _x(x), _y(y)
       auto& y = _base._y.forward();
 
       // compute gradient mask
-      auto one = Tensor::Constant(x.rows(), x.cols(), 1);
-      auto zero = Tensor::Constant(x.rows(), x.cols(), 0);
+      auto one = Tensor::Ones(x.rows(), x.cols());
+      auto zero = Tensor::Zero(x.rows(), x.cols());
       auto dFdx_mask = (x.array() > y.array()).select(one, zero);
 
       // update gradient value
@@ -604,8 +604,8 @@ Function(graph), _x(x), _y(y)
       auto& y = _base._y.forward();
 
       // compute gradient mask
-      auto one = Tensor::Constant(x.rows(), x.cols(), 1);
-      auto zero = Tensor::Constant(x.rows(), x.cols(), 0);
+      auto one = Tensor::Ones(x.rows(), x.cols());
+      auto zero = Tensor::Zero(x.rows(), x.cols());
       auto dFdy_mask = (x.array() < y.array()).select(one, zero);
 
       // update gradient value
@@ -1365,13 +1365,13 @@ const Tensor& Dropout::forward()
   {
     auto random = [&]() { return _graph.random().uniform_dec(0, 1); };
     auto mask = Tensor::NullaryExpr(x.rows(), x.cols(), random);
-    auto zero = Tensor::Constant(x.rows(), x.cols(), 0);
-    auto ones = Tensor::Constant(x.rows(), x.cols(), 1);
+    auto zero = Tensor::Zero(x.rows(), x.cols());
+    auto ones = Tensor::Ones(x.rows(), x.cols());
     _mask = (mask.array() < _rate).select(zero, ones);
   }
   else
   {
-    _mask = Tensor::Constant(x.rows(), x.cols(), 1);
+    _mask = Tensor::Ones(x.rows(), x.cols());
   }
 
   // update value
@@ -1496,7 +1496,7 @@ const Tensor& Softplus::forward()
   // so for numerical stability use: log(1+exp(-abs(x))) + max(x,0)
   
   // create cached value
-  auto zero = Tensor::Constant(x.rows(), x.cols(), 0);
+  auto zero = Tensor::Zero(x.rows(), x.cols());
   auto max_x_0 = x.array().max(zero.array());
   _value = (1 + (-x.array().abs()).exp()).log() + max_x_0;
 
@@ -2433,7 +2433,7 @@ Function(graph)
       if (_value.size()) return _value;
 
       auto& g = _base.backward();
-      // auto dFdz = Tensor::Constant(g.rows(), g.cols(), 1);
+      // auto dFdz = Tensor::Ones(g.rows(), g.cols());
 
       // update gradient value
       _value = g.array() /** dFdz.array()*/;
