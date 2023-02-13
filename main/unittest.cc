@@ -3929,7 +3929,9 @@ void test_selector_composer()
   // selector
   ImageSelector selector(g, center, radius, image,
     SELECTOR_ROWS, SELECTOR_COLS);
-  Image selected = selector.to_image(selector());
+  Image selected = ImageUtils::to_image(
+    selector(), SELECTOR_ROWS, SELECTOR_COLS
+  );
 
   ASSERT(selected.rows() == SELECTOR_ROWS);
   ASSERT(selected.cols() == SELECTOR_COLS);
@@ -3943,7 +3945,9 @@ void test_selector_composer()
   // composer @ bottom right quarter of the image
   ImageComposer composer(g, center + 0.5, radius, selector,
     SELECTOR_ROWS, SELECTOR_COLS, COMPOSER_ROWS, COMPOSER_COLS);
-  Image composed = composer.to_image(composer());
+  Image composed = ImageUtils::to_image(
+    ImageUtils::normalize(composer()), COMPOSER_ROWS, COMPOSER_COLS
+  );
 
   ASSERT(composed.rows() == COMPOSER_ROWS);
   ASSERT(composed.cols() == COMPOSER_COLS);
@@ -3957,7 +3961,9 @@ void test_selector_composer()
   // back from composer to selector
   ImageSelector selector2(g, center + 0.5, radius, composed,
     SELECTOR_ROWS, SELECTOR_COLS);
-  Image selected2 = selector2.to_image(selector2());
+  Image selected2 = ImageUtils::to_image(
+    selector2(), SELECTOR_ROWS, SELECTOR_COLS
+  );
 
   ASSERT(selected2.rows() == SELECTOR_ROWS);
   ASSERT(selected2.cols() == SELECTOR_COLS);
