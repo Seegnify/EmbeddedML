@@ -117,24 +117,44 @@ public:
   virtual void update() = 0;
 };
 
-// SGD optimizer
+// SGD + momentum optimizer
 class SGD : public Optimizer
 {
 public:
-  SGD(const std::vector<Variable*>& vars, DTYPE lr = LEARNING_RATE)
+  SGD(const std::vector<Variable*>& vars, DTYPE lr, DTYPE alpha = 0.1)
   {
     _vars = vars;
     _lr = lr;
+    _alpha = alpha;
+    for (auto e: _vars)
+    {
+      _deltas.push_back(Tensor(0,0));
+    }
   }
 
   void update()
   {
-    for (auto v: _vars) v->value() -= _lr * v->gradient();
+    int size = _vars.size();
+    for (int i=0; i<size; i++)
+    {
+      auto& w = _vars[i]->value();
+      auto& g = _vars[i]->gradient();
+      auto& d = _deltas[i];
+
+      if (!d.size()) d = Tensor::Zero(g.rows(), g.cols());
+
+      auto dw = _alpha * d - _lr * g;
+
+      w += dw;
+      d = dw;
+    }
   }
 
 private:
   DTYPE _lr;
+  DTYPE _alpha;
   std::vector<Variable*> _vars;
+  std::vector<Tensor> _deltas;
 };
 
 // RMSprop optimizer
@@ -142,8 +162,7 @@ private:
 class RMSprop : public Optimizer
 {
 public:
-  RMSprop(const std::vector<Variable*>& vars, DTYPE lr = LEARNING_RATE, 
-  DTYPE gamma = 0.9)
+  RMSprop(const std::vector<Variable*>& vars, DTYPE lr, DTYPE gamma = 0.9)
   {
     _vars = vars;
     _t = 0;
@@ -192,7 +211,7 @@ private:
 class Adam : public Optimizer
 {
 public:
-  Adam(const std::vector<Variable*>& vars, DTYPE lr = LEARNING_RATE, 
+  Adam(const std::vector<Variable*>& vars, DTYPE lr,
   DTYPE beta1 = 0.9, DTYPE beta2 = 0.999)
   {
     _vars = vars;
@@ -254,7 +273,7 @@ private:
 class AdamNC : public Optimizer
 {
 public:
-  AdamNC(const std::vector<Variable*>& vars, DTYPE lr = LEARNING_RATE, 
+  AdamNC(const std::vector<Variable*>& vars, DTYPE lr,
   DTYPE beta = 0.9, DTYPE lambda = 0.99)
   {
     _vars = vars;
@@ -315,7 +334,7 @@ private:
 class Yogi : public Optimizer
 {
 public:
-  Yogi(const std::vector<Variable*>& vars, DTYPE lr = LEARNING_RATE, 
+  Yogi(const std::vector<Variable*>& vars, DTYPE lr,
   DTYPE beta1 = 0.9, DTYPE beta2 = 0.999)
   {
     _vars = vars;
