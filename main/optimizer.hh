@@ -84,14 +84,17 @@ private:
   Tensor _wma;
 };
 
+
 // Exponetial Moving Average
+// S(n) = beta * S(n-1) + (1-beta) * x(n)
+// alpha = (1-beta)
 // S(n) = alpha * x(n) + (1-alpha) * S(n-1)
 // Numerically Stable:
 // S(n) = S(n-1) + alpha * (x(n) - S(n-1))
 class EMA
 {
 public:
-  EMA(DTYPE ema, DTYPE alpha) : _init(ema), _alpha(alpha) {}
+  EMA(DTYPE ema = 0, DTYPE beta = 0) : _init(ema), _alpha(1-beta) {}
 
   void update(const Tensor& x)
   {
@@ -121,15 +124,19 @@ public:
 class SGD : public Optimizer
 {
 public:
-  SGD(const std::vector<Variable*>& vars, DTYPE lr, DTYPE alpha = 0.1)
+  SGD(const std::vector<Variable*>& vars, DTYPE lr, DTYPE beta = 0.1)
   {
     _vars = vars;
     _lr = lr;
-    _alpha = alpha;
     for (auto e: _vars)
     {
-      _deltas.push_back(Tensor(0,0));
+      _momentum.push_back(new EMA(0, beta));
     }
+  }
+
+  ~SGD()
+  {
+    for (auto ema: _momentum) delete ema;
   }
 
   void update()
@@ -139,22 +146,18 @@ public:
     {
       auto& w = _vars[i]->value();
       auto& g = _vars[i]->gradient();
-      auto& d = _deltas[i];
+      auto& d = *_momentum[i];
 
-      if (!d.size()) d = Tensor::Zero(g.rows(), g.cols());
+      d.update(g);
 
-      auto dw = _alpha * d - _lr * g;
-
-      w += dw;
-      d = dw;
+      w -= _lr * d();
     }
   }
 
 private:
   DTYPE _lr;
-  DTYPE _alpha;
   std::vector<Variable*> _vars;
-  std::vector<Tensor> _deltas;
+  std::vector<EMA*> _momentum;
 };
 
 // RMSprop optimizer
