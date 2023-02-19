@@ -87,28 +87,26 @@ private:
 
 // Exponetial Moving Average
 // S(n) = beta * S(n-1) + (1-beta) * x(n)
-// alpha = (1-beta)
-// S(n) = alpha * x(n) + (1-alpha) * S(n-1)
 // Numerically Stable:
-// S(n) = S(n-1) + alpha * (x(n) - S(n-1))
+// S(n) = S(n-1) + (1-beta) * (x(n) - S(n-1))
 class EMA
 {
 public:
-  EMA(DTYPE ema = 0, DTYPE beta = 0) : _init(ema), _alpha(1-beta) {}
+  EMA(DTYPE ema = 0, DTYPE beta = 0) : _init(ema), _beta(beta) {}
 
   void update(const Tensor& x)
   {
     if (!_ema.size())
       _ema = Tensor::Constant(x.rows(), x.cols(), _init);
 
-    _ema += _alpha * (x - _ema);
+    _ema += (1 - _beta) * (x - _ema);
   }
 
   const Tensor& operator()() { return _ema; }
 
 private:
   DTYPE _init;
-  DTYPE _alpha;
+  DTYPE _beta;
   Tensor _ema;
 };
 
