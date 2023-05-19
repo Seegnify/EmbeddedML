@@ -2663,7 +2663,7 @@ void Conv2D::init()
   // O - number of output channels
   // X_i - channel i of input X
   // Y_o - channel o of output Y
-  // K_i_o - channel [i,o] of input X_i and output Y_o
+  // K_i_o - kernel [i,o] of input X_i and output Y_o
   // K_r - number of kernel rows
   // K_c - number of kernel cols
   //
