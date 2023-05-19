@@ -2674,29 +2674,29 @@ void Conv2D::init()
   //
   // Kernel Matrix K = [E, I * O]
   //
-  // Kernels are flattened (column-wise) and stored as matrix columns.
-  // Each column in the matrix contains one kernel vector.
-  // The first I columns contain input kernels for output channel 0.
-  // The next I columns contain input kernels for output channel 1, etc.
-  // Finally the last I columns conain input kernels for output channel O-1.
+  // Kernels are flattened (column-wise) and stored in culumn matrix.
+  // Each row in the matrix contains input kernels for one output channel.
+  // The first row contain input kernels for output channel 0.
+  // The next row contain input kernels for output channel 1, etc.
+  // Finally the last row conain input kernels for output channel O-1.
   //
-  // [K_1_1,...,K_I_1],............,[K_1_O,...,K_I_O]
-  //
-  // first output channel,.........,last output channel
+  // [K_1_1,...,K_I_1] // kernels for output channel 0
+  // ,............,
+  // [K_1_O,...,K_I_O] // kernels for outout channel O-1
   //
   // Examples
   //
   // Pseudo code to access kernel for input "i" and output "o":
   //
-  // K[0,I * o + i, E,1].reshape(K_r,K_c)
+  // K[o*E,i, E,1].reshape(K_r,K_c)
   //
   // Eigen code to access kernel for input "i" and output "o" as matrix:
   //
-  // auto kernel_i_o = ConstTensorMap(K.data() + E * (I * o + i), K_r, K_c);
+  // auto kernel_i_o = ConstTensorMap(K.data() + E * (i * O + o), K_r, K_c);
   //
   // Eigen code to access kernel for input "i" and output "o" as vector:
   //
-  // auto kernel_i_o = ConstTensorMap(K.data() + E * (I * o + i), E, 1);
+  // auto kernel_i_o = ConstTensorMap(K.data() + E * (i * O + o), E, 1);
   //
 }
 
