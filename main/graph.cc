@@ -2604,6 +2604,114 @@ const Tensor& Word2Vec::forward()
 }
 
 ///////////////////////////////////////////
+// Function Conv2D
+///////////////////////////////////////////
+
+Conv2D::Conv2D(
+  Graph& graph,
+  Function& x,
+  int rows,
+  int cols,
+  int i_channels,
+  int o_channels,
+  int k_rows,
+  int k_cols,
+  int stride,
+  int padding,
+  int dilation) :
+Function(graph),
+_x(x),
+_rows(rows),
+_cols(cols),
+_i_channels(i_channels),
+_o_channels(o_channels),
+_k_rows(k_rows),
+_k_cols(k_cols),
+_stride(stride),
+_padding(padding),
+_dilation(dilation)
+{
+  // construct new variables
+  _K = graph.new_variable(_k_rows * _k_cols, _i_channels * _o_channels);
+
+  init();
+}
+
+Conv2D::Conv2D(Graph& graph, Function& x, const Conv2D& other) :
+Function(graph), _x(x)
+{
+  // share dimentions and variables with the "other"
+  _rows = other._rows;
+  _cols = other._cols,
+  _i_channels = other._i_channels,
+  _o_channels = other._o_channels,
+  _k_rows = other._k_rows;
+  _k_cols = other._k_cols;
+  _stride = other._stride,
+  _padding = other._padding,
+  _dilation = other._dilation,
+  _K = other._K;
+
+  init();
+}
+
+void Conv2D::init()
+{
+  // Kernel for input and output channels
+  //
+  // I - number of input channels
+  // O - number of output channels
+  // X_i - channel i of input X
+  // Y_o - channel o of output Y
+  // K_i_o - channel [i,o] of input X_i and output Y_o
+  // K_r - number of kernel rows
+  // K_c - number of kernel cols
+  //
+  // D = [K_r, K_c], kernel dimentions
+  // N = O * I, numbef of kernels
+  // E = K_r * K_c, number of single kernel parameters
+  // A = N * E, number of all kernel parameters
+  //
+  // Kernel Matrix K = [E, I * O]
+  //
+  // Kernels are flattened (column-wise) and stored as matrix columns.
+  // Each column in the matrix contains one kernel vector.
+  // The first I columns contain input kernels for output channel 0.
+  // The next I columns contain input kernels for output channel 1, etc.
+  // Finally the last I columns conain input kernels for output channel O-1.
+  //
+  // [K_1_1,...,K_I_1],............,[K_1_O,...,K_I_O]
+  //
+  // first output channel,.........,last output channel
+  //
+  // Examples
+  //
+  // Pseudo code to access kernel for input "i" and output "o":
+  //
+  // K[0,I * o + i, E,1].reshape(K_r,K_c)
+  //
+  // Eigen code to access kernel for input "i" and output "o" as matrix:
+  //
+  // auto kernel_i_o = ConstTensorMap(K.data() + E * (I * o + i), K_r, K_c);
+  //
+  // Eigen code to access kernel for input "i" and output "o" as vector:
+  //
+  // auto kernel_i_o = ConstTensorMap(K.data() + E * (I * o + i), E, 1);
+  //
+}
+
+const Tensor& Conv2D::forward()
+{
+  // return cached value
+  if (_value.size()) return _value;
+
+  // TODO: implement me
+
+  // return value
+  return _value;
+}
+
+///////////////////////////////////////////
 // Graph
 ///////////////////////////////////////////
 

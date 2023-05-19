@@ -712,6 +712,47 @@ protected:
   Variable* _E;
 };
 
+// Conv2D function
+class Conv2D : public Function
+{
+public:
+  Conv2D(
+    Graph& graph,
+    Function& x,
+    int rows,
+    int cols,
+    int i_channels = 1,
+    int o_channels = 1,
+    int k_rows = 3,
+    int k_cols = 3,
+    int stride = 1,
+    int padding = 0,
+    int dilation = 1
+  );
+  Conv2D(Graph& graph, Function& x, const Conv2D& other);
+
+  // kernel(s) variable
+  Variable& K() const { return *_K; };
+
+  virtual const Tensor& forward();
+
+private:
+  void init();
+
+protected:
+  int _rows;
+  int _cols;
+  int _i_channels;
+  int _o_channels;
+  int _k_rows;
+  int _k_cols;
+  int _stride;
+  int _padding;
+  int _dilation;
+  Function& _x;
+  Variable* _K;
+};
+
 // Identity (pass-through) derivarive
 class IDerivative : public Function
 {
@@ -1187,6 +1228,37 @@ public:
   Word2Vec* new_word2vec(Constant& i, const Word2Vec& other)
   {
     auto node = new Word2Vec(*this, i, other);
+    keep(node);
+    return node;
+  }
+
+  Conv2D* new_conv2d(
+    Function& x, int rows, int cols,
+    int i_channels = 1, int o_channels = 1, int k_rows = 3, int k_cols = 3,
+    int stride = 1, int padding = 0, int dilation = 1,
+    const char* name = nullptr
+  )
+  {
+    auto other = function(name);
+    if (other)
+    {
+      return new_conv2d(x, (Conv2D&)*other);
+    }
+    else
+    {
+      auto node = new Conv2D(
+        *this, x, rows, cols,
+        i_channels, o_channels, k_rows, k_cols,
+        stride, padding, dilation
+      );
+      keep(node, name);
+      return node;
+    }
+  }
+
+  Conv2D* new_conv2d(Function& x, const Conv2D& other)
+  {
+    auto node = new Conv2D(*this, x, other);
     keep(node);
     return node;
   }
