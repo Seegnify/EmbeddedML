@@ -2631,8 +2631,54 @@ _stride(stride),
 _padding(padding),
 _dilation(dilation)
 {
+  // Kernels for input and output channels
+  //
+  // I - number of input channels
+  // O - number of output channels
+  // X_i - channel i of input X
+  // Y_o - channel o of output Y
+  // K_i_o - kernel [i,o] of input X_i and output Y_o
+  // K_r - number of kernel rows
+  // K_c - number of kernel cols
+  //
+  // D = [K_r, K_c], kernel dimentions
+  // N = O * I, numbef of kernels
+  // E = K_r * K_c, number of single kernel parameters
+  // A = N * E, number of all kernel parameters
+  //
+  // Kernel Matrix K = [E * O, I]
+  //
+  // Kernels are flattened (column-wise) and stored in culumn matrix.
+  // Each row in the matrix contains input kernels for one output channel.
+  // The first row contain input kernels for output channel 0.
+  // The next row contain input kernels for output channel 1, etc.
+  // Finally the last row conain input kernels for output channel O-1.
+  //
+  // [K_1_1,...,K_I_1] // kernels for output channel 0
+  // .................
+  // [K_1_O,...,K_I_O] // kernels for outout channel O-1
+  //
+  // Examples
+  //
+  // Pseudo code to access kernel for input "i" and output "o":
+  //
+  // K[o*E,i, E,1].reshape(K_r,K_c)
+  //
+  // Eigen code to access kernel for input "i" and output "o" as matrix:
+  //
+  // auto kernel_i_o = ConstTensorMap(K.data() + E * (i * O + o), K_r, K_c);
+  //
+  // Eigen code to access kernel for input "i" and output "o" as vector:
+  //
+  // auto kernel_i_o = ConstTensorMap(K.data() + E * (i * O + o), E, 1);
+  //
+
+  int I = _i_channels;
+  int O = _o_channels;
+  int E = _k_rows * _k_cols;
+
   // construct new variables
-  _K = graph.new_variable(_k_rows * _k_cols, _i_channels * _o_channels);
+  _K = graph.new_variable(O * E, I);
 
   init();
 }
@@ -2657,47 +2703,6 @@ Function(graph), _x(x)
 
 void Conv2D::init()
 {
-  // Kernel for input and output channels
-  //
-  // I - number of input channels
-  // O - number of output channels
-  // X_i - channel i of input X
-  // Y_o - channel o of output Y
-  // K_i_o - kernel [i,o] of input X_i and output Y_o
-  // K_r - number of kernel rows
-  // K_c - number of kernel cols
-  //
-  // D = [K_r, K_c], kernel dimentions
-  // N = O * I, numbef of kernels
-  // E = K_r * K_c, number of single kernel parameters
-  // A = N * E, number of all kernel parameters
-  //
-  // Kernel Matrix K = [E, I * O]
-  //
-  // Kernels are flattened (column-wise) and stored in culumn matrix.
-  // Each row in the matrix contains input kernels for one output channel.
-  // The first row contain input kernels for output channel 0.
-  // The next row contain input kernels for output channel 1, etc.
-  // Finally the last row conain input kernels for output channel O-1.
-  //
-  // [K_1_1,...,K_I_1] // kernels for output channel 0
-  // ,............,
-  // [K_1_O,...,K_I_O] // kernels for outout channel O-1
-  //
-  // Examples
-  //
-  // Pseudo code to access kernel for input "i" and output "o":
-  //
-  // K[o*E,i, E,1].reshape(K_r,K_c)
-  //
-  // Eigen code to access kernel for input "i" and output "o" as matrix:
-  //
-  // auto kernel_i_o = ConstTensorMap(K.data() + E * (i * O + o), K_r, K_c);
-  //
-  // Eigen code to access kernel for input "i" and output "o" as vector:
-  //
-  // auto kernel_i_o = ConstTensorMap(K.data() + E * (i * O + o), E, 1);
-  //
 }
 
 const Tensor& Conv2D::forward()
@@ -2705,7 +2710,24 @@ const Tensor& Conv2D::forward()
   // return cached value
   if (_value.size()) return _value;
 
-  // TODO: implement me
+  int i_rows = _rows + 2 * _padding;
+  int i_cols = _cols + 2 * _padding;
+
+  int k_rows_span = _k_rows + _dilation * (_k_rows - 1);
+  int k_cols_span = _k_cols + _dilation * (_k_cols - 1);
+
+  int o_rows = (_rows - k_rows_span + 2 * _padding) / _stride + 1;
+  int o_cols = (_cols - k_cols_span + 2 * _padding) / _stride + 1;
+
+  _value.resize(o_rows * o_cols * _o_channels, 1);
+
+  // 2D convolution loop
+  for (int i=0; i < _i_channels; i++) // over input channels
+  for (int o=0; o < _o_channels; o++) // over output channels
+  for (int r=0; r < o_rows; r++) // over row patches
+  for (int c=0; c < o_cols; c++) // over column patches
+  {
+  }
 
   // return value
   return _value;
