@@ -3089,6 +3089,39 @@ void test_word2vec_backward()
   TEST_END()
 }
 
+void test_conv2d_forward()
+{
+  TEST_BEGIN("Conv2D Forward")
+
+  // size
+  Graph g;
+
+  Variable x(g, 2, 3);
+  x.value() << 1, 2, 3,
+               4, 5, 6;
+
+  //ctor args x ir ic ci co kr kc  s  p  d
+  Conv2D C(g, x, 2, 3, 1, 1, 2, 2, 1, 1, 2);
+
+  TEST_END()
+}
+
+void test_conv2d_backward()
+{
+  TEST_BEGIN("Conv2D Backward")
+
+  // size
+  Graph g;
+
+  Variable x(g, 2, 3);
+  x.value() << 1, 2, 3, 4, 5, 6;
+
+  //          x  r  c  cic0 kr kc  s  p  d
+  //Conv2D C(g, x, 2, 3, 1, 1, 2, 2, 1, 1, 1);
+
+  TEST_END()
+}
+
 void test_gaussian_sampler()
 {
   TEST_BEGIN("Gaussian Sampler")
@@ -3360,7 +3393,7 @@ void test_average_convergence()
   int C = 1000000;
 
   SMA sma(-2.0, 10);
-  EMA ema(-2.0, 0.0001);
+  EMA ema(-2.0, 0.99);
   WMA wma(-2.0, 10);
 
   Tensor T = Tensor::Random(N,N) * 12;
@@ -4103,6 +4136,9 @@ int main(int argc, char* argv[]) {
 
   test_word2vec_forward();
   test_word2vec_backward();
+
+  test_conv2d_forward();
+  test_conv2d_backward();
 
   test_gaussian_sampler();
   test_step_regression();

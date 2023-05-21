@@ -2610,8 +2610,8 @@ const Tensor& Word2Vec::forward()
 Conv2D::Conv2D(
   Graph& graph,
   Function& x,
-  int rows,
-  int cols,
+  int i_rows,
+  int i_cols,
   int i_channels,
   int o_channels,
   int k_rows,
@@ -2621,8 +2621,8 @@ Conv2D::Conv2D(
   int dilation) :
 Function(graph),
 _x(x),
-_rows(rows),
-_cols(cols),
+_i_rows(i_rows),
+_i_cols(i_cols),
 _i_channels(i_channels),
 _o_channels(o_channels),
 _k_rows(k_rows),
@@ -2687,8 +2687,8 @@ Conv2D::Conv2D(Graph& graph, Function& x, const Conv2D& other) :
 Function(graph), _x(x)
 {
   // share dimentions and variables with the "other"
-  _rows = other._rows;
-  _cols = other._cols,
+  _i_rows = other._i_rows;
+  _i_cols = other._i_cols,
   _i_channels = other._i_channels,
   _o_channels = other._o_channels,
   _k_rows = other._k_rows;
@@ -2703,23 +2703,94 @@ Function(graph), _x(x)
 
 void Conv2D::init()
 {
-}
+  std::cout << "stride " << _stride << std::endl;
+  std::cout << "padding " << _padding << std::endl;
+  std::cout << "dilation " << _dilation << std::endl;
 
-const Tensor& Conv2D::forward()
-{
-  // return cached value
-  if (_value.size()) return _value;
+  // kernel parameter
+  int r_d = _dilation;
+  int c_d = _dilation;
 
-  int i_rows = _rows + 2 * _padding;
-  int i_cols = _cols + 2 * _padding;
+  int r_p = _padding;
+  int c_p = _padding;
 
-  int k_rows_span = _k_rows + _dilation * (_k_rows - 1);
-  int k_cols_span = _k_cols + _dilation * (_k_cols - 1);
+  int r_s = _stride;
+  int c_s = _stride;
 
-  int o_rows = (_rows - k_rows_span + 2 * _padding) / _stride + 1;
-  int o_cols = (_cols - k_cols_span + 2 * _padding) / _stride + 1;
+  // input with padding
+  int i_padded_rows = _i_rows + 2 * r_p;
+  int i_padded_cols = _i_cols + 2 * c_p;
 
-  _value.resize(o_rows * o_cols * _o_channels, 1);
+  // kernel with dilation
+  int k_span_rows = r_d * (_k_rows - 1) + 1;
+  int k_span_cols = c_d * (_k_cols - 1) + 1;
+
+  // kernel with dialation and padding
+  int k_padded_rows = k_span_rows + 2 * r_p;
+  int k_padded_cols = k_span_cols + 2 * c_p;
+
+  // output
+  int o_rows = (_i_rows - k_span_rows + 2 * r_p) / r_s + 1;
+  int o_cols = (_i_cols - k_span_cols + 2 * c_p) / c_s + 1;
+
+  std::cout << "k [" << _k_rows << "x" << _k_cols << "]" << std::endl;
+  std::cout << "k_span [" << k_span_rows << "x" << k_span_cols << "]" << std::endl;
+  std::cout << "k_padded [" << k_padded_rows << "x" << k_padded_cols << "]" << std::endl;
+  std::cout << "input [" << _i_rows << "x" << _i_cols << "]" << std::endl;
+  std::cout << "input padded [" << i_padded_rows << "x" << i_padded_cols << "]" << std::endl;
+  std::cout << "output [" << o_rows << "x" << o_cols << "]" << std::endl;
+
+  // kernel mask
+  // 1 1
+  // 1 1
+  Tensor k_mask = Tensor::Ones(k_span_rows, k_span_cols);
+
+  // kernel dilation
+  // 1 0 1
+  // 0 0 0
+  // 1 0 1
+  if (_dilation > 1)
+  {
+    for (int r=0; r<_k_rows - 1; r++)
+    {
+      k_mask.block(r * r_d + 1, 0, r_d - 1, k_span_cols).array() = 0;
+    }
+    for (int c=0; c<_k_cols - 1; c++)
+    {
+      k_mask.block(0, c * c_d + 1, k_span_rows, c_d - 1).array() = 0;
+    }
+  }
+  std::cout << "k_mask:" << k_mask.size() << std::endl;
+  std::cout << k_mask << std::endl;
+
+  // kernel padding
+  // 0 0 0 0 0
+  // 0 1 0 1 0
+  // 0 0 0 0 0
+  // 0 1 0 1 0
+  // 0 0 0 0 0
+  Tensor k_padded = Tensor::Zero(k_padded_rows, k_padded_cols);
+  k_padded.block(r_p, c_p, k_span_rows, k_span_cols) = k_mask;  
+
+  k_padded(1, k_padded_cols-1) = 4;
+  std::cout << "k_padded:" << k_padded.size() << std::endl;
+  std::cout << k_padded << std::endl;
+
+  // kernel vector
+  // 0 0 0 0 0 -> 0 0 0 0 0
+  // 0 1 0 1 0 ->           0 1 0 1 0
+  // 0 0 0 0 0 ->                     0 0 0 0 0
+  // 0 1 0 1 0 ->                               0 1 0 1 0
+  // 0 0 0 0 0 ->                                         0 0 0 0 0
+  //                \|/        \|/       \|/       \|/       \|/
+  // vectorized:  0 0 0 0 0 0 1 0 1 0 0 0 0 0 0 0 1 0 1 0 0 0 0 0 0
+  Tensor k_T = k_padded.transpose();
+  Tensor k_vector = TensorMap(k_T.data(), k_T.size(), 1);
+  std::cout << "k_vector:" << k_vector.size() << std::endl;
+  std::cout << k_vector.transpose() << std::endl;
+
+  // kernel matrix
+  //   
 
   // 2D convolution loop
   for (int i=0; i < _i_channels; i++) // over input channels
@@ -2728,6 +2799,16 @@ const Tensor& Conv2D::forward()
   for (int c=0; c < o_cols; c++) // over column patches
   {
   }
+
+  // x derivative
+
+  // K derivative
+}
+
+const Tensor& Conv2D::forward()
+{
+  // return cached value
+  if (_value.size()) return _value;
 
   // return value
   return _value;

@@ -719,8 +719,8 @@ public:
   Conv2D(
     Graph& graph,
     Function& x,
-    int rows,
-    int cols,
+    int i_rows,
+    int i_cols,
     int i_channels = 1,
     int o_channels = 1,
     int k_rows = 3,
@@ -740,8 +740,8 @@ private:
   void init();
 
 protected:
-  int _rows;
-  int _cols;
+  int _i_rows;
+  int _i_cols;
   int _i_channels;
   int _o_channels;
   int _k_rows;
@@ -1233,7 +1233,7 @@ public:
   }
 
   Conv2D* new_conv2d(
-    Function& x, int rows, int cols,
+    Function& x, int i_rows, int i_cols,
     int i_channels = 1, int o_channels = 1, int k_rows = 3, int k_cols = 3,
     int stride = 1, int padding = 0, int dilation = 1,
     const char* name = nullptr
@@ -1247,7 +1247,7 @@ public:
     else
     {
       auto node = new Conv2D(
-        *this, x, rows, cols,
+        *this, x, i_rows, i_cols,
         i_channels, o_channels, k_rows, k_cols,
         stride, padding, dilation
       );
