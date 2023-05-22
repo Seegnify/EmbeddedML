@@ -2718,16 +2718,19 @@ void Conv2D::init()
   int c_s = _stride;
 
   // input with padding
+  // 0 0 0 0 0
+  // 0 1 2 3 0
+  // 0 4 5 6 0
+  // 0 0 0 0 0
   int i_padded_rows = _i_rows + 2 * r_p;
   int i_padded_cols = _i_cols + 2 * c_p;
 
   // kernel with dilation
+  // 1 0 1
+  // 0 0 0
+  // 1 0 1
   int k_span_rows = r_d * (_k_rows - 1) + 1;
   int k_span_cols = c_d * (_k_cols - 1) + 1;
-
-  // kernel with dialation and padding
-  int k_padded_rows = k_span_rows + 2 * r_p;
-  int k_padded_cols = k_span_cols + 2 * c_p;
 
   // output
   int o_rows = (_i_rows - k_span_rows + 2 * r_p) / r_s + 1;
@@ -2735,20 +2738,16 @@ void Conv2D::init()
 
   std::cout << "k [" << _k_rows << "x" << _k_cols << "]" << std::endl;
   std::cout << "k_span [" << k_span_rows << "x" << k_span_cols << "]" << std::endl;
-  std::cout << "k_padded [" << k_padded_rows << "x" << k_padded_cols << "]" << std::endl;
   std::cout << "input [" << _i_rows << "x" << _i_cols << "]" << std::endl;
   std::cout << "input padded [" << i_padded_rows << "x" << i_padded_cols << "]" << std::endl;
   std::cout << "output [" << o_rows << "x" << o_cols << "]" << std::endl;
 
-  // kernel mask
-  // 1 1
-  // 1 1
-  Tensor k_mask = Tensor::Ones(k_span_rows, k_span_cols);
+  // input mask with padding
+  TensorXi i_mask = TensorXi::Zero(i_padded_rows, i_padded_cols);
+  i_mask.block(r_p, c_p, _i_rows, _i_cols) = TensorXi::Ones(_i_rows, _i_cols);
 
-  // kernel dilation
-  // 1 0 1
-  // 0 0 0
-  // 1 0 1
+  // kernel mask with dilation
+  TensorXi k_mask = TensorXi::Ones(k_span_rows, k_span_cols);
   if (_dilation > 1)
   {
     for (int r=0; r<_k_rows - 1; r++)
@@ -2763,42 +2762,106 @@ void Conv2D::init()
   std::cout << "k_mask:" << k_mask.size() << std::endl;
   std::cout << k_mask << std::endl;
 
-  // kernel padding
+  // build kernel matrix by sliding kernel over input
+  //
+  // Input
+  //
+  // 1 2 3
+  // 4 5 6
+  //
+  // Padded input
+  //
   // 0 0 0 0 0
-  // 0 1 0 1 0
+  // 0 1 2 3 0
+  // 0 4 5 6 0
   // 0 0 0 0 0
-  // 0 1 0 1 0
-  // 0 0 0 0 0
-  Tensor k_padded = Tensor::Zero(k_padded_rows, k_padded_cols);
-  k_padded.block(r_p, c_p, k_span_rows, k_span_cols) = k_mask;  
+  //
+  // Kernel
+  //
+  // 10 20
+  // 30 40
+  //
+  // Convolution
+  //
+  //   10 20 30 40
+  // 1  0  0  0  1
+  // 2  0  0  1  2
+  // 3  0  0  2  3
+  // 4  0  0  3  0
+  // 5  0  1  0  4
+  // 6  1  2  4  5
+  // 7  2  3  5  6
+  // 8  3  0  6  0
+  // 9  0  4  0  0
+  // 0  4  5  0  0
+  // 1  5  6  0  0
+  // 2  6  0  0  0
+  //
+  // Resulting kernel matrix
+  //
+  //     1  2  3  4  5  6
+  // 1  40
+  // 2  30 40
+  // 3     30 40
+  // 4        30
+  // 5  20       40
+  // 6  10 20    30 40
+  // 7     10 20    30 40
+  // 8        10       30
+  // 9           20
+  // 0           10 20
+  // 1              10 20
+  // 2                 10
 
-  k_padded(1, k_padded_cols-1) = 4;
-  std::cout << "k_padded:" << k_padded.size() << std::endl;
-  std::cout << k_padded << std::endl;
+  // kernel matrix for input channel 0 and output channel 0
+  Tensor k_matrix = Tensor::Zero(o_rows * o_cols, _i_rows * _i_cols);
 
-  // kernel vector
-  // 0 0 0 0 0 -> 0 0 0 0 0
-  // 0 1 0 1 0 ->           0 1 0 1 0
-  // 0 0 0 0 0 ->                     0 0 0 0 0
-  // 0 1 0 1 0 ->                               0 1 0 1 0
-  // 0 0 0 0 0 ->                                         0 0 0 0 0
-  //                \|/        \|/       \|/       \|/       \|/
-  // vectorized:  0 0 0 0 0 0 1 0 1 0 0 0 0 0 0 0 1 0 1 0 0 0 0 0 0
-  Tensor k_T = k_padded.transpose();
-  Tensor k_vector = TensorMap(k_T.data(), k_T.size(), 1);
-  std::cout << "k_vector:" << k_vector.size() << std::endl;
-  std::cout << k_vector.transpose() << std::endl;
+  // kernel for input channel 0 and output channel 0
+  auto E = _k_rows * _k_cols;
+  Tensor k_vector = _K->value().block(0,0,E,1);
+  TensorMap K(k_vector.data(), _k_rows, _k_cols);
+  K << 10,20,
+       30,40;
 
-  // kernel matrix
-  //   
+  std::cout << "K" << std::endl;
+  std::cout << K << std::endl;
 
-  // 2D convolution loop
-  for (int i=0; i < _i_channels; i++) // over input channels
-  for (int o=0; o < _o_channels; o++) // over output channels
-  for (int r=0; r < o_rows; r++) // over row patches
-  for (int c=0; c < o_cols; c++) // over column patches
+  // kernel matrix row
+  int m_r = 0;
+
+  for (int r=0; r <= i_padded_rows - k_span_rows; r++)
+  for (int c=0; c <= i_padded_cols - k_span_rows; c++)
   {
+    TensorXi conv = i_mask.block(r, c, k_span_rows, k_span_rows);
+
+    std::cout << "block " << m_r+1 << "(" << r+1 << "," << c+1 << ")" << std::endl;
+    std::cout << conv << std::endl;
+
+    conv.array() *= k_mask.array();
+
+    std::cout << "conv" << std::endl;
+    std::cout << conv << std::endl;
+
+    for (int k_r=0; k_r < _k_rows; k_r++)
+    for (int k_c=0; k_c < _k_cols; k_c++)
+    {
+      // convert kernel index to convolution index
+      int conv_r = r_d * (k_r - 1) + 1;
+      int conv_c = c_d * (k_c - 1) + 1;
+
+      if (conv(conv_r, conv_c))
+      {
+        // convert input coordinates to kernel matrix column
+        int m_c = (r - r_p + conv_r) * _i_cols + (c - c_p + conv_c);
+        std::cout << "m_c " << m_c << std::endl;
+        k_matrix(m_r, m_c) = K(k_r, k_c);
+      }
+    }
+    m_r++;
   }
+
+  std::cout << "k_matrix" << std::endl;
+  std::cout << k_matrix << std::endl;
 
   // x derivative
 

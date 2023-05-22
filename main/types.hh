@@ -25,6 +25,10 @@ typedef Eigen::Matrix<DTYPE, Eigen::Dynamic, Eigen::Dynamic> Tensor;
 typedef Eigen::Map<Tensor> TensorMap;
 typedef Eigen::Map<const Tensor> ConstTensorMap;
 
+typedef Eigen::Matrix<int, Eigen::Dynamic, Eigen::Dynamic> TensorXi;
+typedef Eigen::Map<TensorXi> TensorXiMap;
+typedef Eigen::Map<const TensorXi> ConstTensorXiMap;
+
 typedef Eigen::Matrix<DTYPE, Eigen::Dynamic, 1> Vector;
 typedef Eigen::Map<Vector> VectorMap;
 typedef Eigen::Map<const Vector> ConstVectorMap;
