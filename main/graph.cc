@@ -2646,13 +2646,9 @@ _dilation(dilation)
   // E = K_r * K_c, number of single kernel parameters
   // A = N * E, number of all kernel parameters
   //
-  // Kernel Matrix K = [E * O, I]
+  // Kernels are stored in kernel matrix as sub-matrices or blocks.
   //
-  // Kernels are flattened (column-wise) and stored in culumn matrix.
-  // Each row in the matrix contains input kernels for one output channel.
-  // The first row contain input kernels for output channel 0.
-  // The next row contain input kernels for output channel 1, etc.
-  // Finally the last row conain input kernels for output channel O-1.
+  // Kernel Matrix K = [O * K_r, I * K_c]
   //
   // [K_1_1,...,K_I_1] // kernels for output channel 0
   // .................
@@ -2662,23 +2658,19 @@ _dilation(dilation)
   //
   // Pseudo code to access kernel for input "i" and output "o":
   //
-  // K[o*E,i, E,1].reshape(K_r,K_c)
+  // K[o * K_r, i * K_c, K_r, K_c]
   //
   // Eigen code to access kernel for input "i" and output "o" as matrix:
   //
-  // auto kernel_i_o = ConstTensorMap(K.data() + E * (i * O + o), K_r, K_c);
+  // auto kernel_i_o = K.block(o * K_r, i * K_c, K_r, K_c);
   //
   // Eigen code to access kernel for input "i" and output "o" as vector:
   //
-  // auto kernel_i_o = ConstTensorMap(K.data() + E * (i * O + o), E, 1);
+  // auto kernel_vector_i_o = ConstTensorMap(kernel_i_o.data(), E, 1);
   //
 
-  int I = _i_channels;
-  int O = _o_channels;
-  int E = _k_rows * _k_cols;
-
   // construct new variables
-  _K = graph.new_variable(O * E, I);
+  _K = graph.new_variable(_o_channels * _k_rows, _i_channels * _k_cols);
 
   init();
 }
@@ -2814,17 +2806,28 @@ void Conv2D::init()
   // 2                 10
 
   // kernel matrix for input channel 0 and output channel 0
-  Tensor k_matrix = Tensor::Zero(o_rows * o_cols, _i_rows * _i_cols);
+  //Tensor k_matrix = Tensor::Zero(o_rows * o_cols, _i_rows * _i_cols);
+  SparseTensor k_matrix_all(o_rows * o_cols, 2 *_i_rows * _i_cols);
+  // create map with columns [_i_rows * _i_cols : 2 * _i_rows * _i_cols]
+  auto colIndex = k_matrix_all.outerIndexPtr()[_i_rows * _i_cols];
+  std::cout << "colIndex " << colIndex << std::endl;
+  std::cout << "k_matrix_all.nonZeros() " << k_matrix_all.nonZeros() << std::endl;
+  auto k_matrix = k_matrix_all.block(
+    0,_i_rows * _i_cols,
+    k_matrix_all.rows(), _i_rows * _i_cols
+  );
 
   // kernel for input channel 0 and output channel 0
   auto E = _k_rows * _k_cols;
-  Tensor k_vector = _K->value().block(0,0,E,1);
-  TensorMap K(k_vector.data(), _k_rows, _k_cols);
-  K << 10,20,
-       30,40;
+  auto K = _K->value().block(0,0,_k_rows, _k_cols);
+  TensorMap K_vector(K.data(), E, 1);
+  K << 1,2,
+       3,4;
 
   std::cout << "K" << std::endl;
   std::cout << K << std::endl;
+  std::cout << "K_vector" << std::endl;
+  std::cout << K_vector << std::endl;
 
   // kernel matrix row
   int m_r = 0;
@@ -2854,14 +2857,15 @@ void Conv2D::init()
         // convert input coordinates to kernel matrix column
         int m_c = (r - r_p + conv_r) * _i_cols + (c - c_p + conv_c);
         std::cout << "m_c " << m_c << std::endl;
-        k_matrix(m_r, m_c) = K(k_r, k_c);
+        //k_matrix(m_r, m_c) = K(k_r, k_c);
+        k_matrix.coeffRef(m_r, m_c) = K(k_r, k_c);
       }
     }
     m_r++;
   }
 
-  std::cout << "k_matrix" << std::endl;
-  std::cout << k_matrix << std::endl;
+  std::cout << "k_matrix_all" << std::endl;
+  std::cout << k_matrix_all << std::endl;
 
   // x derivative
 

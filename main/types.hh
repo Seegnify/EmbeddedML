@@ -2,6 +2,7 @@
 #define _SEEGNIFY_TYPES_H_
 
 #include <Eigen/Dense>
+#include <Eigen/Sparse>
 
 namespace seegnify {
 
@@ -21,19 +22,23 @@ namespace seegnify {
 #define GAMMA_DISCOUNT 0.99
 
 // Eigen types
-typedef Eigen::Matrix<DTYPE, Eigen::Dynamic, Eigen::Dynamic> Tensor;
+typedef Eigen::SparseMatrix<DTYPE, Eigen::ColMajor, int32_t> SparseTensor;
+typedef Eigen::Map<SparseTensor> SparseTensorMap;
+typedef Eigen::Map<const SparseTensor> ConstSparseTensorMap;
+
+typedef Eigen::Matrix<DTYPE, Eigen::Dynamic, Eigen::Dynamic, Eigen::ColMajor> Tensor;
 typedef Eigen::Map<Tensor> TensorMap;
 typedef Eigen::Map<const Tensor> ConstTensorMap;
 
-typedef Eigen::Matrix<int, Eigen::Dynamic, Eigen::Dynamic> TensorXi;
+typedef Eigen::Matrix<int, Eigen::Dynamic, Eigen::Dynamic, Eigen::ColMajor> TensorXi;
 typedef Eigen::Map<TensorXi> TensorXiMap;
 typedef Eigen::Map<const TensorXi> ConstTensorXiMap;
 
-typedef Eigen::Matrix<DTYPE, Eigen::Dynamic, 1> Vector;
+typedef Eigen::Matrix<DTYPE, Eigen::Dynamic, 1, Eigen::ColMajor> Vector;
 typedef Eigen::Map<Vector> VectorMap;
 typedef Eigen::Map<const Vector> ConstVectorMap;
 
-typedef Eigen::Matrix<DTYPE, 1, Eigen::Dynamic> RowVector;
+typedef Eigen::Matrix<DTYPE, 1, Eigen::Dynamic, Eigen::RowMajor> RowVector;
 typedef Eigen::Map<RowVector> RowVectorMap;
 typedef Eigen::Map<const RowVector> ConstRowVectorMap;
 
