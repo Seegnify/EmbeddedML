@@ -751,6 +751,7 @@ protected:
   int _dilation;
   Function& _x;
   Variable* _K;
+  SparseTensor _K_matrix;
 };
 
 // Identity (pass-through) derivarive
