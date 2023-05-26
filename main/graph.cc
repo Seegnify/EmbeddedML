@@ -2914,6 +2914,8 @@ const Tensor& Conv2D::forward()
   // return cached value
   if (_value.size()) return _value;
 
+  _value = _K_matrix * _x();
+
   // return value
   return _value;
 }

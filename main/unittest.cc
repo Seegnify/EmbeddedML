@@ -3096,12 +3096,27 @@ void test_conv2d_forward()
   // size
   Graph g;
 
-  Variable x(g, 2, 3);
-  x.value() << 1, 2, 3,
-               4, 5, 6;
+  Tensor x(2,3);
+  x << 1, 2, 3,
+       4, 5, 6;
 
-  //ctor args x ir ic ci co kr kc  s  p  d
-  Conv2D C(g, x, 2, 3, 1, 1, 2, 2, 1, 1, 2);
+  Tensor xT = x.transpose();
+  print("xT", xT);
+
+  Variable X(g, xT.size(), 1);
+  X.value() = ConstTensorMap(xT.data(), xT.size(), 1);
+
+  int kr = 2;
+  int kc = 2;
+  int E = kr * kc;
+
+  // ctor arg x ir ic ci co kr kc  s  p  d
+  Conv2D C(g, X, 2, 3, 1, 1,kr,kc, 1, 1, 1);
+  auto y = C.forward();
+  auto yT = ConstTensorMap(y.data(), 4, 3);
+
+  print("x2d", x);
+  print("y2d", yT.transpose());
 
   TEST_END()
 }
