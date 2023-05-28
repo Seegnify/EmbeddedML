@@ -2878,8 +2878,8 @@ void Conv2D::init()
       _i_rows * _i_cols
     );
 
-    for (int r=0, m_r=0; r <= i_padded_rows - k_span_rows; r++)
-    for (int c=0; c <= i_padded_cols - k_span_rows; c++, m_r++)
+    for (int c=0, m_r=0; c <= i_padded_cols - k_span_rows; c++) // col major
+    for (int r=0; r <= i_padded_rows - k_span_rows; r++, m_r++)
     {
       TensorXi conv = i_mask.block(r, c, k_span_rows, k_span_rows);
       conv.array() *= k_mask.array();
@@ -2893,8 +2893,8 @@ void Conv2D::init()
 
         if (conv(conv_r, conv_c))
         {
-          // convert input coordinates to kernel matrix column
-          int m_c = (r - r_p + conv_r) * _i_cols + (c - c_p + conv_c);
+          // convert input coordinates to kernel matrix column (col major)
+          int m_c = (r - r_p + conv_r) + (c - c_p + conv_c) * _i_rows;
           k_matrix.coeffRef(m_r, m_c) = kernel(k_r, k_c);
         }
       }
