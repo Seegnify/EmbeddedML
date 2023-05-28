@@ -3096,23 +3096,35 @@ void test_conv2d_forward()
   // size
   Graph g;
 
+  // matrix input
   Tensor x(2,3);
   x << 1, 2, 3,
        4, 5, 6;
 
+  // vector input
   Variable X(g, x.size(), 1);
   X.value() = x;
 
-  int kr = 2;
-  int kc = 2;
-  int E = kr * kc;
-
   // ctor arg x ir ic ci co kr kc  s  p  d
-  Conv2D C(g, X, 2, 3, 1, 1,kr,kc, 1, 1, 1);
-  auto y = C.forward();
+  Conv2D C(g, X, 2, 3, 1, 1, 2, 2, 1, 1, 1);
 
-  print("x2d", x);
-  print("y2d", ConstTensorMap(y.data(), 3, 4));
+  // preset kernel
+  C.K().value() << 1, 2,
+                   3, 4;
+
+  // get 2D convolution
+  auto y_vector = C.forward();
+
+  // reshape vector output to matrix output
+  auto y = ConstTensorMap(y_vector.data(), 3, 4);
+
+  // define expected output
+  Tensor y_hat(3,4);
+  y_hat << 4, 11, 18,  9,
+          18, 37, 47, 21,
+           8, 14, 17,  6;
+
+  ASSERT(y_hat == y);
 
   TEST_END()
 }
@@ -3121,14 +3133,9 @@ void test_conv2d_backward()
 {
   TEST_BEGIN("Conv2D Backward")
 
-  // size
-  Graph g;
+  // TODO: implement me
 
-  Variable x(g, 2, 3);
-  x.value() << 1, 2, 3, 4, 5, 6;
-
-  //          x  r  c  cic0 kr kc  s  p  d
-  //Conv2D C(g, x, 2, 3, 1, 1, 2, 2, 1, 1, 1);
+  ASSERT(false);
 
   TEST_END()
 }

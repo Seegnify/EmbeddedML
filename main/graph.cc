@@ -2695,17 +2695,24 @@ Function(graph), _x(x)
 
 void Conv2D::init()
 {
-  std::cout << "stride " << _stride << std::endl;
-  std::cout << "padding " << _padding << std::endl;
-  std::cout << "dilation " << _dilation << std::endl;
+  // x derivative
 
-  // kernel parameter
+  // K derivative
+}
+
+void Conv2D::update_matrix()
+{
+  if (_K_matrix.size()) return;
+
+  // row / column dilation
   int r_d = _dilation;
   int c_d = _dilation;
 
+  // row / column padding
   int r_p = _padding;
   int c_p = _padding;
 
+  // row / column stride
   int r_s = _stride;
   int c_s = _stride;
 
@@ -2728,12 +2735,6 @@ void Conv2D::init()
   int o_rows = (_i_rows - k_span_rows + 2 * r_p) / r_s + 1;
   int o_cols = (_i_cols - k_span_cols + 2 * c_p) / c_s + 1;
 
-  std::cout << "k [" << _k_rows << "x" << _k_cols << "]" << std::endl;
-  std::cout << "k_span [" << k_span_rows << "x" << k_span_cols << "]" << std::endl;
-  std::cout << "input [" << _i_rows << "x" << _i_cols << "]" << std::endl;
-  std::cout << "input padded [" << i_padded_rows << "x" << i_padded_cols << "]" << std::endl;
-  std::cout << "output [" << o_rows << "x" << o_cols << "]" << std::endl;
-
   // input mask with padding
   TensorXi i_mask = TensorXi::Zero(i_padded_rows, i_padded_cols);
   i_mask.block(r_p, c_p, _i_rows, _i_cols) = TensorXi::Ones(_i_rows, _i_cols);
@@ -2751,8 +2752,6 @@ void Conv2D::init()
       k_mask.block(0, c * c_d + 1, k_span_rows, c_d - 1).array() = 0;
     }
   }
-  std::cout << "k_mask:" << k_mask.size() << std::endl;
-  std::cout << k_mask << std::endl;
 
   // build kernel matrix by sliding kernel over input
   //
@@ -2856,6 +2855,7 @@ void Conv2D::init()
     _i_channels *_i_rows * _i_cols
   );
 
+  // update kernel matrix for all input and output channels
   for (int i=0; i < _i_channels; i++)
   for (int o=0; o < _o_channels; o++)
   {
@@ -2865,11 +2865,6 @@ void Conv2D::init()
       _k_rows,
       _k_cols
     );
-
-    kernel << 1,2,
-              3,4;
-    std::cout << "kernel" << std::endl;
-    std::cout << kernel << std::endl;
 
     auto k_matrix = _K_matrix.block(
       o * o_rows * o_cols,
@@ -2900,19 +2895,14 @@ void Conv2D::init()
       }
     }
   }
-
-  std::cout << "_K_matrix" << std::endl;
-  std::cout << _K_matrix << std::endl;
-
-  // x derivative
-
-  // K derivative
 }
 
 const Tensor& Conv2D::forward()
 {
   // return cached value
   if (_value.size()) return _value;
+
+  update_matrix();
 
   _value = _K_matrix * _x();
 

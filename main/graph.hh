@@ -738,6 +738,7 @@ public:
 
 private:
   void init();
+  void update_matrix();
 
 protected:
   int _i_rows;
