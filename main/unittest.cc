@@ -3221,9 +3221,11 @@ void test_conv2d_backward()
   g.backward(y, Tensor::Ones(OUT,1));
 
   // dFdK
-  //Tensor dFdK = K.gradient();
-  //ASSERT(dFdK.rows() == OUT);
-  //ASSERT(dFdK.cols() == IN);
+  Tensor dFdK = K.gradient();
+  ASSERT(dFdK.rows() == K_ROWS);
+  ASSERT(dFdK.cols() == K_COLS);
+
+  print("dFdK", dFdK);
 
   // dFdK_hat = x
   //Tensor dFdK_hat = g.dFdX(y, K_matrix);

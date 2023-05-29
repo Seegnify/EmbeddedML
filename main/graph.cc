@@ -144,6 +144,26 @@ static Tensor ABT(const Tensor& A, const Tensor& B)
     return A * B.transpose();
 }
 
+// compute sparse product A*B.T at non-zero elements of a reference tensor R
+static SparseTensor ABT(
+  const Tensor& A,
+  const Tensor& B,
+  const SparseTensor& R
+)
+{
+  SparseTensor abt(R.rows(), R.cols());
+  for (int k=0; k < R.outerSize(); ++k)
+  {
+      for (SparseTensor::InnerIterator it(R,k); it; ++it)
+      {
+          auto row = it.row();
+          auto col = it.col();
+          abt.coeffRef(row, col) = A(row) * B(col);
+      }
+  }
+  return abt;
+}
+
 static Tensor clip(const Tensor& t, DTYPE min_val, DTYPE max_val)
 {
   auto lo = Tensor::Constant(t.rows(), t.cols(), min_val);
@@ -2709,7 +2729,7 @@ void Conv2D::init()
       if (_value.size()) return _value;
 
       auto& g = _base.backward();
-      auto& K = _base._K_matrix;
+      auto& K = _base.K_matrix();
 
       auto& dFdx = K;
 
@@ -2722,14 +2742,14 @@ void Conv2D::init()
     Conv2D& _base;
   };
 
-  // Derivative with respect to K_matrix
-  class Derivative_K_matrix : public Function
+  // Derivative with respect to K
+  class Derivative_K : public Function
   {
   public:
-    Derivative_K_matrix(Graph& graph, Conv2D& base) :
+    Derivative_K(Graph& graph, Conv2D& base) :
     Function(graph), _base(base) { graph.keep(this); }
 
-    // dFdW = x
+    // dFdK = x
     virtual const Tensor& forward()
     {
       // return cached value
@@ -2737,11 +2757,18 @@ void Conv2D::init()
 
       auto& g = _base.backward();
       auto& x = _base._x.forward();
+      auto& K = _base.K_matrix();
 
       auto& dFdK = x;
 
-      // update gradient value
-      _value = ABT(g, dFdK);
+      auto dFdK_matrix = ABT(g, dFdK, K);
+      std::cout << "dFdK_matrix" << std::endl;
+      std::cout << dFdK_matrix << std::endl;
+
+      // TODO: map dFdK_matrix to dFdK
+
+      // TODO: update gradient value
+      _value = Tensor::Zero(K.rows(), K.cols());
       return _value;
     }
 
@@ -2750,7 +2777,7 @@ void Conv2D::init()
   };
 
   _x.derivative(new Derivative_x(_graph, *this));
-  _K->derivative(new Derivative_K_matrix(_graph, *this));
+  _K->derivative(new Derivative_K(_graph, *this));
 }
 
 SparseTensor& Conv2D::K_matrix()
