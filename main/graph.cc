@@ -2695,64 +2695,66 @@ Function(graph), _x(x)
 
 void Conv2D::init()
 {
-  // x derivative
+  // Derivative with respect to x
+  class Derivative_x : public Function
+  {
+  public:
+    Derivative_x(Graph& graph, Conv2D& base) :
+    Function(graph), _base(base) { graph.keep(this); }
 
-  // K derivative
+    // dFdx = K_matrix
+    virtual const Tensor& forward()
+    {
+      // return cached value
+      if (_value.size()) return _value;
+
+      auto& g = _base.backward();
+      auto& K = _base._K_matrix;
+
+      auto& dFdx = K;
+
+      // update gradient value
+      _value = ATB(dFdx, g);
+      return _value;
+    }    
+
+  private:
+    Conv2D& _base;
+  };
+
+  // Derivative with respect to K_matrix
+  class Derivative_K_matrix : public Function
+  {
+  public:
+    Derivative_K_matrix(Graph& graph, Conv2D& base) :
+    Function(graph), _base(base) { graph.keep(this); }
+
+    // dFdW = x
+    virtual const Tensor& forward()
+    {
+      // return cached value
+      if (_value.size()) return _value;
+
+      auto& g = _base.backward();
+      auto& x = _base._x.forward();
+
+      auto& dFdK = x;
+
+      // update gradient value
+      _value = ABT(g, dFdK);
+      return _value;
+    }
+
+  private:
+    Conv2D& _base;
+  };
+
+  _x.derivative(new Derivative_x(_graph, *this));
+  _K->derivative(new Derivative_K_matrix(_graph, *this));
 }
 
-void Conv2D::update_matrix()
+SparseTensor& Conv2D::K_matrix()
 {
-  if (_K_matrix.size()) return;
-
-  // row / column dilation
-  int r_d = _dilation;
-  int c_d = _dilation;
-
-  // row / column padding
-  int r_p = _padding;
-  int c_p = _padding;
-
-  // row / column stride
-  int r_s = _stride;
-  int c_s = _stride;
-
-  // input with padding
-  // 0 0 0 0 0
-  // 0 1 2 3 0
-  // 0 4 5 6 0
-  // 0 0 0 0 0
-  int i_padded_rows = _i_rows + 2 * r_p;
-  int i_padded_cols = _i_cols + 2 * c_p;
-
-  // kernel with dilation
-  // 1 0 1
-  // 0 0 0
-  // 1 0 1
-  int k_span_rows = r_d * (_k_rows - 1) + 1;
-  int k_span_cols = c_d * (_k_cols - 1) + 1;
-
-  // output
-  int o_rows = (_i_rows - k_span_rows + 2 * r_p) / r_s + 1;
-  int o_cols = (_i_cols - k_span_cols + 2 * c_p) / c_s + 1;
-
-  // input mask with padding
-  TensorXi i_mask = TensorXi::Zero(i_padded_rows, i_padded_cols);
-  i_mask.block(r_p, c_p, _i_rows, _i_cols) = TensorXi::Ones(_i_rows, _i_cols);
-
-  // kernel mask with dilation
-  TensorXi k_mask = TensorXi::Ones(k_span_rows, k_span_cols);
-  if (_dilation > 1)
-  {
-    for (int r=0; r<_k_rows - 1; r++)
-    {
-      k_mask.block(r * r_d + 1, 0, r_d - 1, k_span_cols).array() = 0;
-    }
-    for (int c=0; c<_k_cols - 1; c++)
-    {
-      k_mask.block(0, c * c_d + 1, k_span_rows, c_d - 1).array() = 0;
-    }
-  }
-
   // build kernel matrix by sliding kernel over input
   //
   // Input for single channel
@@ -2781,6 +2783,12 @@ void Conv2D::update_matrix()
   //
   // 10 20
   // 30 40
+  //
+  // Kernel with dilation
+  //
+  // 10 0 20
+  //  0 0  0
+  // 30 0 40
   //
   // Convolution over all input positions
   //
@@ -2849,6 +2857,50 @@ void Conv2D::update_matrix()
   // 1              10 20 ...             10 20
   // 2                 10 ...                10   O
 
+  if (_K_matrix.size()) return _K_matrix;
+
+  // row / column dilation
+  int r_d = _dilation;
+  int c_d = _dilation;
+
+  // row / column padding
+  int r_p = _padding;
+  int c_p = _padding;
+
+  // row / column stride
+  int r_s = _stride;
+  int c_s = _stride;
+
+  // input with padding
+  int i_padded_rows = _i_rows + 2 * r_p;
+  int i_padded_cols = _i_cols + 2 * c_p;
+
+  // kernel with dilation
+  int k_span_rows = r_d * (_k_rows - 1) + 1;
+  int k_span_cols = c_d * (_k_cols - 1) + 1;
+
+  // output
+  int o_rows = (_i_rows - k_span_rows + 2 * r_p) / r_s + 1;
+  int o_cols = (_i_cols - k_span_cols + 2 * c_p) / c_s + 1;
+
+  // input mask with padding
+  TensorXi i_mask = TensorXi::Zero(i_padded_rows, i_padded_cols);
+  i_mask.block(r_p, c_p, _i_rows, _i_cols) = TensorXi::Ones(_i_rows, _i_cols);
+
+  // kernel mask with dilation
+  TensorXi k_mask = TensorXi::Ones(k_span_rows, k_span_cols);
+  if (_dilation > 1)
+  {
+    for (int r=0; r<_k_rows - 1; r++)
+    {
+      k_mask.block(r * r_d + 1, 0, r_d - 1, k_span_cols).array() = 0;
+    }
+    for (int c=0; c<_k_cols - 1; c++)
+    {
+      k_mask.block(0, c * c_d + 1, k_span_rows, c_d - 1).array() = 0;
+    }
+  }
+
   // kernel matrix for input and output channels
   _K_matrix.resize(
     _o_channels * o_rows * o_cols,
@@ -2895,6 +2947,8 @@ void Conv2D::update_matrix()
       }
     }
   }
+
+  return _K_matrix;
 }
 
 const Tensor& Conv2D::forward()
@@ -2902,9 +2956,10 @@ const Tensor& Conv2D::forward()
   // return cached value
   if (_value.size()) return _value;
 
-  update_matrix();
+  auto& x = _x();
+  auto& K = K_matrix();
 
-  _value = _K_matrix * _x();
+  _value = K * x;
 
   // return value
   return _value;

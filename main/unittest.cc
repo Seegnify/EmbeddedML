@@ -37,6 +37,14 @@ void print(const char* name, const Tensor& tensor)
   std::cout << tensor << std::endl;
 }
 
+void print(const char* name, const SparseTensor& tensor)
+{
+  std::cout << name
+  << " [" << tensor.rows() << " x " << tensor.cols() << "]"
+  << std::endl;
+  std::cout << tensor << std::endl;
+}
+
 void print(const char* name, Function& f)
 {
   print(name, f.forward());
@@ -3094,37 +3102,61 @@ void test_conv2d_forward()
   TEST_BEGIN("Conv2D Forward")
 
   // size
+  int IN_ROWS = 2;
+  int IN_COLS = 3;
+
+  int IN_CHANNELS = 1;
+  int OUT_CHANNELS = 1;
+
+  int K_ROWS = 2;
+  int K_COLS = 2;
+
+  int STRIDE = 1;
+  int PADDING = 1;
+  int DILATION = 1;
+
+  int OUT_ROWS = 3;
+  int OUT_COLS = 4;
+
+  // size
   Graph g;
 
-  // matrix input
-  Tensor x(2,3);
-  x << 1, 2, 3,
-       4, 5, 6;
+  // 2D input
+  Tensor x2d(IN_ROWS, IN_COLS);
+  x2d << 1, 2, 3,
+         4, 5, 6;
 
-  // vector input
-  Variable X(g, x.size(), 1);
-  X.value() = x;
+  // 1D x
+  Variable x(g, x2d.size(), 1);
+  x.value() = ConstTensorMap(x2d.data(), x2d.size(), 1);
 
   // ctor arg x ir ic ci co kr kc  s  p  d
-  Conv2D C(g, X, 2, 3, 1, 1, 2, 2, 1, 1, 1);
+  Conv2D c(
+    g, x,
+    IN_ROWS, IN_COLS,
+    IN_CHANNELS, OUT_CHANNELS,
+    K_ROWS, K_COLS,
+    STRIDE, PADDING, DILATION
+  );
 
-  // preset kernel
-  C.K().value() << 1, 2,
-                   3, 4;
+  // K
+  auto& K = c.K();
+  K.value() << 1, 2,
+               3, 4;
 
-  // get 2D convolution
-  auto y_vector = C.forward();
+  // 2D convolution
+  auto y = c.forward();
 
-  // reshape vector output to matrix output
-  auto y = ConstTensorMap(y_vector.data(), 3, 4);
+  // reshape vector output to 2D
+  auto y2d = ConstTensorMap(y.data(), OUT_ROWS, OUT_COLS);
 
-  // define expected output
-  Tensor y_hat(3,4);
+  // expected output
+  Tensor y_hat(OUT_ROWS, OUT_COLS);
   y_hat << 4, 11, 18,  9,
           18, 37, 47, 21,
            8, 14, 17,  6;
 
-  ASSERT(y_hat == y);
+  ASSERT(y_hat == y2d);
 
   TEST_END()
 }
@@ -3133,9 +3165,86 @@ void test_conv2d_backward()
 {
   TEST_BEGIN("Conv2D Backward")
 
-  // TODO: implement me
+  // size
+  int IN_ROWS = 2;
+  int IN_COLS = 3;
+  int IN = IN_ROWS * IN_COLS;
 
-  ASSERT(false);
+  int IN_CHANNELS = 1;
+  int OUT_CHANNELS = 1;
+
+  int K_ROWS = 2;
+  int K_COLS = 2;
+
+  int STRIDE = 1;
+  int PADDING = 1;
+  int DILATION = 1;
+
+  int OUT_ROWS = 3;
+  int OUT_COLS = 4;
+  int OUT = OUT_ROWS * OUT_COLS;
+
+  Graph g;
+
+  // matrix input
+  Tensor x2d(IN_ROWS, IN_COLS);
+  x2d << 1, 2, 3,
+         4, 5, 6;
+  print("x2d", x2d);
+
+  // vector input
+  auto& x = *g.new_variable(IN, 1);
+  x.value() = ConstTensorMap(x2d.data(), x2d.size(), 1);
+  print("x", x);
+
+  // 2D convolution
+  auto& y = *g.new_conv2d(
+    x,
+    IN_ROWS, IN_COLS,
+    IN_CHANNELS, OUT_CHANNELS,
+    K_ROWS, K_COLS,
+    STRIDE, PADDING, DILATION
+  );
+
+  // K
+  auto& K = y.K();
+  K.value() << 1, 2,
+               3, 4;
+  print("K", K);
+
+  // K matrix
+  auto& K_matrix = y.K_matrix();
+  print("K_matrix", K_matrix);
+
+  print("y", ConstTensorMap(y().data(), OUT_ROWS, OUT_COLS));
+  y.forward();
+  g.backward(y, Tensor::Ones(OUT,1));
+
+  // dFdK
+  //Tensor dFdK = K.gradient();
+  //ASSERT(dFdK.rows() == OUT);
+  //ASSERT(dFdK.cols() == IN);
+
+  // dFdK_hat = x
+  //Tensor dFdK_hat = g.dFdX(y, K_matrix);
+  //ASSERT(dFdK_hat.rows() == OUT);
+  //ASSERT(dFdK_hat.cols() == IN);
+  //ASSERT(dFdK.isApprox(dFdW_hat, 0.01))
+
+  // dFdx
+  Tensor dFdx = x.gradient();
+  ASSERT(dFdx.rows() == IN);
+  ASSERT(dFdx.cols() == 1);
+
+  print("dFdx", dFdx);
+
+  // dFdx_hat = K_matrix
+  Tensor dFdx_hat = g.dFdX(y, x);
+  ASSERT(dFdx_hat.rows() == IN);
+  ASSERT(dFdx_hat.cols() == 1);
+  ASSERT(dFdx.isApprox(dFdx_hat, 0.01))
+
+  print("dFdx_hat", dFdx_hat);
 
   TEST_END()
 }

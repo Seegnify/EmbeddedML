@@ -734,11 +734,13 @@ public:
   // kernel(s) variable
   Variable& K() const { return *_K; };
 
+  // sparse kernel(s) matrix
+  SparseTensor& K_matrix();
+
   virtual const Tensor& forward();
 
 private:
   void init();
-  void update_matrix();
 
 protected:
   int _i_rows;
