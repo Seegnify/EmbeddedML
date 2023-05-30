@@ -2997,8 +2997,8 @@ void Conv2D::convert(Tensor& K, SparseTensor& K_matrix, bool forward)
       for (int k_c=0; k_c < _k_cols; k_c++)
       {
         // convert kernel index to convolution index
-        int conv_r = r_d * (k_r - 1) + 1;
-        int conv_c = c_d * (k_c - 1) + 1;
+        int conv_r = k_r * r_d;
+        int conv_c = k_c * c_d;
 
         if (conv(conv_r, conv_c))
         {
