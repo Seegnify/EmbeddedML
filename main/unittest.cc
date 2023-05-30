@@ -3113,10 +3113,10 @@ void test_conv2d_forward()
 
   int STRIDE = 1;
   int PADDING = 1;
-  int DILATION = 1;
+  int DILATION = 2;
 
-  int OUT_ROWS = 3;
-  int OUT_COLS = 4;
+  int OUT_ROWS = 2;
+  int OUT_COLS = 3;
 
   // size
   Graph g;
@@ -3152,9 +3152,8 @@ void test_conv2d_forward()
 
   // expected output
   Tensor y_hat(OUT_ROWS, OUT_COLS);
-  y_hat << 4, 11, 18,  9,
-          18, 37, 47, 21,
-           8, 14, 17,  6;
+  y_hat << 20, 36, 15,
+            4,  7,  2;
 
   ASSERT(y_hat == y2d);
 
@@ -3974,6 +3973,7 @@ void test_rl_env()
   RLEnv env;
   
   Image image(rows, cols, 3); // random image
+  memset(image.data(), 0, rows * cols * 3);
   
   env.set_full_rgb(image.data(), 1, rows, cols);
   
@@ -4015,6 +4015,7 @@ void test_rl_env()
   env.set_view_size(view_rows, view_cols);
   
   Image image(rows, cols, 3); // random image
+  memset(image.data(), 0, rows * cols * 3);
   
   env.set_full_rgb(image.data(), 1, rows, cols);
   
