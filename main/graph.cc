@@ -2727,12 +2727,6 @@ const Tensor& Conv2D::forward()
   return _value;
 }
 
-void Conv2D::recache()
-{
-  Function::recache();
-  _K_matrix.resize(0,0);
-}
-
 void Conv2D::init()
 {
   // Derivative with respect to x
@@ -2755,6 +2749,7 @@ void Conv2D::init()
 
       // update gradient value
       _value = ATB(dFdx, g);
+
       return _value;
     }    
 
@@ -2780,13 +2775,11 @@ void Conv2D::init()
       auto& K = _base.K_matrix();
 
       auto& dFdK = x;
-
       auto dFdK_matrix = ABT(g, dFdK, K);
-      std::cout << "dFdK_matrix" << std::endl;
-      std::cout << dFdK_matrix << std::endl;
 
       // update gradient value
       _value = _base.K_gradient(dFdK_matrix);
+
       return _value;
     }
 
@@ -2800,7 +2793,9 @@ void Conv2D::init()
 
 SparseTensor& Conv2D::K_matrix()
 {
-  if (_K_matrix.size()) return _K_matrix;
+  if (_K_tracker.size() && _K_tracker == _K->value()) return _K_matrix;
+
+  _K_tracker = _K->value();
 
   // convert matrix K to unrolled matrix K_matrix
   convert(_K->value(), _K_matrix, true);

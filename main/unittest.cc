@@ -3190,12 +3190,10 @@ void test_conv2d_backward()
   Tensor x2d(IN_ROWS, IN_COLS);
   x2d << 1, 2, 3,
          4, 5, 6;
-  print("x2d", x2d);
 
   // vector input
   auto& x = *g.new_variable(IN, 1);
   x.value() = ConstTensorMap(x2d.data(), x2d.size(), 1);
-  print("x", x);
 
   // 2D convolution
   auto& y = *g.new_conv2d(
@@ -3210,9 +3208,7 @@ void test_conv2d_backward()
   auto& K = y.K();
   K.value() << 1, 2,
                3, 4;
-  print("K", K);
 
-  print("y", ConstTensorMap(y().data(), OUT_ROWS, OUT_COLS));
   y.forward();
   g.backward(y, Tensor::Ones(OUT,1));
 
@@ -3221,30 +3217,22 @@ void test_conv2d_backward()
   ASSERT(dFdK.rows() == K_ROWS);
   ASSERT(dFdK.cols() == K_COLS);
 
-  print("dFdK", dFdK);
-
   // dFdK_hat = x
   Tensor dFdK_hat = g.dFdX(y, K);
   ASSERT(dFdK_hat.rows() == K_ROWS);
   ASSERT(dFdK_hat.cols() == K_COLS);
   ASSERT(dFdK.isApprox(dFdK_hat, 0.01))
 
-  print("dFdK_hat", dFdK_hat);
-
   // dFdx
   Tensor dFdx = x.gradient();
   ASSERT(dFdx.rows() == IN);
   ASSERT(dFdx.cols() == 1);
-
-  print("dFdx", dFdx);
 
   // dFdx_hat = K
   Tensor dFdx_hat = g.dFdX(y, x);
   ASSERT(dFdx_hat.rows() == IN);
   ASSERT(dFdx_hat.cols() == 1);
   ASSERT(dFdx.isApprox(dFdx_hat, 0.01))
-
-  print("dFdx_hat", dFdx_hat);
 
   TEST_END()
 }

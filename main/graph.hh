@@ -736,8 +736,6 @@ public:
 
   virtual const Tensor& forward();
 
-  virtual void recache();
-
 private:
   void init();
 
@@ -758,6 +756,7 @@ protected:
   int _dilation;
   Function& _x;
   Variable* _K;
+  Tensor _K_tracker;
   SparseTensor _K_matrix;
 };
 
