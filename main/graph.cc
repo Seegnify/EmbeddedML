@@ -2713,6 +2713,26 @@ Function(graph), _x(x)
   init();
 }
 
+const Tensor& Conv2D::forward()
+{
+  // return cached value
+  if (_value.size()) return _value;
+
+  auto& x = _x();
+  auto& K = K_matrix();
+
+  _value = K * x;
+
+  // return value
+  return _value;
+}
+
+void Conv2D::recache()
+{
+  Function::recache();
+  _K_matrix.resize(0,0);
+}
+
 void Conv2D::init()
 {
   // Derivative with respect to x
@@ -2765,10 +2785,8 @@ void Conv2D::init()
       std::cout << "dFdK_matrix" << std::endl;
       std::cout << dFdK_matrix << std::endl;
 
-      // TODO: map dFdK_matrix to dFdK
-
-      // TODO: update gradient value
-      _value = Tensor::Zero(K.rows(), K.cols());
+      // update gradient value
+      _value = _base.K_gradient(dFdK_matrix);
       return _value;
     }
 
@@ -2781,6 +2799,30 @@ void Conv2D::init()
 }
 
 SparseTensor& Conv2D::K_matrix()
+{
+  if (_K_matrix.size()) return _K_matrix;
+
+  // convert matrix K to unrolled matrix K_matrix
+  convert(_K->value(), _K_matrix, true);
+
+  return _K_matrix;
+}
+
+Tensor Conv2D::K_gradient(SparseTensor& dK_matrix)
+{
+  // K gradient
+  Tensor dK = Tensor::Zero(
+    _o_channels * _k_rows,
+    _i_channels * _k_cols
+  );
+
+  // convert unrolled gradient dK_matrix to gradient dK
+  convert(dK, dK_matrix, false);
+
+  return dK;
+}
+
+void Conv2D::convert(Tensor& K, SparseTensor& K_matrix, bool forward)
 {
   // build kernel matrix by sliding kernel over input
   //
@@ -2884,8 +2926,6 @@ SparseTensor& Conv2D::K_matrix()
   // 1              10 20 ...             10 20
   // 2                 10 ...                10   O
 
-  if (_K_matrix.size()) return _K_matrix;
-
   // row / column dilation
   int r_d = _dilation;
   int c_d = _dilation;
@@ -2910,6 +2950,12 @@ SparseTensor& Conv2D::K_matrix()
   int o_rows = (_i_rows - k_span_rows + 2 * r_p) / r_s + 1;
   int o_cols = (_i_cols - k_span_cols + 2 * c_p) / c_s + 1;
 
+  // kernel matrix for input and output channels
+  K_matrix.conservativeResize(
+    _o_channels * o_rows * o_cols,
+    _i_channels *_i_rows * _i_cols
+  );
+
   // input mask with padding
   TensorXi i_mask = TensorXi::Zero(i_padded_rows, i_padded_cols);
   i_mask.block(r_p, c_p, _i_rows, _i_cols) = TensorXi::Ones(_i_rows, _i_cols);
@@ -2928,24 +2974,18 @@ SparseTensor& Conv2D::K_matrix()
     }
   }
 
-  // kernel matrix for input and output channels
-  _K_matrix.resize(
-    _o_channels * o_rows * o_cols,
-    _i_channels *_i_rows * _i_cols
-  );
-
   // update kernel matrix for all input and output channels
   for (int i=0; i < _i_channels; i++)
   for (int o=0; o < _o_channels; o++)
   {
-    auto kernel = _K->value().block(
+    auto kernel = K.block(
       o * _k_rows,
       i * _k_cols,
       _k_rows,
       _k_cols
     );
 
-    auto k_matrix = _K_matrix.block(
+    auto k_matrix = K_matrix.block(
       o * o_rows * o_cols,
       i *_i_rows * _i_cols,
       o_rows * o_cols,
@@ -2969,27 +3009,18 @@ SparseTensor& Conv2D::K_matrix()
         {
           // convert input coordinates to kernel matrix column (col major)
           int m_c = (r - r_p + conv_r) + (c - c_p + conv_c) * _i_rows;
-          k_matrix.coeffRef(m_r, m_c) = kernel(k_r, k_c);
+          if (forward)
+          {
+            k_matrix.coeffRef(m_r, m_c) = kernel(k_r, k_c);
+          }
+          else
+          {
+            kernel(k_r, k_c) += k_matrix.coeff(m_r, m_c);
+          }
         }
       }
     }
   }
-
-  return _K_matrix;
-}
-
-const Tensor& Conv2D::forward()
-{
-  // return cached value
-  if (_value.size()) return _value;
-
-  auto& x = _x();
-  auto& K = K_matrix();
-
-  _value = K * x;
-
-  // return value
-  return _value;
 }
 
 ///////////////////////////////////////////
