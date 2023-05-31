@@ -3099,7 +3099,7 @@ void test_word2vec_backward()
 
 void test_conv2d_forward()
 {
-  TEST_BEGIN("Conv2D Forward")
+  TEST_BEGIN("Conv2D Forward Single-Channel")
 
   // size
   int IN_ROWS = 2;
@@ -3130,7 +3130,7 @@ void test_conv2d_forward()
   Variable x(g, x2d.size(), 1);
   x.value() = ConstTensorMap(x2d.data(), x2d.size(), 1);
 
-  // ctor arg x ir ic ci co kr kc  s  p  d
+  // 2D conv layer
   Conv2D c(
     g, x,
     IN_ROWS, IN_COLS,
@@ -3154,6 +3154,92 @@ void test_conv2d_forward()
   Tensor y_hat(OUT_ROWS, OUT_COLS);
   y_hat << 20, 36, 15,
             4,  7,  2;
+
+  ASSERT(y_hat == y2d);
+
+  TEST_END()
+
+  TEST_BEGIN("Conv2D Forward Multi-Channel")
+
+  // size
+  int IN_ROWS = 2;
+  int IN_COLS = 3;
+
+  int IN_CHANNELS = 2;
+  int OUT_CHANNELS = 3;
+
+  int K_ROWS = 2;
+  int K_COLS = 2;
+
+  int STRIDE = 1;
+  int PADDING = 1;
+  int DILATION = 2;
+
+  int OUT_ROWS = 2;
+  int OUT_COLS = 3;
+
+  // size
+  Graph g;
+
+  // 2D input, IN_CHANNELS * IN_ROWS, IN_COLS = 4x3;
+  //
+  //  1  2  3 // channel 1
+  //  4  5  6
+  //
+  //  7  8  9 // channel 2
+  // 10 11 12
+
+  // 2D input as vector
+  Variable x(g, IN_CHANNELS * IN_ROWS * IN_COLS, 1);
+  x.value() << 1,4, 2,5, 3,6, 7,10, 8,11, 9,12;
+
+  // 2D conv layer
+  Conv2D c(
+    g, x,
+    IN_ROWS, IN_COLS,
+    IN_CHANNELS, OUT_CHANNELS,
+    K_ROWS, K_COLS,
+    STRIDE, PADDING, DILATION
+  );
+
+  // K, OUT_CHANNELS * K_ROWS, IN_CHANNELS * K_COLS = 6x4
+  //
+  //  1  2    5  6
+  //  3  4    7  8
+  //
+  //  9 10   11 12
+  // 13 14   15 16
+  //
+  // 17 18   19 20
+  // 21 22   23 34
+
+  auto& K = c.K();
+  K.value() << 1, 2,  5, 6,
+               3, 4,  7, 8,
+               9,10, 11,12,
+              13,14, 15,16,
+              17,18, 19,20,
+              21,22, 23,24;
+
+  // 2D convolution
+  auto y = c.forward();
+
+  Tensor y2d(OUT_CHANNELS * OUT_ROWS, OUT_COLS);
+  for (int i=0; i<OUT_CHANNELS; i++)
+  {
+    auto ch = y.block(i * OUT_ROWS * OUT_COLS, 0, OUT_ROWS * OUT_COLS, 1);
+    y2d.block(i * OUT_ROWS, 0, OUT_ROWS, OUT_COLS) =         
+      ConstTensorMap(ch.data(), OUT_ROWS, OUT_COLS);
+  }
+
+  // expected output
+  Tensor y_hat(OUT_CHANNELS * OUT_ROWS, OUT_COLS);
+  y_hat << 108, 202,  92, // channel 1
+            52,  96,  42,
+           246, 478, 230, // channel 2
+           116, 224, 106,
+           374, 734, 358, // channel 3
+           196, 384, 186;           
 
   ASSERT(y_hat == y2d);
 
