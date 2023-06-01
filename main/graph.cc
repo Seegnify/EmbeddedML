@@ -16,6 +16,9 @@
 
 #include <iostream>
 
+// Array.erf
+#include <unsupported/Eigen/SpecialFunctions>
+
 #include "graph.hh"
 
 namespace seegnify {
@@ -3016,6 +3019,126 @@ void Conv2D::convert(Tensor& K, SparseTensor& K_matrix, bool forward)
       }
     }
   }
+}
+
+///////////////////////////////////////////
+// Function Error
+///////////////////////////////////////////
+
+Erf::Erf(Graph& graph, Function& x) :
+Function(graph), _x(x)
+{
+  // Derivative with respect to x
+  class Derivative_x : public Function
+  {
+  public:
+    Derivative_x(Graph& graph, Erf& base) :
+    Function(graph), _base(base) { graph.keep(this); }
+
+    // dFdx = (2 / sqrt(pi)) * exp(-x^2)
+    virtual const Tensor& forward()
+    {
+      // return cached gradient
+      if (_value.size()) return _value;
+
+      auto& g = _base.backward();
+      auto& x = _base._x.forward();
+
+      // M_2_SQRTPI = 2/sqrt(pi)
+      auto dFdx = M_2_SQRTPI * (-x.array() * x.array()).exp();
+
+      // update gradient value
+      _value = dFdx.array() * g.array();
+
+     return _value;
+    }
+
+  private:
+    Erf& _base;
+  };
+
+  _x.derivative(new Derivative_x(graph, *this));
+}
+
+// F = erf(x)
+const Tensor& Erf::forward()
+{
+  // return cached value
+  if (_value.size()) return _value;
+
+  // get input
+  auto& x = _x.forward();
+
+  // update value
+  _value = x.array().erf();
+
+  // return value
+  return _value;
+}
+
+///////////////////////////////////////////
+// Function GeLU
+///////////////////////////////////////////
+
+GeLU::GeLU(Graph& graph, Function& x) :
+Function(graph), _x(x)
+{
+  // Derivative with respect to x
+  class Derivative_x : public Function
+  {
+  public:
+    Derivative_x(Graph& graph, GeLU& base) :
+    Function(graph), _base(base) { graph.keep(this); }
+
+    // F = 0.5 * x * (1 + erf(x / sqrt(2)))
+    // product rule: F(x) = v(x) * h(x)
+    // dFdx = dvdx * h + v * dhdx
+    // v(x) = 0.5 * x
+    // h(x) = 1 + erf(x / sqrt(2))
+    // dvdx = 0.5
+    // z(x) = x / sqrt(2)
+    // dhdx = derfdz * dzdx = (2 / sqrt(pi)) * exp(-x^2) / sqrt(2)
+    virtual const Tensor& forward()
+    {
+      // return cached gradient
+      if (_value.size()) return _value;
+
+      auto& g = _base.backward();
+      auto& x = _base._x.forward();
+
+      auto v = 0.5 * x.array();
+      auto h = 1 + (M_SQRT1_2 * x.array()).erf();
+      auto dvdx = 0.5;
+      auto dhdx = M_SQRT1_2 * M_2_SQRTPI * (-x.array() * x.array()).exp();
+      auto dFdx = dvdx * h + v * dhdx;
+
+      // update gradient value
+      _value = dFdx.array() * g.array();
+
+     return _value;
+    }
+
+  private:
+    GeLU& _base;
+  };
+
+  _x.derivative(new Derivative_x(graph, *this));
+}
+
+// F = 0.5 * x * (1 + erf(x / sqrt(2)))
+const Tensor& GeLU::forward()
+{
+  // return cached value
+  if (_value.size()) return _value;
+
+  // get input
+  auto& x = _x.forward();
+
+  // update value
+  _value = 0.5 * x.array() * (1 + (x.array() / M_SQRT2).erf());
+
+  // return value
+  return _value;
 }
 
 ///////////////////////////////////////////

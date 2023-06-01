@@ -628,7 +628,7 @@ protected:
   Constant *_H;
 };
 
-// Sampler
+// Sampler function
 class Sampler : public Function
 {
 public:
@@ -645,7 +645,7 @@ protected:
   bool _enabled;
 };
 
-// Gaussian
+// Gaussian function
 class Gaussian : public Function
 {
 public:
@@ -658,7 +658,7 @@ protected:
   Function *_z; // F = a * exp(z)
 };
 
-// LogGaussian
+// LogGaussian function
 class LogGaussian : public Function
 {
 public:
@@ -758,6 +758,30 @@ protected:
   Variable* _K;
   Tensor _K_tracker;
   SparseTensor _K_matrix;
+};
+
+// Error function
+class Erf : public Function
+{
+public:
+  Erf(Graph& graph, Function& x);
+
+  virtual const Tensor& forward();
+
+protected:
+  Function& _x;
+};
+
+// GeLU function
+class GeLU : public Function
+{
+public:
+  GeLU(Graph& graph, Function& x);
+
+  virtual const Tensor& forward();
+
+protected:
+  Function& _x;
 };
 
 // Identity (pass-through) derivarive
@@ -863,7 +887,7 @@ public:
   {
     auto node = new Constant(*this, rows, cols);
     keep(node);
-    return node; 
+    return node;
   }
 
   Variable* new_variable(int rows = 0, int cols = 0,
@@ -886,35 +910,35 @@ public:
   {
     auto node = new Broadcast(*this, x, target);
     keep(node);
-    return node; 
+    return node;
   }
 
   Split* new_split(Function& x, int r, int c, int rows, int cols)
   {
     auto node = new Split(*this, x, r, c, rows, cols);
     keep(node);
-    return node; 
+    return node;
   }
 
   Join* new_join(Function& x, Function& y, int rows, int cols)
   {
     auto node = new Join(*this, x, y, rows, cols);
     keep(node);
-    return node; 
+    return node;
   }
 
   Min* new_min(Function& x, Function& y)
   {
     auto node = new Min(*this, x, y);
     keep(node);
-    return node; 
+    return node;
   }
 
   Max* new_max(Function& x, Function& y)
   {
     auto node = new Max(*this, x, y);
     keep(node);
-    return node; 
+    return node;
   }
 
   Linear* new_linear(Function& x, int in = 0, int out = 0,
@@ -937,35 +961,35 @@ public:
   {
     auto node = new Linear(*this, x, other);
     keep(node);
-    return node; 
+    return node;
   }
 
   Product* new_product(Function& x, Function& y)
   {
     auto node = new Product(*this, x, y);
     keep(node);
-    return node; 
+    return node;
   }
 
   Add* new_add(Function& x, Function& y)
   {
     auto node = new Add(*this, x, y);
     keep(node);
-    return node; 
+    return node;
   }
 
   Sub* new_sub(Function& x, Function& y)
   {
     auto node = new Sub(*this, x, y);
     keep(node);
-    return node; 
+    return node;
   }
 
   Mul* new_mul(Function& x, Function& y)
   {
     auto node = new Mul(*this, x, y);
     keep(node);
-    return node; 
+    return node;
   }
 
   Power* new_power(Function& x, DTYPE y)
@@ -979,21 +1003,21 @@ public:
   {
     auto node = new Power(*this, x, y);
     keep(node);
-    return node; 
+    return node;
   }
 
   Tanh* new_tanh(Function& x)
   {
     auto node = new Tanh(*this, x);
     keep(node);
-    return node; 
+    return node;
   }
 
   Sigmoid* new_sigmoid(Function& x)
   {
     auto node = new Sigmoid(*this, x);
     keep(node);
-    return node; 
+    return node;
   }
 
   ReLU* new_relu(Function& x)
@@ -1021,56 +1045,56 @@ public:
   {
     auto node = new Softmax(*this, x);
     keep(node);
-    return node; 
+    return node;
   }
 
   Softplus* new_softplus(Function& x)
   {
     auto node = new Softplus(*this, x);
     keep(node);
-    return node; 
+    return node;
   }
 
   LogSoftmax* new_log_softmax(Function& x)
   {
     auto node = new LogSoftmax(*this, x);
     keep(node);
-    return node; 
+    return node;
   }
 
   Log* new_log(Function& x)
   {
     auto node = new Log(*this, x);
     keep(node);
-    return node; 
+    return node;
   }
 
   Abs* new_abs(Function& x)
   {
     auto node = new Abs(*this, x);
     keep(node);
-    return node; 
+    return node;
   }
 
   Transpose* new_transpose(Function& x)
   {
     auto node = new Transpose(*this, x);
     keep(node);
-    return node; 
+    return node;
   }
 
   Sum* new_sum(Function& x)
   {
     auto node = new Sum(*this, x);
     keep(node);
-    return node; 
+    return node;
   }
 
   Mean* new_mean(Function& x)
   {
     auto node = new Mean(*this, x);
     keep(node);
-    return node; 
+    return node;
   }
 
   GRU* new_gru(Function& x, Function& h, int in = 0, int out = 0,
@@ -1093,7 +1117,7 @@ public:
   {
     auto node = new GRU(*this, x, h, other);
     keep(node);
-    return node; 
+    return node;
   }
 
   AGRU* new_agru(Function& x, Function& h, int in = 0, int out = 0,
@@ -1116,7 +1140,7 @@ public:
   {
     auto node = new AGRU(*this, x, h, other);
     keep(node);
-    return node; 
+    return node;
   }
 
   LSTM* new_lstm(Function& x, Function& h, Function& c, int in = 0, int out = 0,
@@ -1139,7 +1163,7 @@ public:
   {
     auto node = new LSTM(*this, x, h, c, other);
     keep(node);
-    return node; 
+    return node;
   }
 
   FGU* new_fgu(Function& x, int in = 0, int out = 0,
@@ -1169,14 +1193,14 @@ public:
   {
     auto node = new Sampler(*this, m, s);
     keep(node);
-    return node; 
+    return node;
   }
 
   Norm* new_norm(Function& x, DTYPE g = 1.0, DTYPE b = 0.0)
   {
     auto node = new Norm(*this, x, g, b);
     keep(node);
-    return node; 
+    return node;
   }
 
   Gaussian* new_gaussian(Function& x, Function& m, Function& s)
@@ -1266,6 +1290,20 @@ public:
   Conv2D* new_conv2d(Function& x, const Conv2D& other)
   {
     auto node = new Conv2D(*this, x, other);
+    keep(node);
+    return node;
+  }
+
+  Erf* new_erf(Function& x)
+  {
+    auto node = new Erf(*this, x);
+    keep(node);
+    return node;
+  }
+
+  GeLU* new_gelu(Function& x)
+  {
+    auto node = new GeLU(*this, x);
     keep(node);
     return node;
   }
