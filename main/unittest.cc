@@ -1791,6 +1791,149 @@ void test_relu_backward()
   TEST_END()
 }
 
+void test_erf_forward()
+{
+  TEST_BEGIN("Erf Forward")
+  Graph g;
+
+  // size
+  int N = 4;
+
+  // relu input
+  Constant x(g, N, 1);
+  x.value() << 1,
+               0,
+               -3,
+               4;
+
+  // relu output
+  Tensor y_hat(N, 1);
+  y_hat <<  0.84270079295,
+            0,
+            -0.9999779095,
+            0.99999998458;
+
+  Erf y(g, x);
+  ASSERT(y() == y_hat)
+
+  TEST_END()
+}
+
+void test_erf_backward()
+{
+  TEST_BEGIN("Erf Backward")
+
+  // size
+  int N = 4;
+  Graph g;
+
+  // relu input
+  auto& z = *g.new_variable(N, 1);
+  z.value() << -1,
+               0,
+               -3,
+               4;
+
+  // gradient
+  auto& y = *g.new_erf(z);
+  y.forward();
+  y.gradient() = Tensor::Ones(N, 1);
+
+  // dFdz
+  auto& dFdz = z.backward();
+  ASSERT(dFdz.rows() == N);
+  ASSERT(dFdz.cols() == 1);
+
+  // dFdX_hat
+  Tensor dFdz_hat = g.dFdX(y, z);
+  ASSERT(dFdz_hat.isApprox(dFdz, 0.001))
+
+  TEST_END()
+}
+
+void test_gelu_forward()
+{
+  TEST_BEGIN("GeLU Forward")
+  Graph g;
+
+  // size
+  int N = 7;
+
+  // relu input
+  Constant x(g, N, 1);
+  x.value() << -2,
+               -1,
+               -0.5,
+               0,
+               0.5,
+               -3,
+               4;
+
+  GeLU y(g, x);
+
+  // relu output
+  Tensor y_hat(N, 1);
+  y_hat <<  -0.04550027847290039,
+            -0.15865525603294373,
+            -0.1542687714099884,
+            0.0,
+            0.3457312285900116,
+            -0.0040496885776519775,
+            3.999873161315918;
+
+  ASSERT(y_hat.isApprox(y(), 0.0001))
+
+  TEST_END()
+}
+
+void test_gelu_backward()
+{
+  TEST_BEGIN("GeLU Backward")
+
+  // size
+  int N = 7;
+  Graph g;
+
+  // relu input
+  auto& z = *g.new_variable(N, 1);
+  z.value() << -2,
+               -1,
+               -0.5,
+               0,
+               0.5,
+               -3,
+               4;
+
+  // gradient
+  auto& y = *g.new_gelu(z);
+  y.forward();
+  y.gradient() = Tensor::Ones(N, 1);
+
+  // dFdz
+  auto& dFdz = z.backward();
+  ASSERT(dFdz.rows() == N);
+  ASSERT(dFdz.cols() == 1);
+
+  // dFdX_hat based on Torch GELU
+  //
+  // x = torch.tensor(float(value), requires_grad=True)
+  // y = nn.GELU()(x)
+  // y.backward()
+  // dFdz_hat = x.grad
+  Tensor dFdz_hat(N, 1);
+  dFdz_hat << -0.08523179590702057,
+              -0.08331547677516937,
+              0.1325048804283142,
+              0.5,
+              0.8674951195716858,
+              -0.011945649050176144,
+              1.000503659248352;
+
+  ASSERT(dFdz_hat.isApprox(dFdz, 0.001))
+
+  TEST_END()
+}
+
 void test_step_forward()
 {
   TEST_BEGIN("Step Forward")
@@ -4377,6 +4520,12 @@ int main(int argc, char* argv[]) {
 
   test_relu_forward();
   test_relu_backward();
+
+  test_erf_forward();
+  test_erf_backward();
+
+  test_gelu_forward();
+  test_gelu_backward();
 
   test_step_forward();
   test_step_backward();
