@@ -3248,12 +3248,11 @@ void test_conv2d_forward()
 
 void test_conv2d_backward()
 {
-  TEST_BEGIN("Conv2D Backward")
+  TEST_BEGIN("Conv2D Backward Single-Channel")
 
   // size
   int IN_ROWS = 2;
   int IN_COLS = 3;
-  int IN = IN_ROWS * IN_COLS;
 
   int IN_CHANNELS = 1;
   int OUT_CHANNELS = 1;
@@ -3267,6 +3266,8 @@ void test_conv2d_backward()
 
   int OUT_ROWS = 3;
   int OUT_COLS = 4;
+
+  int IN = IN_ROWS * IN_COLS;
   int OUT = OUT_ROWS * OUT_COLS;
 
   Graph g;
@@ -3306,6 +3307,98 @@ void test_conv2d_backward()
   Tensor dFdK_hat = g.dFdX(y, K);
   ASSERT(dFdK_hat.rows() == K_ROWS);
   ASSERT(dFdK_hat.cols() == K_COLS);
+  ASSERT(dFdK.isApprox(dFdK_hat, 0.01))
+
+  // dFdx
+  Tensor dFdx = x.gradient();
+  ASSERT(dFdx.rows() == IN);
+  ASSERT(dFdx.cols() == 1);
+
+  // dFdx_hat = K
+  Tensor dFdx_hat = g.dFdX(y, x);
+  ASSERT(dFdx_hat.rows() == IN);
+  ASSERT(dFdx_hat.cols() == 1);
+  ASSERT(dFdx.isApprox(dFdx_hat, 0.01))
+
+  TEST_END()
+
+  TEST_BEGIN("Conv2D Backward Multi-Channel")
+
+  // size
+  int IN_ROWS = 2;
+  int IN_COLS = 3;
+
+  int IN_CHANNELS = 2;
+  int OUT_CHANNELS = 3;
+
+  int K_ROWS = 2;
+  int K_COLS = 2;
+
+  int STRIDE = 1;
+  int PADDING = 1;
+  int DILATION = 2;
+
+  int OUT_ROWS = 2;
+  int OUT_COLS = 3;
+
+  int IN = IN_CHANNELS * IN_ROWS * IN_COLS;
+  int OUT = OUT_CHANNELS * OUT_ROWS * OUT_COLS;
+
+  // size
+  Graph g;
+
+  // 2D input, IN_CHANNELS * IN_ROWS, IN_COLS = 4x3;
+  //
+  //  1  2  3 // channel 1
+  //  4  5  6
+  //
+  //  7  8  9 // channel 2
+  // 10 11 12
+
+  // 2D input as vector
+  auto& x = *g.new_variable(IN_CHANNELS * IN_ROWS * IN_COLS, 1);
+  x.value() << 1,4, 2,5, 3,6, 7,10, 8,11, 9,12;
+
+  // 2D conv layer
+  auto& y = *g.new_conv2d(
+    x,
+    IN_ROWS, IN_COLS,
+    IN_CHANNELS, OUT_CHANNELS,
+    K_ROWS, K_COLS,
+    STRIDE, PADDING, DILATION
+  );
+
+  // K, OUT_CHANNELS * K_ROWS, IN_CHANNELS * K_COLS = 6x4
+  //
+  //  1  2    5  6
+  //  3  4    7  8
+  //
+  //  9 10   11 12
+  // 13 14   15 16
+  //
+  // 17 18   19 20
+  // 21 22   23 34
+
+  auto& K = y.K();
+  K.value() << 1, 2,  5, 6,
+               3, 4,  7, 8,
+               9,10, 11,12,
+              13,14, 15,16,
+              17,18, 19,20,
+              21,22, 23,24;
+
+  y.forward();
+  g.backward(y, Tensor::Ones(OUT,1));
+
+  // dFdK
+  Tensor dFdK = K.gradient();
+  ASSERT(dFdK.rows() == OUT_CHANNELS * K_ROWS);
+  ASSERT(dFdK.cols() == IN_CHANNELS * K_COLS);
+
+  // dFdK_hat = x
+  Tensor dFdK_hat = g.dFdX(y, K);
+  ASSERT(dFdK_hat.rows() == OUT_CHANNELS * K_ROWS);
+  ASSERT(dFdK_hat.cols() == IN_CHANNELS * K_COLS);
   ASSERT(dFdK.isApprox(dFdK_hat, 0.01))
 
   // dFdx
