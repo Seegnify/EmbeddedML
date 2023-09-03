@@ -87,25 +87,9 @@ add_library (seegnify-fulltest SHARED
 main/fulltest.cc
 )
 
-# COMPOSER-RL
-add_library (example-composer-rl SHARED
-examples/composer-rl.cc
-main/rlenv.cc
-)
-
-# COMPOSER-NET2
-add_library (example-composer-net2 SHARED
-examples/composer-net2.cc
-)
-
-# TWIN-NET2
-add_library (example-twin-net2 SHARED
-examples/twin-net2.cc
-)
-
-# SELECTOR-NET2
-add_library (example-selector-net2 SHARED
-examples/selector-net2.cc
+# TRANSFORMER
+add_library (example-transformer SHARED
+examples/transformer.cc
 )
 
 # MNIST
@@ -130,10 +114,7 @@ target_link_libraries(seegnify-training ${DL_LIBS})
 target_link_libraries(seegnify-unittest ${DL_LIBS})
 target_link_libraries(seegnify-fulltest ${DL_LIBS})
 
-target_link_libraries(example-selector-net2 ${DL_LIBS})
-target_link_libraries(example-composer-net2 ${DL_LIBS})
-target_link_libraries(example-twin-net2 ${DL_LIBS})
-target_link_libraries(example-composer-rl ${DL_LIBS})
+target_link_libraries(example-transformer ${DL_LIBS})
 target_link_libraries(example-mnist ${DL_LIBS})
 target_link_libraries(example-cifar ${DL_LIBS})
 
