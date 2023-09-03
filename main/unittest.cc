@@ -339,6 +339,21 @@ void test_image_file()
   ASSERT(norm.data()[im.size()-1] == 0);
 
   TEST_END()
+
+  TEST_BEGIN("Image Move")
+
+  int rows = 100;
+  int cols = 200;
+
+  Image img(rows, cols);
+
+  Image img2;
+  img2 = std::move(img);
+
+  ASSERT(img.data() == nullptr);
+  ASSERT(img2.data() != nullptr);
+
+  TEST_END()
 }
 
 void test_eigen_matrix()
@@ -1814,7 +1829,7 @@ void test_erf_forward()
             0.99999998458;
 
   Erf y(g, x);
-  ASSERT(y() == y_hat)
+  ASSERT(y().isApprox(y_hat, 1e-6));
 
   TEST_END()
 }
@@ -3936,40 +3951,11 @@ void test_adam_optimizer()
 
 void test_image_sampler()
 {
-  const std::string img_path1 = "/home/greg/Pictures/test1.bmp";
-  const std::string img_path2 = "/home/greg/Pictures/test2.bmp";
-  const std::string img_path3 = "/home/greg/Pictures/test3.bmp";
-  const std::string img_path4 = "/home/greg/Pictures/test4.bmp";
-  const std::string img_path5 = "/home/greg/Pictures/test5.bmp";
-
-  TEST_BEGIN("Image Move")
-
-  Image img;
-
-  ASSERT(Image::Status::STATUS_OK == img.load(img_path1));
-  ASSERT(Image::Status::STATUS_OK == img.save(img_path2));
-
-  Image img2;
-  img2 = std::move(img);
-
-  TEST_END()
-
-  TEST_BEGIN("Image Storage")
-
-  Image img;
-
-  ASSERT(Image::Status::STATUS_OK == img.load(img_path1));
-  ASSERT(Image::Status::STATUS_OK == img.save(img_path2));
-
-  TEST_END()
-
   TEST_BEGIN("Gaussian Image Selector")
 
   int ROWS = 163;
   int COLS = 157;
-
-  Image img;
-  ASSERT(Image::Status::STATUS_OK == img.load(img_path1));
+  Image img(ROWS, COLS);
 
   Graph g;
   Constant center(g, 2,1);
@@ -3981,7 +3967,6 @@ void test_image_sampler()
   GaussianImageSelector is(g, center, radius, img, ROWS, COLS);
   Image selected = is.select();
 
-  ASSERT(Image::Status::STATUS_OK == selected.save(img_path3));
   ASSERT(selected.rows() == ROWS);
   ASSERT(selected.cols() == COLS);
   ASSERT(selected.channels() == img.channels());
@@ -3990,8 +3975,9 @@ void test_image_sampler()
 
   TEST_BEGIN("Gaussian Selector Model")
 
-  Image img;
-  ASSERT(Image::Status::STATUS_OK == img.load(img_path1));
+  int ROWS = 163;
+  int COLS = 157;
+  Image img(ROWS, COLS);
 
   Graph g;
   ASSERT(g.variables().size() == 0);
@@ -4013,17 +3999,14 @@ void test_image_sampler()
     ASSERT(v->gradient().size() > 0);
   }
 
-  model.save_image_selection("/home/greg/Pictures/selection-gaussian.gif");
-
   TEST_END()
 
   TEST_BEGIN("Softmax Image Selector")
 
   int ROWS = 663;
   int COLS = 457;
+  Image img(ROWS, COLS, SOFTMAX_SELECTED_CHANNELS);
 
-  Image img;
-  ASSERT(Image::Status::STATUS_OK == img.load(img_path1));
   ASSERT(img.channels() == SOFTMAX_SELECTED_CHANNELS);
 
   Graph g;
@@ -4033,7 +4016,6 @@ void test_image_sampler()
   SoftmaxImageSelector is(g, softmax, img, 2, 2, ROWS, COLS);
   Image selected = is.select();
 
-  ASSERT(Image::Status::STATUS_OK == selected.save(img_path4));
   ASSERT(selected.rows() == ROWS);
   ASSERT(selected.cols() == COLS);
   ASSERT(selected.channels() == img.channels());
@@ -4042,8 +4024,9 @@ void test_image_sampler()
 
   TEST_BEGIN("Softmax Selector Model")
 
-  Image img;
-  ASSERT(Image::Status::STATUS_OK == img.load(img_path1));
+  int ROWS = 663;
+  int COLS = 457;
+  Image img(ROWS, COLS, SOFTMAX_SELECTED_CHANNELS);
 
   Graph g;
   ASSERT(g.variables().size() == 0);
@@ -4065,24 +4048,19 @@ void test_image_sampler()
     ASSERT(v->gradient().size() > 0);
   }
 
-  model.save_image_selection("/home/greg/Pictures/selection-softmax.gif");
-
   TEST_END()
 
   TEST_BEGIN("Sequence Image Selector")
 
   int ROWS = 663;
   int COLS = 457;
-
-  Image img;
-  ASSERT(Image::Status::STATUS_OK == img.load(img_path1));
+  Image img(ROWS, COLS);
 
   Graph g;
 
   SequenceImageSelector is(g, img, 3, 2, 2, ROWS, COLS);
   Image selected = is.select();
 
-  ASSERT(Image::Status::STATUS_OK == selected.save(img_path5));
   ASSERT(selected.rows() == ROWS);
   ASSERT(selected.cols() == COLS);
   ASSERT(selected.channels() == img.channels());
@@ -4091,8 +4069,9 @@ void test_image_sampler()
 
   TEST_BEGIN("Sequence Selector Model")
 
-  Image img;
-  ASSERT(Image::Status::STATUS_OK == img.load(img_path1));
+  int ROWS = 663;
+  int COLS = 457;
+  Image img(ROWS, COLS);
 
   Graph g;
   ASSERT(g.variables().size() == 0);
@@ -4114,67 +4093,6 @@ void test_image_sampler()
     ASSERT(v->gradient().size() > 0);
   }
 
-  model.save_image_selection("/home/greg/Pictures/selection-sequence.gif");
-
-  TEST_END()
-/* 
-  TEST_BEGIN("2xNet Selector Model")
-
-  Image img;
-  ASSERT(Image::Status::STATUS_OK == img.load(img_path1));
-
-  Graph g;
-  ASSERT(g.variables().size() == 0);
-
-  Net2SelectorModel model(g);
-  ASSERT(g.variables().size() > 0);
-
-  auto label = model.forward(img, true);
-
-  for (auto v: g.variables())
-  {
-    ASSERT(v->gradient().size() == 0);
-  }
-
-  model.backward(label);
-
-  for (auto v: g.variables())
-  {
-    ASSERT(v->gradient().size() > 0);
-  }
-
-  model.save_image_selection("/home/greg/Pictures/selection-net2.gif");
-
-  TEST_END()
-*/
-  TEST_BEGIN("2xNet Composer Model")
-  /*
-
-  Image img;
-  ASSERT(Image::Status::STATUS_OK == img.load(img_path1));
-
-  Graph g;
-  ASSERT(g.variables().size() == 0);
-
-  Net2ComposerModel model(g);
-  ASSERT(g.variables().size() > 0);
-
-  model.forward(img, true);
-
-  for (auto v: g.variables())
-  {
-    ASSERT(v->gradient().size() == 0);
-  }
-
-  model.backward();
-
-  for (auto v: g.variables())
-  {
-    ASSERT(v->gradient().size() > 0);
-  }
-
-  model.save_image_selection("/home/greg/Pictures/selection-net2.gif");
-  */
   TEST_END()
 }
 
@@ -4182,10 +4100,7 @@ void test_ImageFP()
 {
   TEST_BEGIN("ImageFP")
 
-  const std::string img_path1 = "/home/greg/Pictures/test1.bmp";
-
-  Image img;
-  ASSERT(Image::Status::STATUS_OK == img.load(img_path1));
+  Image img(100, 200);
 
   // image to FP-image
 
@@ -4214,8 +4129,6 @@ void test_ImageFP()
   ASSERT(fp_cropped.size() == cropped.size());
   ASSERT(fp_cropped.channels() == cropped.channels());
 
-  ASSERT(Image::Status::STATUS_OK == cropped.save("/home/greg/Pictures/fp-cropped.bmp"));
-
   ImageFP fp_scaled = fp_cropped.scale(img.rows(), img.cols());
   Image scaled(fp_scaled.rows(), fp_scaled.cols(), fp_scaled.channels());
 
@@ -4228,8 +4141,6 @@ void test_ImageFP()
   ASSERT(fp_scaled.cols() == scaled.cols());
   ASSERT(fp_scaled.size() == scaled.size());
   ASSERT(fp_scaled.channels() == scaled.channels());
-
-  ASSERT(Image::Status::STATUS_OK == scaled.save("/home/greg/Pictures/fp-scaled.bmp"));
 
   TEST_END()
 }
@@ -4305,9 +4216,6 @@ void test_rl_env()
   auto full = env.get_full_rgb();
   auto view = env.get_view_rgb();
   
-  full.save("/home/greg/Pictures/rl-center-full.bmp");
-  view.save("/home/greg/Pictures/rl-center-view.bmp");
-
   ASSERT(full.data()[0] == image.data()[0])
   
   // find top-left corner of view in full image
@@ -4380,13 +4288,13 @@ void test_selector_composer()
 
   const std::string img_path1 = "/home/greg/Pictures/test1.bmp";
 
-  Image image;
-  ASSERT(Image::Status::STATUS_OK == image.load(img_path1));
+  const int COMPOSER_ROWS = 1000;
+  const int COMPOSER_COLS = 1500;
+
+  Image image(COMPOSER_ROWS, COMPOSER_COLS);
 
   const int SELECTOR_ROWS = 100;
   const int SELECTOR_COLS = 150;
-  const int COMPOSER_ROWS = image.rows();
-  const int COMPOSER_COLS = image.cols();
 
   Graph g;
 
@@ -4409,10 +4317,6 @@ void test_selector_composer()
   ASSERT(selected.size() == SELECTOR_ROWS * SELECTOR_COLS * image.channels());
   ASSERT(selected.channels() == image.channels());
 
-  ASSERT(Image::Status::STATUS_OK == selected.save(
-    "/home/greg/Pictures/selected.bmp"
-  ));
-
   // composer @ bottom right quarter of the image
   ImageComposer composer(g, center + 0.5, radius, selector,
     SELECTOR_ROWS, SELECTOR_COLS, COMPOSER_ROWS, COMPOSER_COLS);
@@ -4425,10 +4329,6 @@ void test_selector_composer()
   ASSERT(composed.size() == COMPOSER_ROWS * COMPOSER_COLS * image.channels());
   ASSERT(composed.channels() == image.channels());
 
-  ASSERT(Image::Status::STATUS_OK == composed.save(
-    "/home/greg/Pictures/composed.bmp"
-  ));
-
   // back from composer to selector
   ImageSelector selector2(g, center + 0.5, radius, composed,
     SELECTOR_ROWS, SELECTOR_COLS);
@@ -4440,10 +4340,6 @@ void test_selector_composer()
   ASSERT(selected2.cols() == SELECTOR_COLS);
   ASSERT(selected2.size() == SELECTOR_ROWS * SELECTOR_COLS * composed.channels());
   ASSERT(selected2.channels() == composed.channels());
-
-  ASSERT(Image::Status::STATUS_OK == selected.save(
-    "/home/greg/Pictures/selected2.bmp"
-  ));
 
   ASSERT(selector() == selector2());
 

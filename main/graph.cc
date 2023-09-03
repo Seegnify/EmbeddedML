@@ -3091,13 +3091,11 @@ Function(graph), _x(x)
     Function(graph), _base(base) { graph.keep(this); }
 
     // F = 0.5 * x * (1 + erf(x / sqrt(2)))
-    // product rule: F(x) = v(x) * h(x)
-    // dFdx = dvdx * h + v * dhdx
-    // v(x) = 0.5 * x
-    // h(x) = 1 + erf(x / sqrt(2))
-    // dvdx = 0.5
     // z(x) = x / sqrt(2)
-    // dhdx = derfdz * dzdx = (2 / sqrt(pi)) * exp(-x^2) / sqrt(2)
+    // F = 0.5 * x * (1 + erf(z))
+    // dFdx = 0.5 * (1 + erf(z)) + 0.5 * x * derfdz / sqrt(2)
+    // derfdz = erf(-z^2) * 2 / sqrt(pi)
+    // dFdx = 0.5 * (1 + erf(z)) + 0.5 * x * erf(-z^2) * 2 / sqrt(pi) / sqrt(2)
     virtual const Tensor& forward()
     {
       // return cached gradient
@@ -3106,14 +3104,12 @@ Function(graph), _x(x)
       auto& g = _base.backward();
       auto& x = _base._x.forward();
 
-      auto v = 0.5 * x.array();
-      auto h = 1 + (M_SQRT1_2 * x.array()).erf();
-      auto dvdx = 0.5;
-      auto dhdx = M_SQRT1_2 * M_2_SQRTPI * (-x.array() * x.array()).exp();
-      auto dFdx = dvdx * h + v * dhdx;
+      auto z = x.array() * M_SQRT1_2;
+      auto derfdz = M_2_SQRTPI * (-z.array() * z.array()).exp();
+      Tensor dFdx = 0.5 * (1 + z.erf()) + 0.5 * x.array() * derfdz * M_SQRT1_2;
 
       // update gradient value
-      _value = dFdx.array() * g.array();
+      _value = g.array() * dFdx.array();
 
      return _value;
     }
@@ -3135,7 +3131,7 @@ const Tensor& GeLU::forward()
   auto& x = _x.forward();
 
   // update value
-  _value = 0.5 * x.array() * (1 + (x.array() / M_SQRT2).erf());
+  _value = 0.5 * x.array() * (1 + (x.array() * M_SQRT1_2).erf());
 
   // return value
   return _value;
