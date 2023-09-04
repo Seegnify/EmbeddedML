@@ -83,10 +83,10 @@ public:
   void shuffle(Iterator first, Iterator last, int K)
   {
     int N = std::distance(first, last);
-    std::uniform_int_distribution<int> d(0, N-1);
-    for (int i=0; i<K && i<N-1; i++)
+    for (int i=0; i<K && i<N-2; i++)
     {
-      int j = i + d(_generator) % (N-i);
+      std::uniform_int_distribution<int> d(i, N-1);
+      int j = d(_generator);
       std::swap(*(first+i), *(first+j));
     }
   }
