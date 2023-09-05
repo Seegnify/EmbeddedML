@@ -334,6 +334,19 @@ std::vector<DTYPE> discount_reward(
   return dreward;
 }
 
+// cosine similarity
+DTYPE cosine_similarity(const Tensor& a, const Tensor& b)
+{
+  auto cs = a.transpose() * b / (a.norm() * b.norm());
+
+  if (cs.array().isInf().any() || cs.array().isNaN().any())
+  {
+    return 0;
+  }
+
+  return cs(0);
+}
+
 // save sequence of RGB images as animation to file
 void save_animation(const std::string& filename,
 const std::vector<const uint8_t*>& rgb, int width, int height, int delay) {

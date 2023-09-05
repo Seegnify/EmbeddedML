@@ -489,6 +489,34 @@ void test_discount_reward()
   TEST_END()
 }
 
+void test_cosine_similarity()
+{
+  TEST_BEGIN("Cosine Similarity")
+
+  Tensor a(5, 1);
+  a << 1,2,3,4,5;
+
+  Tensor b = 2 * a;
+  auto ab = cosine_similarity(a, b);
+  ASSERT(abs(ab - 1.0) < EPSILON)
+
+  Tensor c = -a;
+  auto ac = cosine_similarity(a, c);
+  ASSERT(abs(ac + 1.0) < EPSILON)
+
+  Tensor d = 0 * a;
+  auto ad = cosine_similarity(a, d);
+  ASSERT(ad == 0)
+
+  Tensor e(5, 1);
+  e << 1,1,-2,2,-3;
+  auto ae = cosine_similarity(a, e);
+  ASSERT(ae < -EPSILON)
+  ASSERT(ae > EPSILON - 1.0)
+
+  TEST_END()
+}
+
 void test_function_negative()
 {
   TEST_BEGIN("Function Negative")
@@ -4363,6 +4391,7 @@ int main(int argc, char* argv[]) {
   test_eigen_matrix();
   test_random_numbers();
   test_discount_reward();
+  test_cosine_similarity();
   test_function_negative();
   test_function_names();
 
