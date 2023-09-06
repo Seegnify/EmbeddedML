@@ -105,7 +105,7 @@ std::vector<DTYPE> discount_reward(
 const std::vector<DTYPE>& reward, DTYPE gamma);
 
 // cosine similarity
-DTYPE cosine_similarity(const Tensor& a, const Tensor& b);
+Tensor cosine_similarity(const Tensor& a, const Tensor& b);
 
 // save sequence of RGB images as animation to file
 void save_animation(const std::string& filename,

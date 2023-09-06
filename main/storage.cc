@@ -335,16 +335,27 @@ std::vector<DTYPE> discount_reward(
 }
 
 // cosine similarity
-DTYPE cosine_similarity(const Tensor& a, const Tensor& b)
+Tensor cosine_similarity(const Tensor& a, const Tensor& b)
 {
-  auto cs = a.transpose() * b / (a.norm() * b.norm());
+  Tensor ab = a * b;
 
-  if (cs.array().isInf().any() || cs.array().isNaN().any())
+  auto rows = ab.rows();
+  auto cols = ab.cols();
+
+  auto a_norm = a.rowwise().norm();
+  auto b_norm = b.colwise().norm();
+
+  for (auto r=0; r<rows; r++)
+  for (auto c=0; c<cols; c++)
   {
-    return 0;
+    ab(r,c) /= a_norm(r);
+    ab(r,c) /= b_norm(c);
   }
 
-  return cs(0);
+  auto zero = Tensor::Zero(ab.rows(), ab.cols());
+  auto cond = ab.array().isInf() || ab.array().isNaN();
+
+  return (cond).select(zero, ab);
 }
 
 // save sequence of RGB images as animation to file

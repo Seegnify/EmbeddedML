@@ -496,23 +496,19 @@ void test_cosine_similarity()
   Tensor a(5, 1);
   a << 1,2,3,4,5;
 
-  Tensor b = 2 * a;
-  auto ab = cosine_similarity(a, b);
-  ASSERT(abs(ab - 1.0) < EPSILON)
+  Tensor b(5, 4);
+  b.block(0,0, 5,1) = 2 * a;
+  b.block(0,1, 5,1) = -a;
+  b.block(0,2, 5,1) = 0 * a;
+  b.block(0,3, 5,1) << 1,1,-2,2,-3;
 
-  Tensor c = -a;
-  auto ac = cosine_similarity(a, c);
-  ASSERT(abs(ac + 1.0) < EPSILON)
+  auto cs = cosine_similarity(a.transpose(), b);
 
-  Tensor d = 0 * a;
-  auto ad = cosine_similarity(a, d);
-  ASSERT(ad == 0)
-
-  Tensor e(5, 1);
-  e << 1,1,-2,2,-3;
-  auto ae = cosine_similarity(a, e);
-  ASSERT(ae < -EPSILON)
-  ASSERT(ae > EPSILON - 1.0)
+  ASSERT(abs(cs(0) - 1.0) < EPSILON)
+  ASSERT(abs(cs(1) + 1.0) < EPSILON)
+  ASSERT(cs(2) == 0)
+  ASSERT(cs(3) < -EPSILON)
+  ASSERT(cs(3) > EPSILON - 1.0)
 
   TEST_END()
 }
