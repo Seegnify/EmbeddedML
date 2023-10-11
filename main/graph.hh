@@ -54,6 +54,9 @@ public:
   // default ctor
   Function(Graph& graph);
 
+  // virtual destructor
+  virtual ~Function() { _derivative.clear(); };
+
   // disable copy ctor
   Function(const Function& f) = delete;
 
