@@ -27,17 +27,18 @@ int linear_regression(
 
   // y = W * x + b
   auto& y = *g.new_linear(x, N, N);
-  y.W().value()(0) = 2.0;
-  y.b().value()(0) = 1.0;
+  //y.W().value()(0) = 2.0;
+  //y.b().value()(0) = 1.0;
 
   // target y
   Constant& y_hat = *g.new_constant(N, 1);
 
   // Loss
   auto& diff = *g.new_sub(y_hat, y);
-  //auto& pow2 = *g.new_mul(diff, diff);
-  auto& abs = *g.new_abs(diff);
-  auto& loss = *g.new_sum(abs);
+  auto& pow2 = *g.new_mul(diff, diff);
+  auto& loss = *g.new_sum(pow2);
+  //auto& abs = *g.new_abs(diff); // does not work for linear regression
+  //auto& loss = *g.new_sum(abs);
 
   SGD opt(g.variables(), learining_rate);
 
