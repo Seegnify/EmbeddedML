@@ -695,12 +695,12 @@ protected:
   Function *_H;
 };
 
-// Word2Vec function
-class Word2Vec : public Function
+// Embedding function
+class Embedding : public Function
 {
 public:
-  Word2Vec(Graph& graph, Constant& i, int in, int out);
-  Word2Vec(Graph& graph, Constant& i, const Word2Vec& other);
+  Embedding(Graph& graph, Constant& i, int in, int out);
+  Embedding(Graph& graph, Constant& i, const Embedding& other);
 
   // variable access
   Variable& E() { return *_E; }
@@ -1243,25 +1243,25 @@ public:
     return node;
   }
 
-  Word2Vec* new_word2vec(Constant& i, int in = 0, int out = 0,
+  Embedding* new_embedding(Constant& i, int in = 0, int out = 0,
   const char* name = nullptr)
   {
     auto other = function(name);
     if (other)
     {
-      return new_word2vec(i, (Word2Vec&)*other);
+      return new_embedding(i, (Embedding&)*other);
     }
     else
     {
-      auto node = new Word2Vec(*this, i, in, out);
+      auto node = new Embedding(*this, i, in, out);
       keep(node, name);
       return node;
     }
   }
 
-  Word2Vec* new_word2vec(Constant& i, const Word2Vec& other)
+  Embedding* new_embedding(Constant& i, const Embedding& other)
   {
-    auto node = new Word2Vec(*this, i, other);
+    auto node = new Embedding(*this, i, other);
     keep(node);
     return node;
   }

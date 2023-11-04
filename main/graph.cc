@@ -2546,10 +2546,10 @@ const Tensor& Hopfield::forward()
 }
 
 ///////////////////////////////////////////
-// Function Word2Vec
+// Function Embedding
 ///////////////////////////////////////////
 
-Word2Vec::Word2Vec(Graph& graph, Constant& i, int in, int out) :
+Embedding::Embedding(Graph& graph, Constant& i, int in, int out) :
 Function(graph), _i(i)
 {
   // construct new variables
@@ -2558,7 +2558,7 @@ Function(graph), _i(i)
   init();
 }
 
-Word2Vec::Word2Vec(Graph& graph, Constant& i, const Word2Vec& other) :
+Embedding::Embedding(Graph& graph, Constant& i, const Embedding& other) :
 Function(graph), _i(i)
 {
   // share variables with the "other"
@@ -2567,13 +2567,13 @@ Function(graph), _i(i)
   init();
 }
 
-void Word2Vec::init()
+void Embedding::init()
 {
   // Derivative with respect to E
   class Derivative_E : public Function
   {
   public:
-    Derivative_E(Graph& graph, Word2Vec& base) :
+    Derivative_E(Graph& graph, Embedding& base) :
     Function(graph), _base(base) { graph.keep(this); }
 
     // dFdE = x(i)
@@ -2598,14 +2598,14 @@ void Word2Vec::init()
     }
 
   private:
-    Word2Vec& _base;
+    Embedding& _base;
   };
 
   _E->derivative(new Derivative_E(_graph, *this));
 }
 
 // F = E * x(i)
-const Tensor& Word2Vec::forward()
+const Tensor& Embedding::forward()
 {
   // return cached value
   if (_value.size()) return _value;

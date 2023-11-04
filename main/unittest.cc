@@ -3232,9 +3232,9 @@ void test_hopfield_backward()
   TEST_END()
 }
 
-void test_word2vec_forward()
+void test_embedding_forward()
 {
-  TEST_BEGIN("Word2Vec Forward")
+  TEST_BEGIN("embedding Forward")
 
   // size
   int IN = 10; // vocabulary size
@@ -3245,7 +3245,7 @@ void test_word2vec_forward()
   Constant one_hot(g, 1, 1);
   one_hot.value() << HOT;
 
-  Word2Vec E(g, one_hot, IN, OUT);
+  Embedding E(g, one_hot, IN, OUT);
 
   Tensor hot = E.E().value().col(HOT);
   ASSERT(E() == hot);
@@ -3253,9 +3253,9 @@ void test_word2vec_forward()
   TEST_END()
 }
 
-void test_word2vec_backward()
+void test_embedding_backward()
 {
-  TEST_BEGIN("Word2Vec Backward")
+  TEST_BEGIN("embedding Backward")
 
   // size
   int IN = 10; // vocabulary size
@@ -3265,7 +3265,7 @@ void test_word2vec_backward()
   Constant& one_hot = *g.new_constant( 2, 1);
   one_hot.value() << 2, 3;
 
-  Word2Vec& E = *g.new_word2vec(one_hot, IN, OUT);
+  Embedding& E = *g.new_embedding(one_hot, IN, OUT);
   auto& W = E.E();
 
   E.forward();
@@ -4499,8 +4499,8 @@ int main(int argc, char* argv[]) {
   test_hopfield_forward();
   test_hopfield_backward();
 
-  test_word2vec_forward();
-  test_word2vec_backward();
+  test_embedding_forward();
+  test_embedding_backward();
 
   test_conv2d_forward();
   test_conv2d_backward();
