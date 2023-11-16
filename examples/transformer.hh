@@ -13,7 +13,7 @@ using namespace seegnify;
 
 
 ///////////////////////////////////
-// Attention
+// Scaled Dot-Product Attention
 ///////////////////////////////////
 class Attention : public Function
 {
@@ -21,22 +21,23 @@ public:
   // q - query vectors
   // k - key vectors
   // v - value vectors
+  // m - attention mask
   // S - sequence length
   // D - vector dimension
-  Attention(Graph& g, Function& q, Function& k, Function& v, int S, int D) :
-  Function(g)
+  Attention(Graph& g, Function& q, Function& k, Function& v, Function* m, int S, int D) :
+  Function(g), _mask(m)
   {
     // get scaled qkT columns
-    auto& qkT = *g.new_product(q, *g.new_transpose(k)) / sqrt(D);
+    _attn = &(*g.new_product(q, *g.new_transpose(k)) / sqrt(D));
 
     // transpose rows to columns for split/join
-    auto& qkT_rows = *g.new_transpose(qkT);
+    auto attn_rows = g.new_transpose(*_attn);
 
-    // apply softmax on qkT rows transposed to columns 
+    // apply softmax on qkT rows transposed to columns
     Function* softmax = nullptr;
     for (int r=0; r<S; r++)
     {
-      auto softmax_row = g.new_softmax(*g.new_split(qkT_rows, 0,r, D,1));
+      auto softmax_row = g.new_softmax(*g.new_split(*attn_rows, 0,r, D,1));
       if (softmax)
       {
         softmax = g.new_join(*softmax, *softmax_row, D,r+1);
@@ -47,7 +48,7 @@ public:
       }
     }
 
-    // transpose joined columns back to rows
+    // transpose joined softmax columns back to rows
     softmax = g.new_transpose(*softmax);
 
     _attention = g.new_product(*softmax, v);
@@ -59,12 +60,22 @@ public:
   {
     if (_value.size() > 0) return _value;
 
+    // mask attention
+    if (_mask)
+    {
+      auto& attn = _attn->forward();
+      DTYPE inf = std::numeric_limits<DTYPE>::infinity();
+      _attn->value() = (_mask->forward().array() == 0).select(-inf, attn);
+    }
+
     _value = _attention->forward();
 
     return _value;
   }
   
 protected:
+  Function* _attn;
+  Function* _mask;
   Function* _attention;
 };
 
