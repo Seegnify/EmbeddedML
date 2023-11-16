@@ -18,18 +18,39 @@ using namespace seegnify;
 class Attention : public Function
 {
 public:
-  Attention(Graph& g, Function& q, Function& k, Function& v) :
-  Function(g), _k(k)
+  // q - query vectors
+  // k - key vectors
+  // v - value vectors
+  // S - sequence length
+  // D - vector dimension
+  Attention(Graph& g, Function& q, Function& k, Function& v, int S, int D) :
+  Function(g)
   {
-    _k_dim = g.new_constant(1,1);
+    // get scaled qkT columns
+    auto& qkT = *g.new_product(q, *g.new_transpose(k)) / sqrt(D);
 
-    auto& qkT = *g.new_product(q, *g.new_transpose(_k));
+    // transpose rows to columns for split/join
+    auto& qkT_rows = *g.new_transpose(qkT);
 
-    auto& k_dim = *g.new_power(*g.new_broadcast(*_k_dim, qkT), -0.5);
+    // apply softmax on qkT rows transposed to columns 
+    Function* softmax = nullptr;
+    for (int r=0; r<S; r++)
+    {
+      auto softmax_row = g.new_softmax(*g.new_split(qkT_rows, 0,r, D,1));
+      if (softmax)
+      {
+        softmax = g.new_join(*softmax, *softmax_row, D,r+1);
+      }
+      else
+      {
+        softmax = softmax_row;
+      }
+    }
 
-    auto& softmax = *g.new_softmax(*g.new_mul(qkT, k_dim));
+    // transpose joined columns back to rows
+    softmax = g.new_transpose(*softmax);
 
-    _attention = g.new_product(softmax, v);
+    _attention = g.new_product(*softmax, v);
 
     _attention->derivative(_graph.new_iderivative(*this));
   }
@@ -38,16 +59,12 @@ public:
   {
     if (_value.size() > 0) return _value;
 
-    _k_dim->value() << _k.forward().cols();
-
     _value = _attention->forward();
 
     return _value;
   }
   
 protected:
-  Function& _k;
-  Constant* _k_dim;
   Function* _attention;
 };
 
