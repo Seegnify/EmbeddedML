@@ -21,26 +21,61 @@ public:
   // q - query vectors
   // k - key vectors
   // v - value vectors
-  // m - attention mask
-  // S - sequence length
-  // D - vector dimension
-  Attention(Graph& g, Function& q, Function& k, Function& v, Function* m, int S, int D) :
-  Function(g), _mask(m)
+  // mask - attention mask
+  // dropout - dropout probability
+  Attention(Graph& g, Function& q, Function& k, Function& v, Function* mask, DTYPE dropout) :
+  Function(g), _q(q), _k(k), _v(v), _mask(mask), _dropout(dropout)
   {
-    // get scaled qkT columns
-    _attn = &(*g.new_product(q, *g.new_transpose(k)) / sqrt(D));
+    // get scaled qkT
+    _bias = nullptr;
+    _attention = nullptr;
+  }
+
+  virtual const Tensor& forward()
+  {
+    if (_value.size() > 0) return _value;
+
+    init();
+
+    // mask attention
+    _bias->value() = Tensor::Zero(_bias->value().rows(), _bias->value().cols());
+
+    if (_mask)
+    {
+      DTYPE inf = std::numeric_limits<DTYPE>::infinity();
+      _bias->value() = (_mask->forward().array() == 0).select(-inf, _bias->value());
+    }
+
+    _value = _attention->forward();
+
+    return _value;
+  }
+
+private:
+  void init()
+  {
+    if (_attention) return;
+
+    int S = _q().rows();
+    int D = _q().cols();
+
+    // get scaled qkT
+    _attention = &(*_graph.new_product(_q, *_graph.new_transpose(_k)) / sqrt(D));
+
+    // attention bias
+    _bias = _graph.new_constant(S, S);
 
     // transpose rows to columns for split/join
-    auto attn_rows = g.new_transpose(*_attn);
+    _attention = _graph.new_transpose(*_attention + *_bias);
 
     // apply softmax on qkT rows transposed to columns
     Function* softmax = nullptr;
     for (int r=0; r<S; r++)
     {
-      auto softmax_row = g.new_softmax(*g.new_split(*attn_rows, 0,r, D,1));
+      auto softmax_row = _graph.new_softmax(*_graph.new_split(*_attention, 0,r, D,1));
       if (softmax)
       {
-        softmax = g.new_join(*softmax, *softmax_row, D,r+1);
+        softmax = _graph.new_join(*softmax, *softmax_row, D,r+1);
       }
       else
       {
@@ -49,34 +84,26 @@ public:
     }
 
     // transpose joined softmax columns back to rows
-    softmax = g.new_transpose(*softmax);
+    _attention = _graph.new_transpose(*softmax);
 
-    _attention = g.new_product(*softmax, v);
+    if (_dropout > 0)
+    {
+      _attention = _graph.new_dropout(*_attention, _dropout);
+    }
+
+    _attention = _graph.new_product(*_attention, _v);
 
     _attention->derivative(_graph.new_iderivative(*this));
   }
-
-  virtual const Tensor& forward()
-  {
-    if (_value.size() > 0) return _value;
-
-    // mask attention
-    if (_mask)
-    {
-      auto& attn = _attn->forward();
-      DTYPE inf = std::numeric_limits<DTYPE>::infinity();
-      _attn->value() = (_mask->forward().array() == 0).select(-inf, attn);
-    }
-
-    _value = _attention->forward();
-
-    return _value;
-  }
   
 protected:
-  Function* _attn;
+  Function& _q;
+  Function& _k;
+  Function& _v;
   Function* _mask;
+  Constant* _bias;
   Function* _attention;
+  DTYPE _dropout;
 };
 
 
