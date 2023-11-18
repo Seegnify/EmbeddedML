@@ -34,6 +34,12 @@ public:
     _attention = nullptr;
   }
 
+  void print(const char* fname)
+  {
+    std::cout << fname << std::endl;
+    std::cout << _graph.function(fname)->forward() << std::endl;
+  }
+
   virtual const Tensor& forward()
   {
     if (_value.size() > 0) return _value;
@@ -50,6 +56,9 @@ public:
     }
 
     _value = _attention->forward();
+
+    print("A before softmax");
+    print("A after softmax");
 
     return _value;
   }
@@ -71,15 +80,16 @@ private:
 
     // scale and add attention mask as bias
     _attention = &(*_attention / sqrt(D) + *_bias);
+    _graph.name(_attention, "A before softmax");
 
     // apply softmax on qk_T rows, join results as columns
     Function* softmax = nullptr;
     for (int r=0; r<S; r++)
     {
-      auto softmax_row = _graph.new_softmax(*_graph.new_split(*_attention, r,0, 1,D));
+      auto softmax_row = _graph.new_softmax(*_graph.new_split(*_attention, r,0, 1,S));
       if (softmax)
       {
-        softmax = _graph.new_join(*softmax, *softmax_row, D,r+1); // shape as columns
+        softmax = _graph.new_join(*softmax, *softmax_row, S,r+1); // shape as columns
       }
       else
       {
@@ -89,6 +99,7 @@ private:
 
     // transpose joined softmax columns back to rows
     _attention = _graph.new_transpose(*softmax);
+    _graph.name(_attention, "A after softmax");
 
     // apply dropout if present
     if (_dropout > 0)
