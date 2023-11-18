@@ -23,7 +23,10 @@ public:
   // v - value vectors
   // mask - attention mask
   // dropout - dropout probability
-  Attention(Graph& g, Function& q, Function& k, Function& v, Function* mask, DTYPE dropout) :
+  Attention(
+    Graph& g, Function& q, Function& k, Function& v,
+    Function* mask=nullptr, DTYPE dropout=0.0
+  ) :
   Function(g), _q(q), _k(k), _v(v), _mask(mask), _dropout(dropout)
   {
     // get scaled qkT
@@ -56,26 +59,24 @@ private:
   {
     if (_attention) return;
 
-    int S = _q().rows();
-    int D = _q().cols();
+    // get sequance lenght - S, and embedding dimention - D
+    int S = _k().rows();
+    int D = _k().cols();
 
-    // get scaled qkT
-    _attention = &(*_graph.new_product(_q, *_graph.new_transpose(_k)) / sqrt(D));
+    // get qk_T attention component
+    _attention = _graph.new_product(_q, *_graph.new_transpose(_k));
 
-    // attention bias
-    _bias = _graph.new_constant(S, S);
+    // scale and add attention mask as bias
+    _attention = &(*_attention / sqrt(D) + *_graph.new_constant(S, S));
 
-    // transpose rows to columns for split/join
-    _attention = _graph.new_transpose(*_attention + *_bias);
-
-    // apply softmax on qkT rows transposed to columns
+    // apply softmax on qk_T rows, join results as columns
     Function* softmax = nullptr;
     for (int r=0; r<S; r++)
     {
-      auto softmax_row = _graph.new_softmax(*_graph.new_split(*_attention, 0,r, D,1));
+      auto softmax_row = _graph.new_softmax(*_graph.new_split(*_attention, r,0, 1,D));
       if (softmax)
       {
-        softmax = _graph.new_join(*softmax, *softmax_row, D,r+1);
+        softmax = _graph.new_join(*softmax, *softmax_row, D,r+1); // shape as columns
       }
       else
       {
@@ -86,11 +87,13 @@ private:
     // transpose joined softmax columns back to rows
     _attention = _graph.new_transpose(*softmax);
 
+    // apply dropout if present
     if (_dropout > 0)
     {
       _attention = _graph.new_dropout(*_attention, _dropout);
     }
 
+    // complete qkv attention
     _attention = _graph.new_product(*_attention, _v);
 
     _attention->derivative(_graph.new_iderivative(*this));
