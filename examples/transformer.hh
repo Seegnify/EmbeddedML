@@ -66,8 +66,11 @@ private:
     // get qk_T attention component
     _attention = _graph.new_product(_q, *_graph.new_transpose(_k));
 
+    // attention bias
+    _bias = _graph.new_constant(S, S);
+
     // scale and add attention mask as bias
-    _attention = &(*_attention / sqrt(D) + *_graph.new_constant(S, S));
+    _attention = &(*_attention / sqrt(D) + *_bias);
 
     // apply softmax on qk_T rows, join results as columns
     Function* softmax = nullptr;
