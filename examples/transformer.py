@@ -25,8 +25,14 @@ class MultiHeadAttention(nn.Module):
         attn_scores = torch.matmul(Q, K.transpose(-2, -1)) / math.sqrt(self.d_k)
         if mask is not None:
             attn_scores = attn_scores.masked_fill(mask == 0, -1e9)
+        print("=== QK", attn_scores.shape)
         attn_probs = torch.softmax(attn_scores, dim=-1)
+        print("=== attn_probs", attn_probs.shape)
+        print(attn_probs)
+        print("=== attn_probs.sum()", torch.sum(attn_probs, dim=-1).shape)
+        print(torch.sum(attn_probs, dim=-1))
         output = torch.matmul(attn_probs, V)
+        print("=== QKV", output.shape)
         return output
         
     def split_heads(self, x):
@@ -41,14 +47,16 @@ class MultiHeadAttention(nn.Module):
         return x.transpose(1, 2).contiguous().view(batch_size, seq_length, self.d_model)
         
     def forward(self, Q, K, V, mask=None):
-        print("=== Q in", Q.shape)
+        print("=== MultiHeadAttention Q in", Q.shape)
         Q = self.split_heads(self.W_q(Q))
         K = self.split_heads(self.W_k(K))
         V = self.split_heads(self.W_v(V))
-        print("=== Q split", Q.shape)
+        print("=== MultiHeadAttentionQ split", Q.shape)
         
         attn_output = self.scaled_dot_product_attention(Q, K, V, mask)
+        print("=== MultiHeadAttentionQ attn_output", attn_output.shape)
         output = self.W_o(self.combine_heads(attn_output))
+        print("=== MultiHeadAttentionQ output", output.shape)
         return output
 
 
@@ -168,6 +176,12 @@ def save_model_as_numpy(np_path, model_state_dict):
   np.savez(np_path, **model_np_dict)
 
 
+def print_model(model_state_dict):
+  for m in model_state_dict:
+    arr = model_state_dict[m].numpy()
+    print("tensor", m, arr.shape, arr.dtype)
+
+
 # Meta params
 src_vocab_size = 5000
 tgt_vocab_size = 5000
@@ -204,6 +218,9 @@ except:
   tgt_data = torch.randint(1, tgt_vocab_size, (batch_size, max_seq_length))  # (batch_size, seq_length)
   print("New training data generated")
 
+print_model(torch.load(model_path))
+#os.exit
+
 # Model training
 criterion = nn.CrossEntropyLoss(ignore_index=0)
 optimizer = optim.Adam(transformer.parameters(), lr=0.0001, betas=(0.9, 0.98), eps=1e-9)
@@ -219,13 +236,13 @@ for epoch in range(num_epochs):
     print(f"Epoch: {epoch+1} / {num_epochs}, Loss: {loss.item()}")
 
 # Save data
-train_data = {"src_data":src_data, "tgt_data":tgt_data}
-torch.save(train_data, train_data_path)
-print("Training data saved to", train_data_path)
+#train_data = {"src_data":src_data, "tgt_data":tgt_data}
+#torch.save(train_data, train_data_path)
+#print("Training data saved to", train_data_path)
 
 # Save model
-torch.save(transformer.state_dict(), model_path)
-print("Model saved to", model_path)
+#torch.save(transformer.state_dict(), model_path)
+#print("Model saved to", model_path)
 
 # Save model as numpy
-save_model_as_numpy(model_np_path, transformer.state_dict())
+#save_model_as_numpy(model_np_path, transformer.state_dict())

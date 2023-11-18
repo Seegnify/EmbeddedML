@@ -53,13 +53,16 @@ include_directories(${ImageMagick_INCLUDE_DIRS})
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DMAGICKCORE_HDRI_ENABLE=0")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DMAGICKCORE_QUANTUM_DEPTH=16")
 
+# Find ZLib
+find_package(ZLIB REQUIRED)
+include_directories(${ZLIB_INCLUDE_DIRS})
+
 # common
 add_library (seegnify-common STATIC
 main/graph.cc
 main/storage.cc
 main/image.cc
 main/imageFP.cc
-main/tokenizer.cc
 main/graph.pb.cc
 )
 
@@ -87,17 +90,35 @@ add_library (seegnify-fulltest SHARED
 main/fulltest.cc
 )
 
-# TRANSFORMER
+# dopamine
+add_executable (test-dopamine
+examples/dopamine-test.cc
+)
+
+# test regression
+add_executable (test-regression
+examples/regression-test.cc
+examples/regression.cc
+)
+
+# test transformer
+add_executable (test-transformer
+examples/transformer-test.cc
+examples/transformer.cc
+external/cnpy/cnpy.cpp
+)
+
+# train TRANSFORMER
 add_library (example-transformer SHARED
 examples/transformer.cc
 )
 
-# MNIST
+# train MNIST
 add_library (example-mnist SHARED
 examples/mnist.cc
 )
 
-# CIFAR
+# train CIFAR
 add_library (example-cifar SHARED
 examples/cifar10.cc
 )
@@ -113,6 +134,10 @@ target_link_libraries(seegnify-common)
 target_link_libraries(seegnify-training ${DL_LIBS})
 target_link_libraries(seegnify-unittest ${DL_LIBS})
 target_link_libraries(seegnify-fulltest ${DL_LIBS})
+
+target_link_libraries(test-transformer ${DL_LIBS} ${ZLIB_LIBRARIES})
+target_link_libraries(test-dopamine ${DL_LIBS})
+target_link_libraries(test-regression ${DL_LIBS})
 
 target_link_libraries(example-transformer ${DL_LIBS})
 target_link_libraries(example-mnist ${DL_LIBS})
