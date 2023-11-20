@@ -195,11 +195,10 @@ void test_transformer()
                   4,1,-9;
     print("V", *V);
 
-    auto M = g.new_constant(S, D);
-    M->value() <<  1,1,1,
-                  1,1,1;
+    auto M = g.new_constant(S, S);
+    M->value() <<  1,1,
+                  0,0;
     print("M", *M);
-    M = nullptr;
 
     Attention attn(g, *Q,*K,*V,M, dropout);
 

@@ -2,9 +2,9 @@ import numpy as np
 import math
 
 import torch
-#from torch.nn.functional import scaled_dot_product_attention
+from torch.nn.functional import scaled_dot_product_attention
 
-def scaled_dot_product_attention(query, key, value, attn_mask=None, dropout_p=0.0, is_causal=False, scale=None) -> torch.Tensor:
+def my_scaled_dot_product_attention(query, key, value, attn_mask=None, dropout_p=0.0, is_causal=False, scale=None) -> torch.Tensor:
     # Efficient implementation equivalent to the following:
     L, S = query.size(-2), key.size(-2)
     scale_factor = 1 / math.sqrt(query.size(-1)) if scale is None else scale
@@ -17,9 +17,13 @@ def scaled_dot_product_attention(query, key, value, attn_mask=None, dropout_p=0.
 
     if attn_mask is not None:
         if attn_mask.dtype == torch.bool:
-            attn_mask.masked_fill_(attn_mask.logical_not(), float("-inf"))
+            print("\nattn_mask logical_not:\n", attn_mask.logical_not())
+            attn_bias.masked_fill_(attn_mask.logical_not(), float("-inf"))
+            print("\nattn_mask filled with -Inf:\n", attn_mask)
         else:
+            print("\nattn_mask unchanged:\n", attn_mask)
             attn_bias += attn_mask
+    print("\nattn_bias:\n", attn_bias)
     attn_weight = query @ key.transpose(-2, -1) * scale_factor
     attn_weight += attn_bias
     print("\nattention (A before softmax):\n", attn_weight)
@@ -45,17 +49,22 @@ def main():
         [-2,7,8],
         [4,1,-9],
     ])
-    M = None
+    M = torch.tensor([
+        [1,1],
+        [0,0],
+    ], dtype=torch.bool)
 
     dropout = 0.0
-
-    # Apply multihead attention
-    attention = scaled_dot_product_attention(Q, K, V, M, dropout)
 
     # Display the input and output matrices
     print("\nQuery Matrix (Q):\n", Q, Q.dtype)
     print("\nKey Matrix (K):\n", K, K.dtype)
     print("\nValue Matrix (V):\n", V, V.dtype)
+    print("\nMask Matrix (V):\n", M, M.dtype)
+
+    # Apply multihead attention
+    attention = scaled_dot_product_attention(Q, K, V, M, dropout)
+
     print("\nMultihead Attention Output:\n", attention)
 
 if __name__ == "__main__":
