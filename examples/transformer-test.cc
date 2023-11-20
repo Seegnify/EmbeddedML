@@ -167,38 +167,56 @@ void test_transformer()
     K = torch.Tensor([
         [0.1,0.2,0.3],
         [0.4,0.5,0.6],
+        [1.4,1.5,1.6],
+        [2.4,2.5,2.6],
     ])
     V = torch.Tensor([
         [-2,7,8],
         [4,1,-9],
+        [1,2,3],
+        [4,5,6],
     ])
-    M = None
+    M = torch.tensor([
+        [1,1,1,1],
+        [0,0,0,0],
+    ], dtype=torch.bool)
+
     */
 
     Graph g;
-    int S = 2;
-    int D = 3;
     DTYPE dropout = 0.0;
 
-    auto Q = g.new_constant(S, D);
+    // [2x3]
+    auto Q = g.new_constant(2, 3);
     Q->value() <<  1,2,3,
                   4,5,6;
     print("Q", *Q);
 
-    auto K = g.new_constant(S, D);
+    // [4x3]
+    auto K = g.new_constant(4, 3);
     K->value() <<  0.1,0.2,0.3,
-                  0.4,0.5,0.6;
+                  0.4,0.5,0.6,
+                  1.4,1.5,1.6,
+                  2.4,2.5,2.6,
     print("K", *K);
 
-    auto V = g.new_constant(S, D);
-    V->value() <<  -2,7,8,
-                  4,1,-9;
+    // QK_T -> [2x4]
+
+    // [2x4]
+    auto M = g.new_constant(2, 4);
+    M->value() <<  1,1,1,1,
+                  0,0,0,0;
+    print("M", *M);
+
+    // [4x5]
+    auto V = g.new_constant(4, 5);
+    V->value() <<  -2,7,8,2,2,
+                  4,1,-9,3,3,
+                  1,2,3,4,4,
+                  4,5,6,5,5;
     print("V", *V);
 
-    auto M = g.new_constant(S, S);
-    M->value() <<  1,1,
-                  0,0;
-    print("M", *M);
+    // softmax(QK_T)V -> [2x5]
 
     Attention attn(g, *Q,*K,*V,M, dropout);
 

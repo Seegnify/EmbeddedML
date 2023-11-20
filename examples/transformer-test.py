@@ -2,11 +2,12 @@ import numpy as np
 import math
 
 import torch
-from torch.nn.functional import scaled_dot_product_attention
+#from torch.nn.functional import scaled_dot_product_attention
 
-def my_scaled_dot_product_attention(query, key, value, attn_mask=None, dropout_p=0.0, is_causal=False, scale=None) -> torch.Tensor:
+def scaled_dot_product_attention(query, key, value, attn_mask=None, dropout_p=0.0, is_causal=False, scale=None) -> torch.Tensor:
     # Efficient implementation equivalent to the following:
     L, S = query.size(-2), key.size(-2)
+    print("L=", L, "S=", S, "D=", query.size(-1))
     scale_factor = 1 / math.sqrt(query.size(-1)) if scale is None else scale
     attn_bias = torch.zeros(L, S, dtype=query.dtype)
     if is_causal:
@@ -44,14 +45,18 @@ def main():
     K = torch.Tensor([
         [0.1,0.2,0.3],
         [0.4,0.5,0.6],
+        [1.4,1.5,1.6],
+        [2.4,2.5,2.6],
     ])
     V = torch.Tensor([
-        [-2,7,8],
-        [4,1,-9],
+        [-2,7,8,2,2],
+        [4,1,-9,3,3],
+        [1,2,3,4,4],
+        [4,5,6,5,5],
     ])
     M = torch.tensor([
-        [1,1],
-        [0,0],
+        [1,1,1,1],
+        [0,0,0,0],
     ], dtype=torch.bool)
 
     dropout = 0.0
@@ -60,12 +65,12 @@ def main():
     print("\nQuery Matrix (Q):\n", Q, Q.dtype)
     print("\nKey Matrix (K):\n", K, K.dtype)
     print("\nValue Matrix (V):\n", V, V.dtype)
-    print("\nMask Matrix (V):\n", M, M.dtype)
+    #print("\nMask Matrix (V):\n", M, M.dtype)
 
     # Apply multihead attention
     attention = scaled_dot_product_attention(Q, K, V, M, dropout)
 
-    print("\nMultihead Attention Output:\n", attention)
+    print("\nSinglehead Attention Output:\n", attention)
 
 if __name__ == "__main__":
     main()
