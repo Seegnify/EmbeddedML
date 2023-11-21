@@ -784,7 +784,11 @@ public:
   virtual const Tensor& forward();
 
 protected:
+#ifdef APPROXIMATE_GELU
+  Function* _gelu;
+#else
   Function& _x;
+#endif
 };
 
 // Identity (pass-through) derivarive

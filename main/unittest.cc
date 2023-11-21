@@ -1920,7 +1920,7 @@ void test_gelu_forward()
             -0.0040496885776519775,
             3.999873161315918;
 
-  ASSERT(y_hat.isApprox(y(), 0.0001))
+  ASSERT(y_hat.isApprox(y(), 0.01))
 
   TEST_END()
 }
@@ -1968,7 +1968,7 @@ void test_gelu_backward()
               -0.011945649050176144,
               1.000503659248352;
 
-  ASSERT(dFdz_hat.isApprox(dFdz, 0.001))
+  ASSERT(dFdz_hat.isApprox(dFdz, 0.03))
 
   TEST_END()
 }

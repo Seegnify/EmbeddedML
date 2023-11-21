@@ -3080,6 +3080,35 @@ const Tensor& Erf::forward()
 // Function GeLU
 ///////////////////////////////////////////
 
+#ifdef APPROXIMATE_GELU
+
+GeLU::GeLU(Graph& graph, Function& x) :
+Function(graph)
+{
+  // M_2_PI = 2 / pi
+  //_gelu = &(0.5 * x * (1.0 + *graph.new_tanh(
+  //  M_2_PI * (x + 0.044715 * *graph.new_power(x, 3))
+  //)));
+
+  _gelu = &(x * *graph.new_sigmoid(1.702 * x));
+
+  _gelu->derivative(graph.new_iderivative(*this));
+}
+
+// F = 0.5 (1 + tanh(√2/π(x + 0.044715 x^3)))
+const Tensor& GeLU::forward()
+{
+  // return cached value
+  if (_value.size()) return _value;
+
+  _value = _gelu->forward();
+
+  // return value
+  return _value;
+}
+
+#else
+
 GeLU::GeLU(Graph& graph, Function& x) :
 Function(graph), _x(x)
 {
@@ -3136,6 +3165,8 @@ const Tensor& GeLU::forward()
   // return value
   return _value;
 }
+
+#endif
 
 ///////////////////////////////////////////
 // Graph

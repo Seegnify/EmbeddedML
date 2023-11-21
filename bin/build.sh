@@ -35,7 +35,7 @@ if [ ! -d "${BASE_DIR}/build" ]; then
 fi
 
 # generate makefile
-cmake -DCMAKE_BUILD_TYPE=${BUILD_TYPE} --build ${BASE_DIR}/build
+cmake -DCMAKE_BUILD_TYPE=${BUILD_TYPE} ${BASE_DIR}/build
 
 # build
 cmake --build ${BASE_DIR}/build
