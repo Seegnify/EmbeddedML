@@ -56,7 +56,7 @@ def main():
     ])
     M = torch.tensor([
         [1,1,1,1],
-        [0,0,0,0],
+        [1,1,0,0],
     ], dtype=torch.bool)
 
     dropout = 0.0

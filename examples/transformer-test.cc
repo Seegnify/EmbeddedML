@@ -9,6 +9,7 @@
 #include "external/thread-pool-11/ThreadPool.h"
 
 #include "examples/transformer.hh"
+#include "main/unittest.hh"
 
 void print(const char* name, const Tensor& tensor)
 {
@@ -157,8 +158,10 @@ void test_thread_pool() {
     std::cout << std::endl;
 }
 
-void test_transformer()
+void test_attention()
 {
+    TEST_BEGIN("Scaled Dot-Product Attention Forward")
+
     /*
     Q = torch.Tensor([
         [1,2,3],
@@ -181,6 +184,11 @@ void test_transformer()
         [0,0,0,0],
     ], dtype=torch.bool)
 
+    // attention
+    A = torch.Tensor([
+        [ 3.9070,  4.9059,  5.8955,  4.9668,  4.9668],
+        [ 3.5844,  1.4156, -7.8225,  2.9307,  2.9307],
+    ])
     */
 
     Graph g;
@@ -188,13 +196,13 @@ void test_transformer()
 
     // [2x3]
     auto Q = g.new_constant(2, 3);
-    Q->value() <<  1,2,3,
+    Q->value() << 1,2,3,
                   4,5,6;
     print("Q", *Q);
 
     // [4x3]
     auto K = g.new_constant(4, 3);
-    K->value() <<  0.1,0.2,0.3,
+    K->value() << 0.1,0.2,0.3,
                   0.4,0.5,0.6,
                   1.4,1.5,1.6,
                   2.4,2.5,2.6,
@@ -204,24 +212,33 @@ void test_transformer()
 
     // [2x4]
     auto M = g.new_constant(2, 4);
-    M->value() <<  1,1,1,1,
-                  0,0,0,0;
+    M->value() << 1,1,1,1,
+                  1,1,0,0;
     print("M", *M);
 
     // [4x5]
     auto V = g.new_constant(4, 5);
-    V->value() <<  -2,7,8,2,2,
+    V->value() << -2,7,8,2,2,
                   4,1,-9,3,3,
                   1,2,3,4,4,
                   4,5,6,5,5;
     print("V", *V);
 
-    // softmax(QK_T)V -> [2x5]
+    // QK_TV -> [2x5]
 
     Attention attn(g, *Q,*K,*V,M, dropout);
 
     auto A = attn();
     print("A", A);
+
+
+    Tensor A_hat(2,5);
+    A_hat <<  3.9070,  4.9059,  5.8955,  4.9668,  4.9668,
+              3.5844,  1.4156, -7.8225,  2.9307,  2.9307;
+
+    ASSERT(A_hat.isApprox(A, 0.00001))
+
+    TEST_END()
 }
 
 int main(int argc, char* argv[]) {
@@ -229,7 +246,7 @@ int main(int argc, char* argv[]) {
     //test_cnpy();
     //test_threads();
     //test_thread_pool();
-    test_transformer();
+    test_attention();
 
     return 0;
 }
