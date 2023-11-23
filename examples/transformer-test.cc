@@ -291,13 +291,31 @@ void test_attention_backward()
     print("dA", attn.gradient());
 
     Tensor dQ = Q->backward();
+    Tensor dK = K->backward();
+    Tensor dV = V->backward();
     print("dQ", dQ);
+    print("dK", dK);
+    print("dV", dV);
 
     Tensor dQ_torch(2,3);
     dQ_torch << 0.4281, 0.4281, 0.4281,
                 0.1005, 0.1005, 0.1005;
 
+    Tensor dK_torch(4,3);
+    dK_torch << -1.3459, -1.6870, -2.0280,
+                1.3277,  1.6505,  1.9732,
+                -0.3897, -0.7795, -1.1692,
+                0.4080,  0.8160,  1.2240;
+
+    Tensor dV_torch(4,5);
+    dV_torch << 0.3480, 0.0696, 0.0696, 0.0696, 0.0696,
+                4.6584, 0.9317, 0.9317, 0.9317, 0.9317,
+                0.1516, 0.0303, 0.0303, 0.0303, 0.0303,
+                4.8420, 0.9684, 0.9684, 0.9684, 0.9684;
+
     ASSERT(dQ_torch.isApprox(dQ, 0.0001))
+    ASSERT(dK_torch.isApprox(dK, 0.0001))
+    ASSERT(dV_torch.isApprox(dV, 0.0001))
 
     TEST_END()
 }
