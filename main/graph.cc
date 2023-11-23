@@ -1408,6 +1408,7 @@ const Tensor& Dropout::forward()
 // Function Softmax
 ///////////////////////////////////////////
 
+// Input is expeced to be a column vector.
 // Derivative approches 0 when error is evently distributed.
 // Use LogSoftmax for training and Softmax for inference.
 Softmax::Softmax(Graph& graph, Function& x) :
@@ -1431,7 +1432,7 @@ Function(graph), _x(x)
       auto& F = _base.forward();
 
       // use Identity matrix to construct diagonal matrix
-      auto I = Tensor::Identity(F.rows(), F.rows());
+      auto I = Tensor::Identity(F.size(), F.size());
       auto dFdx = I * F.asDiagonal() - F * F.transpose();
 
       // multiply each row of dFdx by coresponding coefficient from d
