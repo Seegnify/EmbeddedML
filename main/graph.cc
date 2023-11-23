@@ -1430,12 +1430,18 @@ Function(graph), _x(x)
       auto& g = _base.backward();
       auto& F = _base.forward();
 
+      // flatten the input shape
+      auto V = ConstTensorMap(F.data(), F.size(), 1);
+
       // use Identity matrix to construct diagonal matrix
-      auto I = Tensor::Identity(F.rows(), F.rows());
-      auto dFdx = I * F.asDiagonal() - F * F.transpose();
+      auto I = Tensor::Identity(V.rows(), V.rows());
+      auto dFdx = I * V.asDiagonal() - V * V.transpose();
 
       // multiply each row of dFdx by coresponding coefficient from d
-      _value = (g.asDiagonal() * dFdx).colwise().sum().transpose();
+      Tensor v = (g.asDiagonal() * dFdx).colwise().sum().transpose();
+
+      // restore the output shape
+      _value = ConstTensorMap(v.data(), F.rows(), F.cols());
 
       return _value;
     }    
