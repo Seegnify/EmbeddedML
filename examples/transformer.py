@@ -20,6 +20,10 @@ class MultiHeadAttention(nn.Module):
         self.W_k = nn.Linear(d_model, d_model)
         self.W_v = nn.Linear(d_model, d_model)
         self.W_o = nn.Linear(d_model, d_model)
+        print("=== MultiHeadAttention self.W_q in", d_model, d_model)
+        print("=== MultiHeadAttention self.W_k in", d_model, d_model)
+        print("=== MultiHeadAttention self.W_v in", d_model, d_model)
+        print("=== MultiHeadAttention self.W_o in", d_model, d_model)
         
     def scaled_dot_product_attention(self, Q, K, V, mask=None):
         attn_scores = torch.matmul(Q, K.transpose(-2, -1)) / math.sqrt(self.d_k)
@@ -28,9 +32,7 @@ class MultiHeadAttention(nn.Module):
         print("=== QK", attn_scores.shape)
         attn_probs = torch.softmax(attn_scores, dim=-1)
         print("=== attn_probs", attn_probs.shape)
-        print(attn_probs)
         print("=== attn_probs.sum()", torch.sum(attn_probs, dim=-1).shape)
-        print(torch.sum(attn_probs, dim=-1))
         output = torch.matmul(attn_probs, V)
         print("=== QKV", output.shape)
         return output
@@ -48,15 +50,27 @@ class MultiHeadAttention(nn.Module):
         
     def forward(self, Q, K, V, mask=None):
         print("=== MultiHeadAttention Q in", Q.shape)
+        print("=== MultiHeadAttention K in", K.shape)
+        print("=== MultiHeadAttention V in", V.shape)
+        WQ = self.W_q(Q)
+        WK = self.W_k(K)
+        WV = self.W_v(V)
+        print("=== MultiHeadAttention WQ in", WQ.shape)
+        print("=== MultiHeadAttention WK in", WK.shape)
+        print("=== MultiHeadAttention WV in", WV.shape)
         Q = self.split_heads(self.W_q(Q))
         K = self.split_heads(self.W_k(K))
         V = self.split_heads(self.W_v(V))
-        print("=== MultiHeadAttentionQ split", Q.shape)
+        print("=== MultiHeadAttention Q split", Q.shape)
+        print("=== MultiHeadAttention K split", K.shape)
+        print("=== MultiHeadAttention V split", V.shape)
         
         attn_output = self.scaled_dot_product_attention(Q, K, V, mask)
-        print("=== MultiHeadAttentionQ attn_output", attn_output.shape)
-        output = self.W_o(self.combine_heads(attn_output))
-        print("=== MultiHeadAttentionQ output", output.shape)
+        print("=== MultiHeadAttention attn_output", attn_output.shape)
+        cobined_heads = self.combine_heads(attn_output)
+        print("=== Combined Heads", cobined_heads.shape)
+        output = self.W_o(cobined_heads)
+        print("=== MultiHeadAttention output", output.shape)
         return output
 
 

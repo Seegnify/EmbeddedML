@@ -60,9 +60,10 @@ def scaled_dot_product_attention(query, key, value, attn_mask=None, dropout_p=0.
     attn_weight = torch.softmax(attn_weight, dim=-1)
     print("\nattention (A after softmax):\n", attn_weight)
     attn_weight = torch.dropout(attn_weight, dropout_p, train=True)
+    print("\nvalue:\n", value)
     return attn_weight @ value
 
-def main():
+def test_attention():
     # Set random seed for reproducibility
     np.random.seed(42)
 
@@ -157,6 +158,6 @@ def test_softmax_np():
     print("Softmax Derivative:\n", soft_derivative)
 
 if __name__ == "__main__":
-    main()
+    test_attention()
     #test_softmax()
     #test_softmax_np()

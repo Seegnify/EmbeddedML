@@ -21,66 +21,21 @@ public:
   // q - query vectors
   // k - key vectors
   // v - value vectors
+  // trg_size - target and query size
+  // seq_size - max sequence size
+  // head_size - head size
   // mask - attention mask
   // dropout - dropout probability
   Attention(
-    Graph& g, Function& q, Function& k, Function& v,
-    Function* mask=nullptr, DTYPE dropout=0.0
+    Graph& g, Function& q, Function& k, Function& v, Function* mask, 
+    int trg_size, int seq_size, int head_size, DTYPE dropout=0.0
   ) :
   Function(g), _q(q), _k(k), _v(v), _mask(mask), _dropout(dropout)
   {
-    // get scaled qkT
-    _bias = nullptr;
-    _attention = nullptr;
-  }
-
-  void print(const char* fname)
-  {
-    auto f = _graph.function(fname);
-    if (f)
-    {
-      auto& t = f->forward();
-      std::cout << fname << " [" << t.rows() << "x" << t.cols() << "]" << std::endl;
-      std::cout << t << std::endl;
-    }
-    else
-    {
-      std::cout << fname << " [NOT FOUND]" << std::endl;
-    }
-  }
-
-  virtual const Tensor& forward()
-  {
-    if (_value.size() > 0) return _value;
-
-    init();
-
-    // mask attention
-    _bias->value() = Tensor::Zero(_bias->value().rows(), _bias->value().cols());
-
-    if (_mask)
-    {
-      DTYPE inf = std::numeric_limits<DTYPE>::infinity();
-      _bias->value() = (_mask->forward().array() == 0).select(-inf, _bias->value());
-    }
-
-    _value = _attention->forward();
-
-    print("A before softmax");
-    print("A after softmax");
-
-    return _value;
-  }
-
-private:
-  void init()
-  {
-    if (_attention) return;
-
     // L - target lenght, S - sequance lenght, D - embedding dimension
-    int L = _q().rows();
-    int S = _k().rows();
-    int D = _k().cols();
+    int L = trg_size;  // _q().rows()
+    int S = seq_size;  // _k().rows()
+    int D = head_size; // _k().cols()
     std::cout << "L=" << L << ", S=" << S << ", D=" << D << std::endl;
 
     // get qk_T attention component [LxS]
@@ -123,6 +78,42 @@ private:
 
     _attention->derivative(_graph.new_iderivative(*this));
   }
+
+  void print(const char* fname)
+  {
+    auto f = _graph.function(fname);
+    if (f)
+    {
+      auto& t = f->forward();
+      std::cout << fname << " [" << t.rows() << "x" << t.cols() << "]" << std::endl;
+      std::cout << t << std::endl;
+    }
+    else
+    {
+      std::cout << fname << " [NOT FOUND]" << std::endl;
+    }
+  }
+
+  virtual const Tensor& forward()
+  {
+    if (_value.size() > 0) return _value;
+
+    // mask attention
+    _bias->value() = Tensor::Zero(_bias->value().rows(), _bias->value().cols());
+
+    if (_mask)
+    {
+      DTYPE inf = std::numeric_limits<DTYPE>::infinity();
+      _bias->value() = (_mask->forward().array() == 0).select(-inf, _bias->value());
+    }
+
+    _value = _attention->forward();
+
+    print("A before softmax");
+    print("A after softmax");
+
+    return _value;
+  }
   
 protected:
   Function& _q;
@@ -143,18 +134,43 @@ class MultiHeadAttention : public Function
 public:
   MultiHeadAttention(
     Graph& g, Function& q, Function& k, Function& v,
-    int emb_size, int num_heads, DTYPE dropout=0.0) :
-  Function(g), _q(q), _k(k), _v(v),
-  _emb_size(emb_size), _num_heads(num_heads), _dropout(dropout)
+    int trg_size, int seq_size, int emb_size, int num_heads, DTYPE dropout=0.0) : Function(g)
   {
-    _attention = nullptr;
+    const int L = trg_size; // q.rows()
+    const int S = seq_size; // k.rows()
+    const int E = emb_size; // v.cols()
+    const int H = num_heads;
+    const int D = emb_size / num_heads;
+
+    _Wq = g.new_variable(E, E);
+    _Wk = g.new_variable(E, E);
+    _Wv = g.new_variable(E, E);
+    _Wo = g.new_variable(E, E);
+
+    auto q_heads = split_heads(linear(q, *_Wq), H, S, D);
+    auto k_heads = split_heads(linear(k, *_Wk), H, S, D);
+    auto v_heads = split_heads(linear(v, *_Wv), H, S, D);
+
+    std::vector<Function*> heads(num_heads, nullptr);
+
+    for (int i=0; i<num_heads; i++)
+    {
+      heads[i] = new Attention(
+        _graph, *q_heads[i], *k_heads[i], *v_heads[i], nullptr, L, S, H, dropout
+      );
+      _graph.keep(heads[i]);
+    }
+
+    auto& joined = join_heads(heads, S, H);
+    auto& WoT = *_graph.new_transpose(*_Wo);
+    _attention = _graph.new_product(joined, WoT);
   }
 
   virtual const Tensor& forward()
   {
     if (_value.size() > 0) return _value;
 
-    init();
+    // TODO: attention heads can run in parallel using thread pool
 
     _value = _attention->forward();
 
@@ -162,19 +178,22 @@ public:
   }
 
 private:
-
-  std::vector<Function*> split_heads(Function& x)
+  Function& linear(Function& x, Function& W)
   {
-    std::vector<Function*> heads(_num_heads, nullptr);
+    return *_graph.new_product(x, *_graph.new_transpose(W));
+  }
 
-    // sequence length, model size, embedding dimension
-    int S = x().rows();
-    int E = x().cols();
-    int D = E / _num_heads;
+  std::vector<Function*> split_heads(
+    Function& x, int num_heads, int seq_size, int head_size
+  )
+  {
+    std::vector<Function*> heads(num_heads, nullptr);
 
-    assert(E == _num_heads * D);
+    // sequence length, head size
+    int S = seq_size;
+    int D = head_size;
 
-    for (int i=0; i<_num_heads; i++)
+    for (int i=0; i<num_heads; i++)
     {
       auto head = _graph.new_split(x, 0,i*D, S,D);
       heads[i] = _graph.new_transpose(*head);
@@ -183,17 +202,21 @@ private:
     return heads;
   }
 
-  Function* join_heads(const std::vector<Function*>& heads)
+  Function& join_heads(
+    const std::vector<Function*>& heads, int seq_size, int head_size
+  )
   {
+    // sequence length, head size
+    int S = seq_size;
+    int D = head_size;
+
+    int num_heads = heads.size();
+
     Function* joined = nullptr;
 
-    for (int i=0; i<_num_heads; i++)
+    for (int i=0; i<num_heads; i++)
     {
       auto head = _graph.new_transpose(*heads[i]);
-
-      // sequence length, model size, embedding dimension
-      int S = head->forward().cols();
-      int D = head->forward().rows();
 
       if (joined)
       {
@@ -205,38 +228,15 @@ private:
       }
     }
 
-    return joined;
-  }
-
-  void init()
-  {
-    if (_attention) return;
-
-    auto q_heads = split_heads(_q);
-    auto k_heads = split_heads(_k);
-    auto v_heads = split_heads(_v);
-
-    std::vector<Function*> attn(_num_heads, nullptr);
-
-    for (int i=0; i<_num_heads; i++)
-    {
-      attn[i] = new Attention(
-        _graph, *q_heads[i], *k_heads[i], *v_heads[i], nullptr, _dropout
-      );
-      _graph.keep(attn[i]);
-    }
-
-    _attention = join_heads(attn);
+    return *joined;
   }
 
 protected:
-  Function& _q;
-  Function& _k;
-  Function& _v;
   Function* _attention;
-  const int _emb_size;
-  const int _num_heads;
-  const DTYPE _dropout;
+  Variable* _Wq;
+  Variable* _Wk;
+  Variable* _Wv;
+  Variable* _Wo;
 };
 
 

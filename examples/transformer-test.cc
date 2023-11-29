@@ -226,7 +226,11 @@ void test_attention_forward()
 
     // QK_TV -> [2x5]
 
-    Attention attn(g, *Q,*K,*V,M, dropout);
+    int T = Q->value().rows();
+    int S = K->value().rows();
+    int D = K->value().cols();
+
+    Attention attn(g, *Q,*K,*V, M, T, S, D, dropout);
 
     auto& A = attn();
     print("A", A);
@@ -280,7 +284,11 @@ void test_attention_backward()
 
     // QK_TV -> [2x5]
 
-    Attention attn(g, *Q,*K,*V,M, dropout);
+    int T = Q->value().rows();
+    int S = K->value().rows();
+    int D = K->value().cols();
+
+    Attention attn(g, *Q,*K,*V, M, T, S, D, dropout);
 
     auto& A = attn();
     print("A", A);
@@ -346,11 +354,40 @@ void test_softmax_backward()
     TEST_END()
 }
 
+void test_product()
+{
+    TEST_BEGIN("Product")
+
+    Tensor A(4,4);
+    A <<  1,2,3,4,
+          5,6,7,8,
+          1,1,1,1,
+          2,2,2,2;
+    Tensor B(3,4);
+    B <<  1,2,3,4,
+          5,6,7,8,
+          3,3,3,3;
+    print("A", A);
+    print("B", B);
+
+    Tensor C = A * B;
+    print("AB", C);
+
+    Tensor D = B * A;
+    print("BA", D);
+
+    Tensor E = B * A.transpose();
+    print("BA.T", E);
+
+    TEST_END()
+}
+
 int main(int argc, char* argv[]) {
 
     //test_cnpy();
     //test_threads();
     //test_thread_pool();
+    test_product();
     test_attention_forward();
     test_attention_backward();
     //test_softmax_backward();
