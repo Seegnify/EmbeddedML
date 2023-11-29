@@ -131,7 +131,110 @@ protected:
   Function* _mask;
   Constant* _bias;
   Function* _attention;
-  DTYPE _dropout;
+  const DTYPE _dropout;
+};
+
+
+///////////////////////////////////
+// Multi-Head Attention
+///////////////////////////////////
+class MultiHeadAttention : public Function
+{
+public:
+  MultiHeadAttention(
+    Graph& g, Function& q, Function& k, Function& v,
+    int num_heads, DTYPE dropout=0.0) :
+  Function(g), _q(q), _k(k), _v(v), _num_heads(num_heads), _dropout(dropout)
+  {
+    _attention = nullptr;
+  }
+
+  virtual const Tensor& forward()
+  {
+    if (_value.size() > 0) return _value;
+
+    init();
+
+    _value = _attention->forward();
+
+    return _value;
+  }
+
+private:
+
+  std::vector<Function*> split_heads(Function& x)
+  {
+    std::vector<Function*> heads(_num_heads, nullptr);
+
+    // sequence length, model size, embedding dimension
+    int S = x().rows();
+    int E = x().cols();
+    int D = E / _num_heads;
+
+    assert(E == _num_heads * D);
+
+    for (int i=0; i<_num_heads; i++)
+    {
+      auto head = _graph.new_split(x, 0,i*D, S,D);
+      heads[i] = _graph.new_transpose(*head);
+    }
+
+    return heads;
+  }
+
+  Function* join_heads(const std::vector<Function*>& heads)
+  {
+    Function* joined = nullptr;
+
+    for (int i=0; i<_num_heads; i++)
+    {
+      auto head = _graph.new_transpose(*heads[i]);
+
+      // sequence length, model size, embedding dimension
+      int S = head->forward().cols();
+      int D = head->forward().rows();
+
+      if (joined)
+      {
+        joined = _graph.new_join(*joined, *head, S,(i+1)*D);
+      }
+      else
+      {
+        joined = head;
+      }
+    }
+
+    return joined;
+  }
+
+  void init()
+  {
+    if (_attention) return;
+
+    auto q_heads = split_heads(_q);
+    auto k_heads = split_heads(_k);
+    auto v_heads = split_heads(_v);
+
+    std::vector<Function*> attn(_num_heads, nullptr);
+
+    for (int i=0; i<_num_heads; i++)
+    {
+      attn[i] = new Attention(
+        _graph, *q_heads[i], *k_heads[i], *v_heads[i], nullptr, _dropout
+      );
+      _graph.keep(attn[i]);
+    }
+
+    _attention = join_heads(attn);
+  }
+
+protected:
+  Function& _q;
+  Function& _k;
+  Function& _v;
+  Function* _attention;
+  const int _num_heads;
+  const DTYPE _dropout;
 };
 
 
