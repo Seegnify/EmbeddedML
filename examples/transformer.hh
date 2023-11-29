@@ -77,7 +77,7 @@ private:
   {
     if (_attention) return;
 
-    // L - query lenght, S - sequance lenght, D - embedding dimention
+    // L - target lenght, S - sequance lenght, D - embedding dimension
     int L = _q().rows();
     int S = _k().rows();
     int D = _k().cols();
@@ -143,8 +143,9 @@ class MultiHeadAttention : public Function
 public:
   MultiHeadAttention(
     Graph& g, Function& q, Function& k, Function& v,
-    int num_heads, DTYPE dropout=0.0) :
-  Function(g), _q(q), _k(k), _v(v), _num_heads(num_heads), _dropout(dropout)
+    int emb_size, int num_heads, DTYPE dropout=0.0) :
+  Function(g), _q(q), _k(k), _v(v),
+  _emb_size(emb_size), _num_heads(num_heads), _dropout(dropout)
   {
     _attention = nullptr;
   }
@@ -233,6 +234,7 @@ protected:
   Function& _k;
   Function& _v;
   Function* _attention;
+  const int _emb_size;
   const int _num_heads;
   const DTYPE _dropout;
 };
