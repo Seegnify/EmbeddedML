@@ -134,7 +134,8 @@ class MultiHeadAttention : public Function
 public:
   MultiHeadAttention(
     Graph& g, Function& q, Function& k, Function& v,
-    int trg_size, int seq_size, int emb_size, int num_heads, DTYPE dropout=0.0) : Function(g)
+    int trg_size, int seq_size, int emb_size, int num_heads, DTYPE dropout=0.0) : 
+    Function(g)
   {
     const int L = trg_size; // q.rows()
     const int S = seq_size; // k.rows()
@@ -170,7 +171,7 @@ public:
   {
     if (_value.size() > 0) return _value;
 
-    // TODO: attention heads can run in parallel using thread pool
+    // TODO: run attention heads in parallel using thread pool
 
     _value = _attention->forward();
 
