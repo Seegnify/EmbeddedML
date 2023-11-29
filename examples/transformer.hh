@@ -36,7 +36,6 @@ public:
     int L = trg_size;  // _q().rows()
     int S = seq_size;  // _k().rows()
     int D = head_size; // _k().cols()
-    std::cout << "L=" << L << ", S=" << S << ", D=" << D << std::endl;
 
     // get qk_T attention component [LxS]
     _attention = _graph.new_product(_q, *_graph.new_transpose(_k));
@@ -46,7 +45,6 @@ public:
 
     // scale and add attention mask as bias, transpose for column softmax
     _attention = _graph.new_transpose(*_attention / sqrt(D) + *_bias);
-    _graph.name(_attention, "A before softmax");
 
     // apply softmax on qk_T rows, join results as columns [SxL]
     Function* softmax = nullptr;
@@ -65,7 +63,6 @@ public:
 
     // transpose joined softmax columns back to rows [LxS]
     _attention = _graph.new_transpose(*softmax);
-    _graph.name(_attention, "A after softmax");
 
     // apply dropout if present
     if (_dropout > 0)
@@ -77,21 +74,6 @@ public:
     _attention = _graph.new_product(*_attention, _v);
 
     _attention->derivative(_graph.new_iderivative(*this));
-  }
-
-  void print(const char* fname)
-  {
-    auto f = _graph.function(fname);
-    if (f)
-    {
-      auto& t = f->forward();
-      std::cout << fname << " [" << t.rows() << "x" << t.cols() << "]" << std::endl;
-      std::cout << t << std::endl;
-    }
-    else
-    {
-      std::cout << fname << " [NOT FOUND]" << std::endl;
-    }
   }
 
   virtual const Tensor& forward()
@@ -108,9 +90,6 @@ public:
     }
 
     _value = _attention->forward();
-
-    print("A before softmax");
-    print("A after softmax");
 
     return _value;
   }
