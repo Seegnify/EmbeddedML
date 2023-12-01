@@ -295,7 +295,8 @@ void test_attention_backward()
 
     attn.forward();
     attn.gradient() = Tensor::Ones(attn.forward().rows(),attn.forward().cols());
-    attn.gradient().block(0,0, attn.forward().rows(),1) = 5 * Tensor::Ones(attn.forward().rows(),1);
+    attn.gradient().block(0,0, attn.forward().rows(), 1) = 
+      5 * Tensor::Ones(attn.forward().rows(), 1);
     print("dA", attn.gradient());
 
     Tensor dQ = Q->backward();

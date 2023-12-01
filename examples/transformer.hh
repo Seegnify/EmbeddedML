@@ -43,17 +43,17 @@ public:
     // attention bias [LxS]
     _bias = _graph.new_constant(L, S);
 
-    // scale and add attention mask as bias, transpose for column softmax
-    _attention = _graph.new_transpose(*_attention / sqrt(D) + *_bias);
+    // scale and add attention mask as bias
+    _attention = &(*_attention / sqrt(D) + *_bias);
 
-    // apply softmax on qk_T rows, join results as columns [SxL]
+    // apply softmax on qk_T rows
     Function* softmax = nullptr;
     for (int r=0; r<L; r++)
     {
-      auto softmax_row = _graph.new_softmax(*_graph.new_split(*_attention, 0,r, S,1));
+      auto softmax_row = _graph.new_softmax(*_graph.new_split(*_attention, r,0, 1,S));
       if (softmax)
       {
-        softmax = _graph.new_join(*softmax, *softmax_row, S,r+1); // shape as columns
+        softmax = _graph.new_join(*softmax, *softmax_row, r+1,S); // row major
       }
       else
       {
@@ -62,7 +62,7 @@ public:
     }
 
     // transpose joined softmax columns back to rows [LxS]
-    _attention = _graph.new_transpose(*softmax);
+    _attention = softmax;
 
     // apply dropout if present
     if (_dropout > 0)
