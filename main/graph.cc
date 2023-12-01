@@ -134,15 +134,37 @@ Function& operator/(Function& x, Function& y)
 static Tensor ATB(const Tensor& A, const Tensor& B)
 {
   if (B.cols() == 1)
-    return (ConstRowVectorMap(B.data(), B.size()) * A).transpose();
+    return (ConstVectorMap(B.data(), B.size()) * A).transpose();
   else
     return A.transpose() * B;
+}
+
+// compute sparse product A.T*B at non-zero elements of a reference tensor R
+static SparseTensor ATB(
+  const Tensor& A,
+  const Tensor& B,
+  const SparseTensor& R
+)
+{
+  auto AT = A.transpose();
+  auto BT = B.transpose();
+  SparseTensor abt(R.rows(), R.cols());
+  for (int k=0; k < R.outerSize(); ++k)
+  {
+      for (SparseTensor::InnerIterator it(R,k); it; ++it)
+      {
+          auto row = it.row();
+          auto col = it.col();
+          abt.coeffRef(row, col) = AT(row) * BT(col);
+      }
+  }
+  return abt;
 }
 
 static Tensor ABT(const Tensor& A, const Tensor& B)
 {
   if (B.cols() == 1)
-    return A * ConstRowVectorMap(B.data(), B.size());
+    return A * ConstVectorMap(B.data(), B.size());
   else
     return A * B.transpose();
 }
@@ -394,7 +416,7 @@ const Tensor& Split::forward()
 Join::Join(Graph& graph, Function& x, Function& y, int rows, int cols) :
 Function(graph), _x(x), _y(y), _rows(rows), _cols(cols)
 {
-  // Split Derivative with respect to X
+  // Join Derivative with respect to X
   class Derivative_x : public Function
   {
   public:
@@ -422,7 +444,7 @@ Function(graph), _x(x), _y(y), _rows(rows), _cols(cols)
     Join& _base;
   };
 
-  // Split Derivative with respect to Y
+  // Join Derivative with respect to Y
   class Derivative_y : public Function
   {
   public:
@@ -469,8 +491,8 @@ const Tensor& Join::forward()
   ConstVectorMap vx(x.data(), x.size());
   ConstVectorMap vy(y.data(), y.size());
   Vector xy(x.size() + y.size());
-  xy.topRows(x.size()) = vx;
-  xy.bottomRows(y.size()) = vy;
+  xy.leftCols(x.size()) = vx;
+  xy.rightCols(y.size()) = vy;
 
   // reshape flat vector into output shape
   _value = TensorMap(xy.data(), _rows, _cols);
@@ -670,7 +692,7 @@ Function(graph), _x(x)
 {
   // construct new variables
   _W = graph.new_variable(out, in);
-  _b = graph.new_variable(out, 1);
+  _b = graph.new_variable(1, out);
 
   init();
 }
@@ -706,7 +728,9 @@ void Linear::init()
       auto& dFdx = W;
 
       // update gradient value
-      _value = ATB(dFdx, g);
+      // _value = ATB(dFdx, g); // col major
+      _value = g * dFdx; // row major
+
       return _value;
     }    
 
@@ -733,7 +757,9 @@ void Linear::init()
       auto& dFdW = x;
 
       // update gradient value
-      _value = ABT(g, dFdW);
+      // _value = ABT(g, dFdW); // col major
+      _value = ATB(g, dFdW); // row major
+
       return _value;
     }    
 
@@ -758,6 +784,7 @@ void Linear::init()
 
       // update value
       _value = g;
+
       return _value;
     }    
 
@@ -784,7 +811,8 @@ const Tensor& Linear::forward()
   auto& b = _b->forward();
 
   // create cached value
-  _value.noalias() = W * x + b;
+  // _value.noalias() = W * x + b; // col major
+  _value.noalias() = ABT(x, W) + b; // row major
 
   // return value
   return _value;
@@ -1310,34 +1338,6 @@ const Tensor& ReLU::forward()
 }
 
 ///////////////////////////////////////////
-// Function Step
-///////////////////////////////////////////
-
-Step::Step(Graph& graph, Function& x, DTYPE lo, DTYPE hi) :
-Function(graph), _x(x), _lo(lo), _hi(hi)
-{
-  // assume 'on purpose' that the derivarive of 'step' is 1
-  x.derivative(_graph.new_iderivative(*this));
-}
-
-// F = {lo for x <= 0, hi for x > 0}
-const Tensor& Step::forward()
-{
-  // return cached value
-  if (_value.size()) return _value;
-
-  auto& x = _x.forward();
-
-  // update value
-  auto lo = Tensor::Constant(x.rows(), x.cols(), _lo);
-  auto hi = Tensor::Constant(x.rows(), x.cols(), _hi);
-  _value = (x.array() <= 0).select(lo, hi);
-
-  // return value
-  return _value;
-}
-
-///////////////////////////////////////////
 // Function Dropout
 ///////////////////////////////////////////
 
@@ -1433,10 +1433,12 @@ Function(graph), _x(x)
 
       // use Identity matrix to construct diagonal matrix
       auto I = Tensor::Identity(F.size(), F.size());
-      auto dFdx = I * F.asDiagonal() - F * F.transpose();
+      //auto dFdx = I * F.asDiagonal() - F * F.transpose(); // col major
+      auto dFdx = I * F.asDiagonal() - F.transpose() * F; // row major
 
       // multiply each row of dFdx by coresponding coefficient from d
-      _value = (g.asDiagonal() * dFdx).colwise().sum().transpose();
+      //_value = (g.asDiagonal() * dFdx).colwise().sum().transpose(); // col major
+      _value = (g.asDiagonal() * dFdx).colwise().sum(); // row major
 
       return _value;
     }    
@@ -2492,61 +2494,6 @@ const Tensor& LogGaussian::forward()
 }
 
 ///////////////////////////////////////////
-// Function Hopfield
-///////////////////////////////////////////
-
-Hopfield::Hopfield(Graph& graph, Function& x, DTYPE b, int size, int count) :
-Function(graph)
-{
-  // construct new variables
-  _W = graph.new_variable(size, count);
-  _b = b;
-
-  init(x);
-}
-
-Hopfield::Hopfield(Graph& graph, Function& x, const Hopfield& other) :
-Function(graph)
-{
-  // share variables with the "other"
-  _W = other._W;
-  _b = other._b;
-
-  init(x);
-}
-
-void Hopfield::init(Function& x)
-{
-  // W.T
-  auto& WT = *_graph.new_transpose(*_W);
-
-  // WTx
-  auto& WTx = *_graph.new_product(WT, x);
-
-  // softmax
-  auto& softmax = *_graph.new_softmax(_b * WTx);
-
-  // H
-  _H = _graph.new_product(*_W, softmax);
-
-  // let output handle the gradient directly
-  _H->derivative(_graph.new_iderivative(*this));
-}
-
-// F = W * softmax(b * W.T * x)
-const Tensor& Hopfield::forward()
-{
-  // return cached value
-  if (_value.size()) return _value;
-
-  // update value
-  _value = _H->forward();
-
-  // return value
-  return _value;
-}
-
-///////////////////////////////////////////
 // Function Embedding
 ///////////////////////////////////////////
 
@@ -2657,6 +2604,7 @@ _dilation(dilation)
 {
   // Kernels for input and output channels
   //
+  // x - flat 2D col-major matrix
   // I - number of input channels
   // O - number of output channels
   // X_i - channel i of input X
@@ -2725,7 +2673,8 @@ const Tensor& Conv2D::forward()
   auto& x = _x();
   auto& K = K_matrix();
 
-  _value = K * x;
+  //_value = K * x; // col major
+  _value = ABT(x,K); // row major
 
   // return value
   return _value;
@@ -2752,7 +2701,8 @@ void Conv2D::init()
       auto& dFdx = K;
 
       // update gradient value
-      _value = ATB(dFdx, g);
+      //_value = ABT(g, dFdx); // col major
+      _value = g * dFdx; // row major
 
       return _value;
     }    
@@ -2779,7 +2729,8 @@ void Conv2D::init()
       auto& K = _base.K_matrix();
 
       auto& dFdK = x;
-      auto dFdK_matrix = ABT(g, dFdK, K);
+      //auto dFdK_matrix = ABT(g, dFdK, K); // col major
+      auto dFdK_matrix = ATB(g, dFdK, K); // row major
 
       // update gradient value
       _value = _base.K_gradient(dFdK_matrix);
@@ -2991,10 +2942,14 @@ void Conv2D::convert(Tensor& K, SparseTensor& K_matrix, bool forward)
       _i_rows * _i_cols
     );
 
-    for (int c=0, m_r=0; c <= i_padded_cols - k_span_rows; c++) // col major
-    for (int r=0; r <= i_padded_rows - k_span_rows; r++, m_r++)
+    // row major
+    for (int r=0, m_r=0; r <= i_padded_rows - k_span_rows; r++)
+    for (int c=0; c <= i_padded_cols - k_span_cols; c++, m_r++)
+    // col major
+    //for (int c=0, m_r=0; c <= i_padded_cols - k_span_cols; c++)
+    //for (int r=0; r <= i_padded_rows - k_span_rows; r++, m_r++)
     {
-      TensorXi conv = i_mask.block(r, c, k_span_rows, k_span_rows);
+      TensorXi conv = i_mask.block(r, c, k_span_rows, k_span_cols);
       conv.array() *= k_mask.array();
 
       for (int k_r=0; k_r < _k_rows; k_r++)
@@ -3006,8 +2961,10 @@ void Conv2D::convert(Tensor& K, SparseTensor& K_matrix, bool forward)
 
         if (conv(conv_r, conv_c))
         {
+          // convert input coordinates to kernel matrix column (row major)
+          int m_c = (r - r_p + conv_r) * _i_cols + (c - c_p + conv_c);
           // convert input coordinates to kernel matrix column (col major)
-          int m_c = (r - r_p + conv_r) + (c - c_p + conv_c) * _i_rows;
+          // int m_c = (r - r_p + conv_r) + (c - c_p + conv_c) * _i_rows;
           if (forward)
           {
             k_matrix.coeffRef(m_r, m_c) = kernel(k_r, k_c);

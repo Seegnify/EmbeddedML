@@ -321,20 +321,6 @@ protected:
   Function* _relu;
 };
 
-// Step function
-class Step : public Function
-{
-public:
-  Step(Graph& graph, Function& x, DTYPE lo = 0, DTYPE hi = 1);
-
-  virtual const Tensor& forward();
-
-protected:
-  DTYPE _lo;
-  DTYPE _hi;
-  Function& _x;
-};
-
 // Dropout function
 class Dropout : public Function
 {
@@ -1030,13 +1016,6 @@ public:
   ReLU* new_relu(Function& x)
   {
     auto node = new ReLU(*this, x);
-    keep(node);
-    return node;
-  }
-
-  Step* new_step(Function& x, DTYPE lo = 0, DTYPE hi = 1)
-  {
-    auto node = new Step(*this, x, lo, hi);
     keep(node);
     return node;
   }

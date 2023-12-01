@@ -321,7 +321,7 @@ time_t date_to_time(const tm& date) {
 // reinforcement learning reward discount
 std::vector<DTYPE> discount_reward(
   const std::vector<DTYPE>& reward, 
-  DTYPE gamma = GAMMA_DISCOUNT)
+  DTYPE gamma = 0.99)
 {
   // compute discounted rewards
   DTYPE r = 0;

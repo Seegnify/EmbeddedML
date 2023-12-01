@@ -18,10 +18,6 @@
 #include "imageFP.hh"
 #include "painter.hh"
 #include "rlenv.hh"
-#include "examples/selector-gaussian.hh"
-#include "examples/selector-softmax.hh"
-#include "examples/selector-sequence.hh"
-#include "examples/composer-net2.hh"
 
 using namespace seegnify;
 
@@ -361,25 +357,29 @@ void test_eigen_matrix()
   TEST_BEGIN("Matrix Map")  
 
   // copy form external
-  DTYPE X[] = {1,4,2,5,3,6}; // col major //{1,2,3,4,5,6} // row major;
+  //DTYPE X[] = {1,4,2,5,3,6}; // col major
+  DTYPE X[] = {1,2,3,4,5,6}; // row major;
   Tensor x1 = Eigen::Map<Tensor>(X, 2, 3);
-  X[1] = 19; // col major
+  //X[1] = 19; // col major
+  X[3] = 19; // row major
   Tensor y1(2, 3);
   y1 << 1,2,3,4,5,6;
   ASSERT(x1 == y1);
 
   // pointer to external 
   Eigen::Map<Tensor> x2(X, 2, 3);
-  X[2] = 20; // col major
+  //X[2] = 20; // col major
+  X[1] = 20; // row major
   Tensor y2(2, 3);
   y2 << 1,20,3,19,5,6;
   ASSERT(x2 == y2);
-
+  
   // read tensor buffer
   Tensor x3(2, 3);
   x3 << 1,2,3,4,5,6;
   DTYPE* Y3 = x3.data();
-  Y3[1] = 21; // col major
+  //Y3[1] = 21; // col major
+  Y3[3] = 21; // row major
   Tensor y3(2, 3);
   y3 << 1,2,3,21,5,6;
   ASSERT(x3 == y3);
@@ -673,7 +673,7 @@ void test_back_propagation()
   Graph g;
 
   // x
-  auto& x = *g.new_variable(IN, 1);
+  auto& x = *g.new_variable(1, IN);
   x.value() << 1, 2;
 
   // diable backprop on X
@@ -696,10 +696,10 @@ void test_back_propagation()
 
   // F
   auto& F = y.forward();
-  ASSERT(F.rows() == OUT)
-  ASSERT(F.cols() == 1)
+  ASSERT(F.rows() == 1)
+  ASSERT(F.cols() == OUT)
 
-  y.gradient() = Tensor::Ones(OUT, 1);
+  y.gradient() = Tensor::Ones(1, OUT);
   auto& dFdW = W.backward();
   auto& dFdb = b.backward();
   auto& dFdx = x.backward();
@@ -707,7 +707,7 @@ void test_back_propagation()
   // dFdx
   ASSERT(dFdx.rows() == x.value().rows())
   ASSERT(dFdx.cols() == x.value().cols())
-  ASSERT(dFdx == Tensor::Zero(IN, 1))
+  ASSERT(dFdx == Tensor::Zero(1, IN))
 
   // dFdW num
   Tensor dFdW_num = g.dFdX(y, W);
@@ -730,7 +730,7 @@ void test_back_propagation()
   ASSERT(dFdb_num.cols() == b.value().cols())
 
   // dFdb_hat = 1
-  Tensor dFdb_hat = Tensor::Ones(OUT, 1);
+  Tensor dFdb_hat = Tensor::Ones(1, OUT);
   ASSERT(dFdb_num.isApprox(dFdb_hat, 0.01))
 
   // dFdb
@@ -915,11 +915,11 @@ void test_join_forward()
   Constant x(g, IN, IN);
   x.value() = Tensor::Random(IN, IN);
 
-  Split a(g, x, 0,0, IN,5);
-  ASSERT(a() == x().block(0,0, IN,5))
+  Split a(g, x, 0,0, 5,IN);
+  ASSERT(a() == x().block(0,0, 5,IN))
 
-  Split b(g, x, 0,5, IN,5);
-  ASSERT(b() == x().block(0,5, IN,5))
+  Split b(g, x, 5,0, 5,IN);
+  ASSERT(b() == x().block(5,0, 5,IN))
 
   Join y(g, a, b, IN, IN);
   ASSERT(x() == y())
@@ -927,10 +927,10 @@ void test_join_forward()
   Constant x2(g, IN, IN);
   x2.value() = Tensor::Constant(IN, IN, 3);
 
-  Constant x3(g, IN, 1);
-  x3.value() = Tensor::Constant(IN, 1, 4);
+  Constant x3(g, 1, IN);
+  x3.value() = Tensor::Constant(1, IN, 4);
 
-  Join x23(g, x2, x3, IN * IN + IN, 1);
+  Join x23(g, x2, x3, 1, IN * IN + IN);
   Sum s(g, x23);
   auto s_hat = Tensor::Constant(1, 1, 3 * IN * IN + 4 * IN);
   ASSERT(s() == s_hat)
@@ -949,8 +949,8 @@ void test_join_backward()
   auto& x = *g.new_variable(IN, IN);
   x.value() = Tensor::Random(IN, IN);
 
-  auto& a = *g.new_split(x, 0,0, IN,5);
-  auto& b = *g.new_split(x, 0,5, IN,5);
+  auto& a = *g.new_split(x, 0,0, 5,IN);
+  auto& b = *g.new_split(x, 5,0, 5,IN);
   auto& y = *g.new_join(a,b, IN,IN);
   y.forward();
 
@@ -965,10 +965,10 @@ void test_join_backward()
   auto& x2 = *g.new_variable(IN, IN);
   x2.value() = Tensor::Constant(IN, IN, 3);
 
-  auto& x3 = *g.new_variable(IN, 1);
-  x3.value() = Tensor::Constant(IN, 1, 4);
+  auto& x3 = *g.new_variable(1, IN);
+  x3.value() = Tensor::Constant(1, IN, 4);
 
-  auto& x23 = *g.new_join(x2, x3, IN * IN + IN, 1);
+  auto& x23 = *g.new_join(x2, x3, 1, IN * IN + IN);
   auto& s = *g.new_sum(x23);
   auto sd = Tensor::Ones(1, 1);
 
@@ -1121,10 +1121,10 @@ void test_linear_forward()
   int OUT = 4;
 
   // x
-  Constant x(g, IN, 1);
+  Constant x(g, 1, IN);
   x.value() << 1, 2;
-  ASSERT(x.forward().rows() == IN);
-  ASSERT(x.forward().cols() == 1);
+  ASSERT(x.forward().rows() == 1);
+  ASSERT(x.forward().cols() == IN);
 
   // y = Wx + b
   Linear y(g, x, IN, OUT);
@@ -1144,11 +1144,11 @@ void test_linear_forward()
                2,
                3,
                4;
-  ASSERT(b.forward().rows() == OUT);
-  ASSERT(b.forward().cols() == 1);
+  ASSERT(b.forward().rows() == 1);
+  ASSERT(b.forward().cols() == OUT);
 
   // y_hat
-  Tensor y_hat(OUT, 1);
+  Tensor y_hat(1, OUT);
   y_hat << 6,
           13,
           20,
@@ -1167,7 +1167,7 @@ void test_linear_backward()
   Graph g;
 
   // x
-  auto& x = *g.new_variable(IN, 1);
+  auto& x = *g.new_variable(1, IN);
   x.value() << 1, 2;
 
   // y = Wx + b
@@ -1181,10 +1181,10 @@ void test_linear_backward()
 
   // b
   auto& b = y.b();  
-  b.value() << 1, 2;
+  b.value() << 1, 2, 3;
 
   y.forward();
-  g.backward(y, Tensor::Ones(OUT,1));
+  g.backward(y, Tensor::Ones(1, OUT));
 
   // dFdW
   Tensor dFdW = W.gradient();
@@ -1199,24 +1199,24 @@ void test_linear_backward()
 
   // dFdb
   Tensor dFdb = b.gradient();
-  ASSERT(dFdb.rows() == OUT);
-  ASSERT(dFdb.cols() == 1);
+  ASSERT(dFdb.rows() == 1);
+  ASSERT(dFdb.cols() == OUT);
 
   // dFdb_hat = 1
   Tensor dFdb_hat = g.dFdX(y, b);
-  ASSERT(dFdb_hat.rows() == OUT);
-  ASSERT(dFdb_hat.cols() == 1);
+  ASSERT(dFdb_hat.rows() == 1);
+  ASSERT(dFdb_hat.cols() == OUT);
   ASSERT(dFdb.isApprox(dFdb_hat, 0.01))
 
   // dFdx
   Tensor dFdx = x.gradient();
-  ASSERT(dFdx.rows() == IN);
-  ASSERT(dFdx.cols() == 1);
+  ASSERT(dFdx.rows() == 1);
+  ASSERT(dFdx.cols() == IN);
 
   // dFdx_hat = W
   Tensor dFdx_hat = g.dFdX(y, x);
-  ASSERT(dFdx_hat.rows() == IN);
-  ASSERT(dFdx_hat.cols() == 1);
+  ASSERT(dFdx_hat.rows() == 1);
+  ASSERT(dFdx_hat.cols() == IN);
   ASSERT(dFdx.isApprox(dFdx_hat, 0.01))
 
   TEST_END()
@@ -1973,66 +1973,6 @@ void test_gelu_backward()
   TEST_END()
 }
 
-void test_step_forward()
-{
-  TEST_BEGIN("Step Forward")
-  Graph g;
-
-  // size
-  int N = 4;
-
-  // step input
-  Constant x(g, N, 1);
-  x.value() << 1,
-               0,
-               -3,
-               4;
-
-  // step output
-  Tensor y_hat(N, 1);
-  y_hat <<  1,
-            -1,
-            -1,
-            1;
-
-  Step y(g, x, -1, 1);
-  ASSERT(y() == y_hat)
-
-  TEST_END()
-}
-
-void test_step_backward()
-{
-  TEST_BEGIN("Step Backward")
-
-  // size
-  int N = 4;
-  Graph g;
-
-  // step input
-  auto& z = *g.new_variable(N, 1);
-  z.value() << -1,
-               0,
-               -3,
-               4;
-
-  // gradient
-  auto& y = *g.new_step(z);
-  y.forward();
-  y.gradient() = Tensor::Ones(N, 1);
-
-  // dFdz
-  auto& dFdz = z.backward();
-  ASSERT(dFdz.rows() == N);
-  ASSERT(dFdz.cols() == 1);
-
-  // dFdX_hat
-  Tensor dFdz_hat = y.gradient();
-  ASSERT(dFdz_hat == dFdz)
-
-  TEST_END()
-}
-
 void test_dropout_forward()
 {
   TEST_BEGIN("Dropout Forward")
@@ -2072,7 +2012,7 @@ void test_dropout_backward()
 
   Graph g;
 
-  // softmax input
+  // dropout input
   auto& x = *g.new_variable(N, M);
   x.value() = Tensor::Ones(N, M);
 
@@ -2099,15 +2039,15 @@ void test_softmax_forward()
   int N = 4;
 
   // softmax input
-  Constant x(g, N, 1);
+  Constant x(g, 1, N);
   x.value() << -1, 
                 0, 
                 -3, 
                 4;
 
   // softmax([-1,0,-3,4])
-  Tensor y_hat(N, 1);
-  y_hat <<  6.56742084e-03, 
+  Tensor y_hat(1, N);
+  y_hat <<  6.56742084e-03,
             1.78521007e-02,
             8.88803760e-04, 
             9.74691675e-01;
@@ -2142,23 +2082,25 @@ void test_softmax_backward()
   Graph g;
 
   // softmax input
-  auto& z = *g.new_variable(N, 1);
+  auto& z = *g.new_variable(1, N);
   z.value() << 1, 2, 3, 4;
 
   // F
   auto& y = *g.new_softmax(z);
-  Tensor dy = Tensor::Ones(N, 1);
+  ASSERT(y().rows() == 1);
+  ASSERT(y().cols() == N);
+
+  Tensor dy = Tensor::Ones(1, N);
   dy << 5;
-  y.forward();
   y.gradient() = dy;
 
   // dFdz
   auto& dFdz = z.backward();
-  ASSERT(dFdz.rows() == N);
-  ASSERT(dFdz.cols() == 1);
+  ASSERT(dFdz.rows() == 1);
+  ASSERT(dFdz.cols() == N);
 
   // dFdX_hat
-  Tensor dFdz_hat(N, 1);
+  Tensor dFdz_hat(1, N);
   dFdz_hat << 0.1241, -0.0112, -0.0304, -0.0826;
   ASSERT(dFdz.isApprox(dFdz_hat, 0.01))
 
@@ -2599,7 +2541,7 @@ void test_stack_forward()
   Graph g;
 
   // x1
-  auto& x1 = *g.new_variable(IN, 1);
+  auto& x1 = *g.new_variable(1, IN);
   x1.value() << 1, 2, 3, 4;
 
   // x2 = W1 * x1 + b1
@@ -2615,8 +2557,8 @@ void test_stack_forward()
   auto& b1 = x2.b();
   b1.value() << 1, 2, 3;
 
-  ASSERT(x2.forward().rows() == MID)
-  ASSERT(x2.forward().cols() == 1)
+  ASSERT(x2.forward().rows() == 1)
+  ASSERT(x2.forward().cols() == MID)
 
   // y2 = W2 * x2 + b2
   auto& y2 = *g.new_linear(x2, MID, OUT);
@@ -2630,16 +2572,16 @@ void test_stack_forward()
   auto& b2 = y2.b();
   b2.value() << 1, 2;
 
-  ASSERT(y2.forward().rows() == OUT)
-  ASSERT(y2.forward().cols() == 1)
+  ASSERT(y2.forward().rows() == 1)
+  ASSERT(y2.forward().cols() == OUT)
   
   // answer y1_hat
-  Tensor y1_hat(MID, 1);
+  Tensor y1_hat(1, MID);
   y1_hat << 31,  72, 113;
   ASSERT(x2.forward() == y1_hat)
   
   // answer y2_hat
-  Tensor y2_hat(OUT,1);
+  Tensor y2_hat(1, OUT);
   y2_hat << 515, 1164;
   ASSERT(y2.forward() == y2_hat)
 
@@ -2657,7 +2599,7 @@ void test_stack_backward()
   Graph g;
 
   // x1
-  auto& x1 = *g.new_variable(IN, 1);
+  auto& x1 = *g.new_variable(1, IN);
   x1.value() << 1, 2;
 
   // x2 = W1 * x1 + b1
@@ -2689,7 +2631,7 @@ void test_stack_backward()
   
   // gradient
   x3.forward();
-  x3.gradient() = Tensor::Ones(OUT,1);
+  x3.gradient() = Tensor::Ones(1, OUT);
   auto dx3dx1 = x1.backward();
   auto dx3dW1 = W1.backward();
   auto dx3db1 = b1.backward();
@@ -2698,8 +2640,8 @@ void test_stack_backward()
 
   // dx3dx1_hat
   Tensor dx3dx1_hat = g.dFdX(x3, x1);
-  ASSERT(dx3dx1_hat.rows() == IN);
-  ASSERT(dx3dx1_hat.cols() == 1);
+  ASSERT(dx3dx1_hat.rows() == 1);
+  ASSERT(dx3dx1_hat.cols() == IN);
   ASSERT(dx3dx1.isApprox(dx3dx1_hat, 0.01))
 
   // dx3dW1_hat
@@ -2710,8 +2652,8 @@ void test_stack_backward()
 
   // dx3db1_hat
   Tensor dx3db1_hat = g.dFdX(x3, b1);
-  ASSERT(dx3db1_hat.rows() == MID);
-  ASSERT(dx3db1_hat.cols() == 1);
+  ASSERT(dx3db1_hat.rows() == 1);
+  ASSERT(dx3db1_hat.cols() == MID);
   ASSERT(dx3db1.isApprox(dx3db1_hat, 0.01))
   
   TEST_END()
@@ -3158,80 +3100,6 @@ void test_log_gaussian_backward()
   TEST_END()
 }
 
-void test_hopfield_forward()
-{
-  TEST_BEGIN("Hopfield Forward")
-
-  // size
-  int N = 10; // sample size
-  int M = 5;  // sample count
-  int K = 3;  // sample to recover
-  Graph g;
-
-  auto b = 12.0; // recovery rate
-  auto& s = *g.new_variable(N,1);
-  auto H = g.new_hopfield(s,b,N,M,"H");
-  for (int i=0; i<10; i++)
-    H = g.new_hopfield(*H,b,N,M,"H");
-  auto& y = *H;
-
-  // sample matrix
-  auto& W = y.W();
-  W.value() = 2 * Tensor::Random(N,M);
-
-  // altered sample
-  s.value() = W.value().block(0,K, N,1);
-  s.value().block(0,0, N/2,1) = Tensor::Random(N/2,1);
-
-  // sample to recover
-  Tensor y_hat = W.value().block(0,K, N,1);
-
-  // recover in one iteration and test
-  ASSERT(y().isApprox(y_hat, 0.01))
-
-  TEST_END()
-}
-
-void test_hopfield_backward()
-{
-  TEST_BEGIN("Hopfield Backward")
-
-  // size
-  int N = 10; // sample size
-  int M = 5;  // sample count
-  int K = 3;  // sample to recover
-  Graph g;
-
-  auto b = 12.0; // recovery rate
-  auto& s = *g.new_variable(N,1);
-  auto H = g.new_hopfield(s,b,N,M,"H");
-  for (int i=0; i<10; i++)
-    H = g.new_hopfield(*H,b,N,M,"H");
-  auto& y = *H;
-
-  // sample matrix
-  auto& W = y.W();
-  W.value() = 2 * Tensor::Random(N,M);
-
-  // altered sample
-  s.value() = W.value().block(0,K, N,1);
-  s.value().block(0,0, N/2,1) = Tensor::Random(N/2,1);
-
-  y.forward();
-  y.gradient() = Tensor::Ones(N,1);
-
-  auto dydW = W.backward();
-  auto dyds = s.backward();
-
-  auto dydW_num = g.dFdX(y,W);
-  auto dyds_num = g.dFdX(y,s);
-
-  ASSERT(dydW.isApprox(dydW_num, 0.01))
-  ASSERT(dyds.isApprox(dyds_num, 0.01))
-
-  TEST_END()
-}
-
 void test_embedding_forward()
 {
   TEST_BEGIN("embedding Forward")
@@ -3308,9 +3176,9 @@ void test_conv2d_forward()
   x2d << 1, 2, 3,
          4, 5, 6;
 
-  // 1D x
-  Variable x(g, x2d.size(), 1);
-  x.value() = ConstTensorMap(x2d.data(), x2d.size(), 1);
+  // convert 2D input to 1D col-major vector
+  Variable x(g, 1, x2d.size());
+  x.value() = ConstVectorMap(x2d.data(), 1, x2d.size());
 
   // 2D conv layer
   Conv2D c(
@@ -3329,14 +3197,14 @@ void test_conv2d_forward()
   // 2D convolution
   auto y = c.forward();
 
-  // reshape vector output to 2D
-  auto y2d = ConstTensorMap(y.data(), OUT_ROWS, OUT_COLS);
+  // reshape vector output to 2D row-major matrix
+  Tensor y2d = ConstTensorMap(y.data(), OUT_ROWS, OUT_COLS);
 
   // expected output
   Tensor y_hat(OUT_ROWS, OUT_COLS);
   y_hat << 20, 36, 15,
             4,  7,  2;
-
+  
   ASSERT(y_hat == y2d);
 
   TEST_END()
@@ -3372,8 +3240,11 @@ void test_conv2d_forward()
   // 10 11 12
 
   // 2D input as vector
-  Variable x(g, IN_CHANNELS * IN_ROWS * IN_COLS, 1);
-  x.value() << 1,4, 2,5, 3,6, 7,10, 8,11, 9,12;
+  Variable x(g, 1, IN_CHANNELS * IN_ROWS * IN_COLS);
+  // col major
+  //x.value() << 1,4, 2,5, 3,6, 7,10, 8,11, 9,12;
+  // row major
+  x.value() << 1,2,3, 4,5,6, 7,8,9, 10,11,12;
 
   // 2D conv layer
   Conv2D c(
@@ -3409,7 +3280,7 @@ void test_conv2d_forward()
   Tensor y2d(OUT_CHANNELS * OUT_ROWS, OUT_COLS);
   for (int i=0; i<OUT_CHANNELS; i++)
   {
-    auto ch = y.block(i * OUT_ROWS * OUT_COLS, 0, OUT_ROWS * OUT_COLS, 1);
+    auto ch = y.block(0, i * OUT_ROWS * OUT_COLS, 1, OUT_ROWS * OUT_COLS);
     y2d.block(i * OUT_ROWS, 0, OUT_ROWS, OUT_COLS) =         
       ConstTensorMap(ch.data(), OUT_ROWS, OUT_COLS);
   }
@@ -3421,8 +3292,7 @@ void test_conv2d_forward()
            246, 478, 230, // channel 2
            116, 224, 106,
            374, 734, 358, // channel 3
-           196, 384, 186;           
-
+           196, 384, 186;
   ASSERT(y_hat == y2d);
 
   TEST_END()
@@ -3460,8 +3330,8 @@ void test_conv2d_backward()
          4, 5, 6;
 
   // vector input
-  auto& x = *g.new_variable(IN, 1);
-  x.value() = ConstTensorMap(x2d.data(), x2d.size(), 1);
+  auto& x = *g.new_variable(1, IN);
+  x.value() = ConstTensorMap(x2d.data(), 1, x2d.size());
 
   // 2D convolution
   auto& y = *g.new_conv2d(
@@ -3478,30 +3348,30 @@ void test_conv2d_backward()
                3, 4;
 
   y.forward();
-  g.backward(y, Tensor::Ones(OUT,1));
+  g.backward(y, Tensor::Ones(1, OUT));
 
   // dFdK
   Tensor dFdK = K.gradient();
   ASSERT(dFdK.rows() == K_ROWS);
   ASSERT(dFdK.cols() == K_COLS);
 
+  // dFdx
+  Tensor dFdx = x.gradient();
+  ASSERT(dFdx.rows() == 1);
+  ASSERT(dFdx.cols() == IN);
+
+  // dFdx_hat = K
+  Tensor dFdx_hat = g.dFdX(y, x);
+  ASSERT(dFdx_hat.rows() == 1);
+  ASSERT(dFdx_hat.cols() == IN);
+  ASSERT(dFdx.isApprox(dFdx_hat, 0.01))
+  
   // dFdK_hat = x
   Tensor dFdK_hat = g.dFdX(y, K);
   ASSERT(dFdK_hat.rows() == K_ROWS);
   ASSERT(dFdK_hat.cols() == K_COLS);
   ASSERT(dFdK.isApprox(dFdK_hat, 0.01))
-
-  // dFdx
-  Tensor dFdx = x.gradient();
-  ASSERT(dFdx.rows() == IN);
-  ASSERT(dFdx.cols() == 1);
-
-  // dFdx_hat = K
-  Tensor dFdx_hat = g.dFdX(y, x);
-  ASSERT(dFdx_hat.rows() == IN);
-  ASSERT(dFdx_hat.cols() == 1);
-  ASSERT(dFdx.isApprox(dFdx_hat, 0.01))
-
+  
   TEST_END()
 
   TEST_BEGIN("Conv2D Backward Multi-Channel")
@@ -3538,8 +3408,11 @@ void test_conv2d_backward()
   // 10 11 12
 
   // 2D input as vector
-  auto& x = *g.new_variable(IN_CHANNELS * IN_ROWS * IN_COLS, 1);
-  x.value() << 1,4, 2,5, 3,6, 7,10, 8,11, 9,12;
+  auto& x = *g.new_variable(1, IN_CHANNELS * IN_ROWS * IN_COLS);
+  // col major
+  //x.value() << 1,4, 2,5, 3,6, 7,10, 8,11, 9,12;
+  // row major
+  x.value() << 1,2,3, 4,5,6, 7,8,9, 10,11,12;
 
   // 2D conv layer
   auto& y = *g.new_conv2d(
@@ -3570,7 +3443,7 @@ void test_conv2d_backward()
               21,22, 23,24;
 
   y.forward();
-  g.backward(y, Tensor::Ones(OUT,1));
+  g.backward(y, Tensor::Ones(1, OUT));
 
   // dFdK
   Tensor dFdK = K.gradient();
@@ -3585,13 +3458,13 @@ void test_conv2d_backward()
 
   // dFdx
   Tensor dFdx = x.gradient();
-  ASSERT(dFdx.rows() == IN);
-  ASSERT(dFdx.cols() == 1);
+  ASSERT(dFdx.rows() == 1);
+  ASSERT(dFdx.cols() == IN);
 
   // dFdx_hat = K
   Tensor dFdx_hat = g.dFdX(y, x);
-  ASSERT(dFdx_hat.rows() == IN);
-  ASSERT(dFdx_hat.cols() == 1);
+  ASSERT(dFdx_hat.rows() == 1);
+  ASSERT(dFdx_hat.cols() == IN);
   ASSERT(dFdx.isApprox(dFdx_hat, 0.01))
 
   TEST_END()
@@ -3638,78 +3511,6 @@ void test_gaussian_sampler()
   TEST_END()
 }
 
-void test_step_regression()
-{
-  TEST_BEGIN("Step Regression")
-
-  // size
-  int N = 5;
-  srand(time(NULL));
-
-  Graph g;
-
-  // x
-  Constant& x = *g.new_constant(N, 1);
-
-  Function* x2 = &x;
-  for (int i=0; i<2; i++)
-  {
-    x2 = g.new_linear(*x2, N, N);
-    x2 = g.new_step(*x2);
-  }
-
-  auto& l = *g.new_linear(*x2, N, 1);
-  auto& y = *g.new_step(l);
-
-  // target y
-  Constant& y_hat = *g.new_constant(1, 1);
-
-  // Loss
-  auto& diff = *g.new_sub(y_hat, y);
-  auto& pow2 = *g.new_mul(diff, diff);
-  auto& loss = *g.new_sum(pow2);
-
-  SGD opt(g.variables(), 0.01);
-  DTYPE accuracy = 0;
-
-  int epochs = 100;
-  int steps = 200;
-  for (int i=0; i<epochs; i++)
-  {
-    int accurate = 0;
-    accuracy = accurate;
-    for (int j=0; j<steps; j++)
-    {
-      // random target value
-      int positive = g.random().uniform_int(1);
-      y_hat.value() << positive;
-
-      // reset input
-      g.recache();
-      x.value() = (0.1 * Tensor::Random(N,1)).array() + positive;
-
-      int correct = (fabs(diff()(0)) < 0.5) ? 1 : -1;
-      if (correct == 1) accurate += 1;
-
-      // update gradients
-      g.backward(loss, Tensor::Constant(1,1,1));
-
-      // update weights
-      opt.update();
-
-      // clear gradients
-      g.zero_grad();
-    }
-
-    accuracy = (float)accurate / (float)steps;
-    if (accuracy >= 0.95) break;
-  }
-
-  ASSERT(accuracy >= 0.95)
-
-  TEST_END()
-}
-
 void test_linear_regression()
 {
   TEST_BEGIN("Linear Regression")
@@ -3720,22 +3521,22 @@ void test_linear_regression()
   Graph g;
 
   // x
-  Constant& x = *g.new_constant(N, 1);
+  Constant& x = *g.new_constant(1, N);
 
   // y = W * x + b
   auto& y = *g.new_linear(x, N, N);
 
   // target y
-  Constant& y_hat = *g.new_constant(N, 1);
+  Constant& y_hat = *g.new_constant(1, N);
 
   // target x
-  Tensor tx(N, 1);
+  Tensor tx(1, N);
 
   // target W
-  Tensor tW = Tensor::Random(N,N);
+  Tensor tW = Tensor::Random(N, N);
 
   // target b
-  Tensor tb = Tensor::Random(N,1);
+  Tensor tb = Tensor::Random(1, N);
 
   // Loss
   auto& diff = *g.new_sub(y_hat, y);
@@ -3751,7 +3552,7 @@ void test_linear_regression()
     step += 1;
 
     // create sample
-    tx = Tensor::Random(N,1);
+    tx = Tensor::Random(1, N);
     y_hat.value() = tW * tx + tb;
 
     // reset input
@@ -3786,7 +3587,7 @@ void test_quadratic_regression()
   Graph g;
 
   // x
-  auto& x = *g.new_constant(N, 1);
+  auto& x = *g.new_constant(1, N);
 
   // x*x
   auto& xx = *g.new_mul(x, x);
@@ -3797,7 +3598,7 @@ void test_quadratic_regression()
   ASSERT(A.value().cols() == N)
 
   // quadratic part
-  auto& Axx = *g.new_product(A, xx);
+  auto& Axx = *g.new_product(xx, A);
 
   // Bx_C = B * x + C
   auto& Bx_C = *g.new_linear(x, N, N);
@@ -3806,7 +3607,7 @@ void test_quadratic_regression()
   auto& y = *g.new_add(Axx, Bx_C);
 
   // target y
-  auto& y_hat = *g.new_constant(N, 1);
+  auto& y_hat = *g.new_constant(1, N);
 
   // target x
   Tensor tx(N, 1);
@@ -3818,7 +3619,7 @@ void test_quadratic_regression()
   Tensor tB = Tensor::Random(N,N);
 
   // target C
-  Tensor tC = Tensor::Random(N,1);
+  Tensor tC = Tensor::Random(1,N);
 
   // Loss
   auto& diff = *g.new_sub(y_hat, y);
@@ -3834,7 +3635,7 @@ void test_quadratic_regression()
     step += 1;
 
     // create sample
-    tx = Tensor::Random(N,1) / 10;
+    tx = Tensor::Random(1,N) / 10;
     auto txx = (tx.array() * tx.array()).matrix();
     y_hat.value() = tA * txx + tB * tx + tC;
 
@@ -3897,7 +3698,7 @@ void test_adam_optimizer()
   Graph g;
 
   // x
-  auto& x = *g.new_constant(N, 1);
+  auto& x = *g.new_constant(1, N);
 
   // x*x
   auto& xx = *g.new_mul(x, x);
@@ -3906,7 +3707,7 @@ void test_adam_optimizer()
   auto& A = *g.new_variable(N, N);
 
   // quadratic part
-  auto& Axx = *g.new_product(A, xx);
+  auto& Axx = *g.new_product(xx, A);
 
   // Bx_C = B * x + C
   auto& Bx_C = *g.new_linear(x, N, N);
@@ -3915,10 +3716,10 @@ void test_adam_optimizer()
   auto& y = *g.new_add(Axx, Bx_C);
 
   // target y
-  auto& y_hat = *g.new_constant(N, 1);
+  auto& y_hat = *g.new_constant(1, N);
 
   // target x
-  Tensor tx(N, 1);
+  Tensor tx(1, N);
 
   // target A
   Tensor tA = Tensor::Random(N,N);
@@ -3927,7 +3728,7 @@ void test_adam_optimizer()
   Tensor tB = Tensor::Random(N,N);
 
   // target C
-  Tensor tC = Tensor::Random(N,1);
+  Tensor tC = Tensor::Random(1,N);
 
   // Loss
   auto& diff = *g.new_sub(y_hat, y);
@@ -3946,7 +3747,7 @@ void test_adam_optimizer()
       step += 1;
 
       // create sample
-      tx = Tensor::Random(N,1);
+      tx = Tensor::Random(1,N);
       auto txx = (tx.array() * tx.array()).matrix();
       y_hat.value() = tA * txx + tB * tx + tC;
 
@@ -3969,153 +3770,6 @@ void test_adam_optimizer()
   }
 
   ASSERT(step < steps)
-
-  TEST_END()
-}
-
-void test_image_sampler()
-{
-  TEST_BEGIN("Gaussian Image Selector")
-
-  int ROWS = 163;
-  int COLS = 157;
-  Image img(ROWS, COLS);
-
-  Graph g;
-  Constant center(g, 2,1);
-  Constant radius(g, 2,1);
-
-  center.value() << 1.0, 1.0;
-  radius.value() << 0.1, 0.1;
-
-  GaussianImageSelector is(g, center, radius, img, ROWS, COLS);
-  Image selected = is.select();
-
-  ASSERT(selected.rows() == ROWS);
-  ASSERT(selected.cols() == COLS);
-  ASSERT(selected.channels() == img.channels());
-
-  TEST_END()
-
-  TEST_BEGIN("Gaussian Selector Model")
-
-  int ROWS = 163;
-  int COLS = 157;
-  Image img(ROWS, COLS);
-
-  Graph g;
-  ASSERT(g.variables().size() == 0);
-
-  GaussianSelectorModel model(g);
-  ASSERT(g.variables().size() > 0);
-
-  auto label = model.forward(img);
-
-  for (auto v: g.variables())
-  {
-    ASSERT(v->gradient().size() == 0);
-  }
-
-  model.backward(label);
-
-  for (auto v: g.variables())
-  {
-    ASSERT(v->gradient().size() > 0);
-  }
-
-  TEST_END()
-
-  TEST_BEGIN("Softmax Image Selector")
-
-  int ROWS = 663;
-  int COLS = 457;
-  Image img(ROWS, COLS, SOFTMAX_SELECTED_CHANNELS);
-
-  ASSERT(img.channels() == SOFTMAX_SELECTED_CHANNELS);
-
-  Graph g;
-  Constant softmax(g, 4, 1);
-  softmax.value() << 0.5, 0.0, 0.0, 0.5;
-  
-  SoftmaxImageSelector is(g, softmax, img, 2, 2, ROWS, COLS);
-  Image selected = is.select();
-
-  ASSERT(selected.rows() == ROWS);
-  ASSERT(selected.cols() == COLS);
-  ASSERT(selected.channels() == img.channels());
-
-  TEST_END()
-
-  TEST_BEGIN("Softmax Selector Model")
-
-  int ROWS = 663;
-  int COLS = 457;
-  Image img(ROWS, COLS, SOFTMAX_SELECTED_CHANNELS);
-
-  Graph g;
-  ASSERT(g.variables().size() == 0);
-
-  SoftmaxSelectorModel model(g);
-  ASSERT(g.variables().size() > 0);
-
-  auto label = model.forward(img);
-
-  for (auto v: g.variables())
-  {
-    ASSERT(v->gradient().size() == 0);
-  }
-
-  model.backward(label);
-
-  for (auto v: g.variables())
-  {
-    ASSERT(v->gradient().size() > 0);
-  }
-
-  TEST_END()
-
-  TEST_BEGIN("Sequence Image Selector")
-
-  int ROWS = 663;
-  int COLS = 457;
-  Image img(ROWS, COLS);
-
-  Graph g;
-
-  SequenceImageSelector is(g, img, 3, 2, 2, ROWS, COLS);
-  Image selected = is.select();
-
-  ASSERT(selected.rows() == ROWS);
-  ASSERT(selected.cols() == COLS);
-  ASSERT(selected.channels() == img.channels());
-
-  TEST_END()
-
-  TEST_BEGIN("Sequence Selector Model")
-
-  int ROWS = 663;
-  int COLS = 457;
-  Image img(ROWS, COLS);
-
-  Graph g;
-  ASSERT(g.variables().size() == 0);
-
-  SequenceSelectorModel model(g);
-  ASSERT(g.variables().size() > 0);
-
-  auto label = model.forward(img);
-
-  for (auto v: g.variables())
-  {
-    ASSERT(v->gradient().size() == 0);
-  }
-
-  model.backward(label);
-
-  for (auto v: g.variables())
-  {
-    ASSERT(v->gradient().size() > 0);
-  }
 
   TEST_END()
 }
@@ -4306,79 +3960,13 @@ void test_rl_env()
   TEST_END()
 }
 
-void test_selector_composer()
-{
-  TEST_BEGIN("Image Selector/Composer")
-
-  const std::string img_path1 = "/home/greg/Pictures/test1.bmp";
-
-  const int COMPOSER_ROWS = 1000;
-  const int COMPOSER_COLS = 1500;
-
-  Image image(COMPOSER_ROWS, COMPOSER_COLS);
-
-  const int SELECTOR_ROWS = 100;
-  const int SELECTOR_COLS = 150;
-
-  Graph g;
-
-  Constant center(g, 2, 1);
-  Constant radius(g, 2, 1);
-
-  // top left quarter of the image
-  center.value() << 0.25, 0.25;
-  radius.value() << 0.25, 0.25;
-
-  // selector
-  ImageSelector selector(g, center, radius, image,
-    SELECTOR_ROWS, SELECTOR_COLS);
-  Image selected = ImageUtils::to_image(
-    selector(), SELECTOR_ROWS, SELECTOR_COLS
-  );
-
-  ASSERT(selected.rows() == SELECTOR_ROWS);
-  ASSERT(selected.cols() == SELECTOR_COLS);
-  ASSERT(selected.size() == SELECTOR_ROWS * SELECTOR_COLS * image.channels());
-  ASSERT(selected.channels() == image.channels());
-
-  // composer @ bottom right quarter of the image
-  ImageComposer composer(g, center + 0.5, radius, selector,
-    SELECTOR_ROWS, SELECTOR_COLS, COMPOSER_ROWS, COMPOSER_COLS);
-  Image composed = ImageUtils::to_image(
-    ImageUtils::normalize(composer()), COMPOSER_ROWS, COMPOSER_COLS
-  );
-
-  ASSERT(composed.rows() == COMPOSER_ROWS);
-  ASSERT(composed.cols() == COMPOSER_COLS);
-  ASSERT(composed.size() == COMPOSER_ROWS * COMPOSER_COLS * image.channels());
-  ASSERT(composed.channels() == image.channels());
-
-  // back from composer to selector
-  ImageSelector selector2(g, center + 0.5, radius, composed,
-    SELECTOR_ROWS, SELECTOR_COLS);
-  Image selected2 = ImageUtils::to_image(
-    selector2(), SELECTOR_ROWS, SELECTOR_COLS
-  );
-
-  ASSERT(selected2.rows() == SELECTOR_ROWS);
-  ASSERT(selected2.cols() == SELECTOR_COLS);
-  ASSERT(selected2.size() == SELECTOR_ROWS * SELECTOR_COLS * composed.channels());
-  ASSERT(selected2.channels() == composed.channels());
-
-  ASSERT(selector() == selector2());
-
-  TEST_END()
-}
-
 /**
  * test entry point
  */ 
 int main(int argc, char* argv[]) {
-  test_image_sampler();
   test_ImageFP();
   test_painter();
   test_rl_env();
-  test_selector_composer();
 
   test_eigen_fft();
   test_audio_file();
@@ -4448,9 +4036,6 @@ int main(int argc, char* argv[]) {
   test_gelu_forward();
   test_gelu_backward();
 
-  test_step_forward();
-  test_step_backward();
-
   test_dropout_forward();
   test_dropout_backward();
 
@@ -4496,9 +4081,6 @@ int main(int argc, char* argv[]) {
   test_log_gaussian_forward();
   test_log_gaussian_backward();
 
-  test_hopfield_forward();
-  test_hopfield_backward();
-
   test_embedding_forward();
   test_embedding_backward();
 
@@ -4506,7 +4088,6 @@ int main(int argc, char* argv[]) {
   test_conv2d_backward();
 
   test_gaussian_sampler();
-  test_step_regression();
   test_linear_regression();
   test_quadratic_regression();
 
