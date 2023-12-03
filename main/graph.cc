@@ -719,7 +719,7 @@ void Linear::init(Function& x)
 {
   // col major
   // F = W * x + b
-  // _y = _graph.new_product(*_graph.new_transpose(*_W), x);
+  // _y = _graph.new_product(*_W, x);
 
   // row major
   // F = x * W.T + b
