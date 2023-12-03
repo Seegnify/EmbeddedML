@@ -198,15 +198,15 @@ void test_attention_forward()
     auto Q = g.new_constant(2, 3);
     Q->value() << 1,2,3,
                   4,5,6;
-    print("Q", *Q);
+    //print("Q", *Q);
 
     // [4x3]
     auto K = g.new_constant(4, 3);
     K->value() << 0.1,0.2,0.3,
                   0.4,0.5,0.6,
                   1.4,1.5,1.6,
-                  2.4,2.5,2.6,
-    print("K", *K);
+                  2.4,2.5,2.6;
+    //print("K", *K);
 
     // QK_T -> [2x4]
 
@@ -214,7 +214,7 @@ void test_attention_forward()
     auto M = g.new_constant(2, 4);
     M->value() << 1,1,1,1,
                   1,1,0,0;
-    print("M", *M);
+    //print("M", *M);
 
     // [4x5]
     auto V = g.new_constant(4, 5);
@@ -222,7 +222,7 @@ void test_attention_forward()
                   4,1,-9,3,3,
                   1,2,3,4,4,
                   4,5,6,5,5;
-    print("V", *V);
+    //print("V", *V);
 
     // QK_TV -> [2x5]
 
@@ -233,7 +233,7 @@ void test_attention_forward()
     Attention attn(g, *Q,*K,*V, M, T, S, D, dropout);
 
     auto& A = attn();
-    print("A", A);
+    //print("A", A);
 
 
     Tensor A_torch(2,5);
@@ -256,15 +256,15 @@ void test_attention_backward()
     auto Q = g.new_variable(2, 3);
     Q->value() << 1,2,3,
                   4,5,6;
-    print("Q", *Q);
+    //print("Q", *Q);
 
     // [4x3]
     auto K = g.new_variable(4, 3);
     K->value() << 0.1,0.2,0.3,
                   0.4,0.5,0.6,
                   1.4,1.5,1.6,
-                  2.4,2.5,2.6,
-    print("K", *K);
+                  2.4,2.5,2.6;
+    //print("K", *K);
 
     // QK_T -> [2x4]
 
@@ -272,7 +272,7 @@ void test_attention_backward()
     auto M = g.new_constant(2, 4);
     M->value() << 1,1,1,1,
                   1,1,0,0;
-    print("M", *M);
+    //print("M", *M);
 
     // [4x5]
     auto V = g.new_variable(4, 5);
@@ -280,7 +280,7 @@ void test_attention_backward()
                   4,1,-9,3,3,
                   1,2,3,4,4,
                   4,5,6,5,5;
-    print("V", *V);
+    //print("V", *V);
 
     // QK_TV -> [2x5]
 
@@ -291,20 +291,20 @@ void test_attention_backward()
     Attention attn(g, *Q,*K,*V, M, T, S, D, dropout);
 
     auto& A = attn();
-    print("A", A);
+    //print("A", A);
 
     attn.forward();
     attn.gradient() = Tensor::Ones(attn.forward().rows(),attn.forward().cols());
     attn.gradient().block(0,0, attn.forward().rows(), 1) = 
       5 * Tensor::Ones(attn.forward().rows(), 1);
-    print("dA", attn.gradient());
+    //print("dA", attn.gradient());
 
     Tensor dQ = Q->backward();
     Tensor dK = K->backward();
     Tensor dV = V->backward();
-    print("dQ", dQ);
-    print("dK", dK);
-    print("dV", dV);
+    //print("dQ", dQ);
+    //print("dK", dK);
+    //print("dV", dV);
 
     Tensor dQ_torch(2,3);
     dQ_torch << 0.4281, 0.4281, 0.4281,
@@ -329,69 +329,13 @@ void test_attention_backward()
     TEST_END()
 }
 
-void test_softmax_backward()
-{
-    TEST_BEGIN("Softmax Backward")
-
-    Graph g;
-
-    // [2x3]
-    auto Q = g.new_variable(1, 3);
-    Q->value() << 1,2,3;
-                  //4,5,6;
-    print("Q", *Q);
-
-    Softmax S(g, *Q);
-    auto& s = S();
-
-    print("softmax(Q)", S.forward());
-    S.gradient() = Tensor::Ones(s.rows(),s.cols());
-    S.gradient().block(0,0, s.rows(),1) = 5 * Tensor::Ones(s.rows(),1);
-    print("softmax(Q).gradient", S.gradient());
-
-    auto dQ = Q->backward();
-    print("dQ", dQ);
-
-    TEST_END()
-}
-
-void test_product()
-{
-    TEST_BEGIN("Product")
-
-    Tensor A(4,4);
-    A <<  1,2,3,4,
-          5,6,7,8,
-          1,1,1,1,
-          2,2,2,2;
-    Tensor B(3,4);
-    B <<  1,2,3,4,
-          5,6,7,8,
-          3,3,3,3;
-    print("A", A);
-    print("B", B);
-
-    Tensor C = A * B;
-    print("AB", C);
-
-    Tensor D = B * A;
-    print("BA", D);
-
-    Tensor E = B * A.transpose();
-    print("BA.T", E);
-
-    TEST_END()
-}
-
 int main(int argc, char* argv[]) {
 
     //test_cnpy();
     //test_threads();
     //test_thread_pool();
-    test_product();
     test_attention_forward();
     test_attention_backward();
-    //test_softmax_backward();
 
     return 0;
 }

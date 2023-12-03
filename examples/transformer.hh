@@ -36,19 +36,12 @@ public:
     int L = trg_size;  // _q().rows()
     int S = seq_size;  // _k().rows()
     int D = head_size; // _k().cols()
-    std::cout << "L:" << L << std::endl;
-    std::cout << "S:" << S << std::endl;
-    std::cout << "D:" << D << std::endl;
 
     // get qk_T attention component [LxS]
     _attention = _graph.new_product(_q, *_graph.new_transpose(_k));
-    std::cout << "attention QK.T" << std::endl;
-    std::cout << _attention->forward() << std::endl;
 
     // attention bias [LxS]
     _bias = _graph.new_constant(L, S);
-    std::cout << "attention bias" << std::endl;
-    std::cout << _bias->forward() << std::endl;
 
     // scale and add attention mask as bias
     _attention = &(*_attention / sqrt(D) + *_bias);
@@ -120,7 +113,8 @@ class MultiHeadAttention : public Function
 public:
   MultiHeadAttention(
     Graph& g, Function& q, Function& k, Function& v,
-    int trg_size, int seq_size, int emb_size, int num_heads, DTYPE dropout=0.0) : 
+    int trg_size, int seq_size, int emb_size, int num_heads,
+    bool bias = true, DTYPE dropout=0.0) :
     Function(g)
   {
     const int L = trg_size; // q.rows()
@@ -129,14 +123,29 @@ public:
     const int H = num_heads;
     const int D = emb_size / num_heads;
 
-    _Wq = g.new_variable(E, E);
-    _Wk = g.new_variable(E, E);
-    _Wv = g.new_variable(E, E);
-    _Wo = g.new_variable(E, E);
+    // projection matrices
+    auto Wq = g.new_variable(E, E);
+    auto Wk = g.new_variable(E, E);
+    auto Wv = g.new_variable(E, E);
+    auto Wo = g.new_variable(E, E);
+    g.name(Wq, "Wq");
+    g.name(Wk, "Wk");
+    g.name(Wv, "Wv");
+    g.name(Wo, "Wo");
 
-    auto q_heads = split_heads(linear(q, *_Wq), H, S, D);
-    auto k_heads = split_heads(linear(k, *_Wk), H, S, D);
-    auto v_heads = split_heads(linear(v, *_Wv), H, S, D);
+    // projection bias
+    auto Bq = (bias) ? g.new_variable(E, E) : nullptr;
+    auto Bk = (bias) ? g.new_variable(E, E) : nullptr;
+    auto Bv = (bias) ? g.new_variable(E, E) : nullptr;
+    auto Bo = (bias) ? g.new_variable(E, E) : nullptr;
+    g.name(Bq, "Bq");
+    g.name(Bk, "Bk");
+    g.name(Bv, "Bv");
+    g.name(Bo, "Bo");
+
+    auto q_heads = split_heads(linear(q, *Wq, Bq), H, S, D);
+    auto k_heads = split_heads(linear(k, *Wk, Bk), H, S, D);
+    auto v_heads = split_heads(linear(v, *Wv, Bv), H, S, D);
 
     std::vector<Function*> heads(num_heads, nullptr);
 
@@ -149,8 +158,7 @@ public:
     }
 
     auto& joined = join_heads(heads, S, H);
-    auto& WoT = *_graph.new_transpose(*_Wo);
-    _attention = _graph.new_product(joined, WoT);
+    _attention = &linear(joined, *Wo, Bo);
   }
 
   virtual const Tensor& forward()
@@ -165,9 +173,10 @@ public:
   }
 
 private:
-  Function& linear(Function& x, Function& W)
+  Function& linear(Function& x, Function& W, Function* b)
   {
-    return *_graph.new_product(x, *_graph.new_transpose(W));
+    auto y = _graph.new_product(x, *_graph.new_transpose(W));
+    return (b) ? (*y + *b) : (*y);
   }
 
   std::vector<Function*> split_heads(
@@ -220,10 +229,6 @@ private:
 
 protected:
   Function* _attention;
-  Variable* _Wq;
-  Variable* _Wk;
-  Variable* _Wv;
-  Variable* _Wo;
 };
 
 
