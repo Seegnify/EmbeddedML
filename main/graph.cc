@@ -687,132 +687,59 @@ const Tensor& Max::forward()
 // Function Linear
 ///////////////////////////////////////////
 
-Linear::Linear(Graph& graph, Function& x, int in, int out) :
-Function(graph), _x(x)
+// x dim = [samples x in]
+// W dim = [out x in]
+// b dim = [samples x out]
+Linear::Linear(Graph& graph, Function& x, int in, int out, bool bias, int samples) :
+Function(graph)
 {
   // construct new variables
   _W = graph.new_variable(out, in);
-  _b = graph.new_variable(1, out);
 
-  init();
+  // col major
+  // _b = (bias) ? graph.new_variable(out, samples) : nullptr;
+
+  // row major
+  _b = (bias) ? graph.new_variable(samples, out) : nullptr;
+
+  init(x);
 }
 
 Linear::Linear(Graph& graph, Function& x, const Linear& other) : 
-Function(graph), _x(x)
+Function(graph)
 {
   // share variables with the "other"
   _W = other._W;
   _b = other._b;
 
-  init();
+  init(x);
 }
 
-void Linear::init()
+void Linear::init(Function& x)
 {
-  // Derivative with respect to x
-  class Derivative_x : public Function
+  // col major
+  // F = W * x + b
+  // _y = _graph.new_product(*_graph.new_transpose(*_W), x);
+
+  // row major
+  // F = x * W.T + b
+  _y = _graph.new_product(x, *_graph.new_transpose(*_W));
+
+  if (_b)
   {
-  public:
-    Derivative_x(Graph& graph, Linear& base) :
-    Function(graph), _base(base) { graph.keep(this); }
+    _y = _graph.new_add(*_y, *_b);
+  }
 
-    // dFdx = W
-    virtual const Tensor& forward()
-    {
-      // return cached value
-      if (_value.size()) return _value;
-
-      auto& g = _base.backward();
-      auto& W = _base._W->forward();
-
-      auto& dFdx = W;
-
-      // update gradient value
-      // _value = ATB(dFdx, g); // col major
-      _value = g * dFdx; // row major
-
-      return _value;
-    }    
-
-  private:
-    Linear& _base;
-  };
-
-  // Derivative with respect to W
-  class Derivative_W : public Function
-  {
-  public:
-    Derivative_W(Graph& graph, Linear& base) :
-    Function(graph), _base(base) { graph.keep(this); }
-
-    // dFdW = x
-    virtual const Tensor& forward()
-    {
-      // return cached value
-      if (_value.size()) return _value;
-
-      auto& g = _base.backward();
-      auto& x = _base._x.forward();
-
-      auto& dFdW = x;
-
-      // update gradient value
-      // _value = ABT(g, dFdW); // col major
-      _value = ATB(g, dFdW); // row major
-
-      return _value;
-    }    
-
-  private:
-    Linear& _base;
-  };
-
-  // Derivative with respect to b
-  class Derivative_b : public Function
-  {
-  public:
-    Derivative_b(Graph& graph, Linear& base) :
-    Function(graph), _base(base) { graph.keep(this); }
-
-    // dFdb = 1
-    virtual const Tensor& forward()
-    {
-      // return cached value
-      if (_value.size()) return _value;
-
-      auto& g = _base.backward();
-
-      // update value
-      _value = g;
-
-      return _value;
-    }    
-
-  private:
-    Linear& _base;
-  };
-
-  _x.derivative(new Derivative_x(_graph, *this));
-  _W->derivative(new Derivative_W(_graph, *this));
-  _b->derivative(new Derivative_b(_graph, *this));
+  _y->derivative(_graph.new_iderivative(*this));
 }
 
-// F = W * x + b
 const Tensor& Linear::forward()
 {
   // return cached value
   if (_value.size()) return _value;
 
-  // get input vector
-  auto& x = _x.forward();
-
-  // get variables
-  auto& W = _W->forward();
-  auto& b = _b->forward();
-
   // create cached value
-  // _value.noalias() = W * x + b; // col major
-  _value.noalias() = ABT(x, W) + b; // row major
+  _value.noalias() = _y->forward();
 
   // return value
   return _value;
@@ -2154,65 +2081,6 @@ void LSTM::init()
 
   // let output handle the gradient directly
   _LSTM->derivative(_graph.new_iderivative(*this));
-}
-
-///////////////////////////////////////////
-// Function FGU
-///////////////////////////////////////////
-
-FGU::FGU(Graph& graph, Function& x, int in, int out) : 
-Function(graph), _x(x)
-{
-  // construct new variables
-  _Lp = graph.new_linear(x, in, in);
-  _Lq = graph.new_linear(x, in, out);
-
-  _Wh = graph.new_variable(out, in);
-  _bh = graph.new_variable(out, 1);
-
-  // build graph
-  init();
-}
-
-FGU::FGU(Graph& graph, Function& x, const FGU& other) :
-Function(graph), _x(x)
-{
-  // share variables with the "other"
-  _Lp = graph.new_linear(x, *other._Lp);
-  _Lq = graph.new_linear(x, *other._Lq);
-
-  _Wh = other._Wh;
-  _bh = other._bh;
-
-  // build graph
-  init();
-}
-
-const Tensor& FGU::forward()
-{
-  // return cached value
-  if (_value.size()) return _value;
-
-  // create value h(t)
-  _value = _FGU->forward();
-
-  // return value
-  return _value;
-}
-
-void FGU::init()
-{
-  // p
-  auto& p = *_graph.new_sigmoid(*_Lp);
-
-  // q
-  auto& q = *_graph.new_sigmoid(*_Lq);
-
-  // h
-  _FGU = &(q * *_graph.new_tanh(product(*_Wh,p * _x) + *_bh));
-
-  // let output handle the gradient directly
-  _FGU->derivative(_graph.new_iderivative(*this));
 }
 
 ///////////////////////////////////////////

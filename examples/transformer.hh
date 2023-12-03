@@ -36,12 +36,19 @@ public:
     int L = trg_size;  // _q().rows()
     int S = seq_size;  // _k().rows()
     int D = head_size; // _k().cols()
+    std::cout << "L:" << L << std::endl;
+    std::cout << "S:" << S << std::endl;
+    std::cout << "D:" << D << std::endl;
 
     // get qk_T attention component [LxS]
     _attention = _graph.new_product(_q, *_graph.new_transpose(_k));
+    std::cout << "attention QK.T" << std::endl;
+    std::cout << _attention->forward() << std::endl;
 
     // attention bias [LxS]
     _bias = _graph.new_constant(L, S);
+    std::cout << "attention bias" << std::endl;
+    std::cout << _bias->forward() << std::endl;
 
     // scale and add attention mask as bias
     _attention = &(*_attention / sqrt(D) + *_bias);

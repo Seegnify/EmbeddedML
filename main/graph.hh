@@ -202,7 +202,10 @@ protected:
 class Linear : public Function
 {
 public:
-  Linear(Graph& graph, Function& x, int in, int out);
+  Linear(
+    Graph& graph, Function& x,
+    int in = 0, int out = 0, bool bias = true, int samples = 1
+  );
   Linear(Graph& graph, Function& x, const Linear& other);
 
   // variable access
@@ -212,12 +215,12 @@ public:
   virtual const Tensor& forward();
 
 private:
-  void init();
+  void init(Function& x);
 
 protected:
-  Function& _x;
   Variable* _W;
   Variable* _b;
+  Function* _y;
 };
 
 // Product (linear unbiased) function
@@ -572,37 +575,6 @@ protected:
   Function *_cell;
 };
 
-// Forward Gated Unit (FGU) function
-// p(t) = Sigmoid(Wp * x(t) + bp)
-// q(t) = Sigmoid(Wq * x(t) + bq)
-// h(t) = q(t) * Tanh(Wh * (p(t) . x(t)) + bh)
-class FGU : public Function
-{
-public:
-  FGU(Graph& graph, Function& x, int in, int out);
-  FGU(Graph& graph, Function& x, const FGU& other);
-
-  Variable& Wp() { return _Lp->W(); }
-  Variable& bp() { return _Lp->b(); }
-
-  Variable& Wq() { return _Lq->W(); }
-  Variable& bq() { return _Lq->b(); }
-
-  Variable& Wh() { return *_Wh; }
-  Variable& bh() { return *_bh; }
-
-  virtual const Tensor& forward();
-
-private:
-  void init();
-
-protected:
-  Function &_x;
-  Linear   *_Lp, *_Lq;
-  Variable *_Wh, *_bh;
-  Function *_FGU;
-};
-
 // Norm
 class Norm : public Function
 {
@@ -935,6 +907,7 @@ public:
   }
 
   Linear* new_linear(Function& x, int in = 0, int out = 0,
+  bool bias = true, int samples = 1,
   const char* name = nullptr)
   {
     auto other = function(name);
@@ -944,7 +917,7 @@ public:
     }
     else
     {
-      auto node = new Linear(*this, x, in, out);
+      auto node = new Linear(*this, x, in, out, bias, samples);
       keep(node, name);
       return node;
     }
@@ -1148,29 +1121,6 @@ public:
   LSTM* new_lstm(Function& x, Function& h, Function& c, const LSTM& other)
   {
     auto node = new LSTM(*this, x, h, c, other);
-    keep(node);
-    return node;
-  }
-
-  FGU* new_fgu(Function& x, int in = 0, int out = 0,
-  const char* name = nullptr)
-  {
-    auto other = function(name);
-    if (other)
-    {
-      return new_fgu(x, (FGU&)*other);
-    }
-    else
-    {
-      auto node = new FGU(*this, x, in, out);
-      keep(node, name);
-      return node;
-    }
-  }
-
-  FGU* new_fgu(Function& x, const FGU& other)
-  {
-    auto node = new FGU(*this, x, other);
     keep(node);
     return node;
   }

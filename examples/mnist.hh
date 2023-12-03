@@ -31,17 +31,12 @@ class MNISTModel
 public:
   MNISTModel(Graph& g)
   {
-    // graph dimensions
-    const int SIZE = INPUT + HIDDEN + OUTPUT;
-
     // input
-    _x = g.new_constant(SIZE, 1);
-    _x->value() = Tensor::Zero(SIZE, 1);
+    _x = g.new_constant(INPUT, 1);
+    _x->value() = Tensor::Zero(INPUT, 1);
 
     // network
-    auto& x2 = *g.new_fgu(*_x, SIZE, SIZE);
-    auto& y_all = *g.new_fgu(x2, x2);
-    _y_logits = g.new_split(y_all, SIZE-OUTPUT,0, OUTPUT,1);
+    auto _y_logits = g.new_linear(*_x, INPUT, OUTPUT);
     _y = g.new_softmax(*_y_logits);
   }
 
