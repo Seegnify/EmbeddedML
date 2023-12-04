@@ -81,6 +81,70 @@ def test_attention():
     print("\K gradient:\n", K.grad)
     print("\V gradient:\n", V.grad)
 
+def test_multihead_attention():
+    print("=== test_multihead_attention")
+    # Define some parameters
+    batch_size = 1
+    sequence_length = 3
+    embed_size = 4
+    num_heads = 2
+
+    # Create input tensors
+    query = torch.rand(batch_size, sequence_length, embed_size)
+    key = torch.rand(batch_size, sequence_length, embed_size)
+    value = torch.rand(batch_size, sequence_length, embed_size)
+
+    # Load inputs
+    input_path = "attention_input.pt"
+    try:
+        inputs = torch.load(input_path)
+        query = inputs["query"]
+        key = inputs["key"]
+        value = inputs["value"]
+        print("Inputs loaded from", input_path)
+    except:
+        inputs = {}
+        inputs["query"] = query
+        inputs["key"] = key
+        inputs["value"] = value
+        torch.save(inputs, input_path)
+        print("New inputs saved to", input_path)
+
+    # Create MultiheadAttention module
+    attention = torch.nn.MultiheadAttention(embed_size, num_heads)
+
+    # Load model
+    model_path = "attention_model.pt"
+    try:
+        attention.load_state_dict(torch.load(model_path))
+        print("Model loaded from", model_path)
+    except:
+        torch.save(attention.state_dict(), model_path)
+        print("New model saved to", model_path)
+
+    print("Start Attention Params")
+    for name, param in attention.named_parameters():
+        print(f"Parameter name: {name}, Shape: {param.shape}")
+        print(param)
+        #np_param = param.detach().numpy()
+        #print(np_param)
+    print("End Attention Params")
+
+    # Apply Multihead Attention
+    output, attention_weights = attention(query, key, value)
+
+    # Print shapes of input and output tensors
+    print("Query:", query.shape)
+    print(query)
+    print("Key:", key.shape)
+    print(key)
+    print("Value:", value.shape)
+    print(value)
+    print("Output:", output.shape)
+    print(output)
+    print("Attention weights:", attention_weights.shape)    
+    print(attention_weights)
+
 def test_softmax():
     print("=== test_softmax")
     # Q = torch.tensor([
@@ -102,32 +166,7 @@ def test_softmax():
     sQ.backward(sQ_grad)
     print("Q.grad", Q.grad)
 
-def test_softmax_np():
-    print("=== test_softmax_np")
-    import numpy as np
-
-    def softmax(x):
-        exp_x = np.exp(x - np.max(x))  # Subtracting np.max(x) for numerical stability
-        return exp_x / np.sum(exp_x, axis=0)
-
-    def softmax_derivative(x):
-        s = softmax(x)
-        return s * (np.eye(len(x)) - s.reshape(-1, 1))
-
-    # Example usage:
-    Q = np.array([1.0, 2.0, 3.0])
-    print("Q", Q)
-    soft = softmax(Q)
-    soft_derivative = softmax_derivative(Q)
-
-    print("Softmax:", soft)
-    print("Softmax Derivative:\n", soft_derivative)
-
-    soft_derivative = soft_derivative.transpose()
-    soft_derivative = np.sum(soft_derivative, axis=-1)
-    print("Softmax Derivative:\n", soft_derivative)
-
 if __name__ == "__main__":
-    test_attention()
     #test_softmax()
-    #test_softmax_np()
+    #test_attention()
+    test_multihead_attention()
