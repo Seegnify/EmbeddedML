@@ -195,68 +195,71 @@ def print_model(model_state_dict):
     arr = model_state_dict[m].numpy()
     print("tensor", m, arr.shape, arr.dtype)
 
+def main():
+  # Meta params
+  src_vocab_size = 5000
+  tgt_vocab_size = 5000
+  d_model = 512
+  num_heads = 8
+  num_layers = 6
+  d_ff = 2048
+  max_seq_length = 100
+  dropout = 0.1
+  batch_size = 64
+  num_epochs = 2
+  model_path = "transformer.pt"
+  model_np_path = "transformer.npz"
+  train_data_path = "dataset.dat"
 
-# Meta params
-src_vocab_size = 5000
-tgt_vocab_size = 5000
-d_model = 512
-num_heads = 8
-num_layers = 6
-d_ff = 2048
-max_seq_length = 100
-dropout = 0.1
-batch_size = 64
-num_epochs = 2
-model_path = "transformer.pt"
-model_np_path = "transformer.npz"
-train_data_path = "dataset.dat"
+  transformer = Transformer(src_vocab_size, tgt_vocab_size, d_model, num_heads, num_layers, d_ff, max_seq_length, dropout)
 
-transformer = Transformer(src_vocab_size, tgt_vocab_size, d_model, num_heads, num_layers, d_ff, max_seq_length, dropout)
+  # Load model
+  try:
+    transformer.load_state_dict(torch.load(model_path))
+    print("Model loaded from", model_path)
+  except:
+    print("New model created")
 
-# Load model
-try:
-  transformer.load_state_dict(torch.load(model_path))
-  print("Model loaded from", model_path)
-except:
-  print("New model created")
+  # Load data
+  try:
+    train_data = torch.load(train_data_path)
+    src_data = train_data["src_data"]
+    tgt_data = train_data["tgt_data"]
+    print("Training data loaded from", train_data_path)
+  except:
+    # Generate random sample data
+    src_data = torch.randint(1, src_vocab_size, (batch_size, max_seq_length))  # (batch_size, seq_length)
+    tgt_data = torch.randint(1, tgt_vocab_size, (batch_size, max_seq_length))  # (batch_size, seq_length)
+    print("New training data generated")
 
-# Load data
-try:
-  train_data = torch.load(train_data_path)
-  src_data = train_data["src_data"]
-  tgt_data = train_data["tgt_data"]
-  print("Training data loaded from", train_data_path)
-except:
-  # Generate random sample data
-  src_data = torch.randint(1, src_vocab_size, (batch_size, max_seq_length))  # (batch_size, seq_length)
-  tgt_data = torch.randint(1, tgt_vocab_size, (batch_size, max_seq_length))  # (batch_size, seq_length)
-  print("New training data generated")
+  print_model(torch.load(model_path))
+  #os.exit
 
-print_model(torch.load(model_path))
-#os.exit
+  # Model training
+  criterion = nn.CrossEntropyLoss(ignore_index=0)
+  optimizer = optim.Adam(transformer.parameters(), lr=0.0001, betas=(0.9, 0.98), eps=1e-9)
 
-# Model training
-criterion = nn.CrossEntropyLoss(ignore_index=0)
-optimizer = optim.Adam(transformer.parameters(), lr=0.0001, betas=(0.9, 0.98), eps=1e-9)
+  transformer.train()
 
-transformer.train()
+  for epoch in range(num_epochs):
+      optimizer.zero_grad()
+      output = transformer(src_data, tgt_data[:, :-1])
+      loss = criterion(output.contiguous().view(-1, tgt_vocab_size), tgt_data[:, 1:].contiguous().view(-1))
+      loss.backward()
+      optimizer.step()
+      print(f"Epoch: {epoch+1} / {num_epochs}, Loss: {loss.item()}")
 
-for epoch in range(num_epochs):
-    optimizer.zero_grad()
-    output = transformer(src_data, tgt_data[:, :-1])
-    loss = criterion(output.contiguous().view(-1, tgt_vocab_size), tgt_data[:, 1:].contiguous().view(-1))
-    loss.backward()
-    optimizer.step()
-    print(f"Epoch: {epoch+1} / {num_epochs}, Loss: {loss.item()}")
+  # Save data
+  #train_data = {"src_data":src_data, "tgt_data":tgt_data}
+  #torch.save(train_data, train_data_path)
+  #print("Training data saved to", train_data_path)
 
-# Save data
-#train_data = {"src_data":src_data, "tgt_data":tgt_data}
-#torch.save(train_data, train_data_path)
-#print("Training data saved to", train_data_path)
+  # Save model
+  #torch.save(transformer.state_dict(), model_path)
+  #print("Model saved to", model_path)
 
-# Save model
-#torch.save(transformer.state_dict(), model_path)
-#print("Model saved to", model_path)
+  # Save model as numpy
+  #save_model_as_numpy(model_np_path, transformer.state_dict())
 
-# Save model as numpy
-#save_model_as_numpy(model_np_path, transformer.state_dict())
+if __name__ == "__main__":
+  main()

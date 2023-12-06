@@ -3,6 +3,7 @@ import math
 
 import torch
 #from torch.nn.functional import scaled_dot_product_attention
+import transformer
 
 def scaled_dot_product_attention(query, key, value, attn_mask=None, dropout_p=0.0, is_causal=False, scale=None) -> torch.Tensor:
     # Efficient implementation equivalent to the following:
@@ -111,7 +112,7 @@ def test_multihead_attention():
         print("New inputs saved to", input_path)
 
     # Create MultiheadAttention module
-    attention = torch.nn.MultiheadAttention(embed_size, num_heads)
+    attention = torch.nn.MultiheadAttention(embed_size, num_heads, bias=False)
 
     # Load model
     model_path = "attention_model.pt"
@@ -123,11 +124,13 @@ def test_multihead_attention():
         print("New model saved to", model_path)
 
     print("Start Attention Params")
-    for name, param in attention.named_parameters():
-        print(f"Parameter name: {name}, Shape: {param.shape}")
+    for name in attention.state_dict():
+        print("name:", name)
+        param = attention.state_dict()[name]
+        print("shape:", param.shape)
         print(param)
-        #np_param = param.detach().numpy()
-        #print(np_param)
+        if param.detach().numpy().sum() == 0:
+          param[0:param.shape[0]] = torch.rand(1, param.shape[0]) 
     print("End Attention Params")
 
     # Apply Multihead Attention
@@ -144,6 +147,82 @@ def test_multihead_attention():
     print(output)
     print("Attention weights:", attention_weights.shape)    
     print(attention_weights)
+
+def test_my_multihead_attention():
+    embed_size = 4
+    num_heads = 2
+        
+    attention = transformer.MultiHeadAttention(embed_size, num_heads)
+
+    q = torch.tensor(
+        [[[0.0878, 0.0416, 0.6166, 0.1477],
+         [0.9752, 0.8866, 0.5407, 0.1911],
+         [0.5300, 0.2800, 0.5306, 0.4950]]]
+    )
+    k = torch.tensor(
+        [[[0.2248, 0.4832, 0.5916, 0.0345],
+         [0.4916, 0.0881, 0.3768, 0.3048],
+         [0.0780, 0.3594, 0.0297, 0.6474]]]
+    )
+    v = torch.tensor(
+        [[[0.2014, 0.0033, 0.2326, 0.5677],
+         [0.6842, 0.1161, 0.8033, 0.6450],
+         [0.4097, 0.3034, 0.8000, 0.7103]]]
+    ) 
+
+    params = attention.state_dict()
+    params["W_q.weight"][:,:] = torch.tensor(
+        [[ 0.4271,  0.3013, -0.4279, -0.2122],
+        [ 0.2983,  0.3350, -0.4619,  0.5432],
+        [-0.1488,  0.1778, -0.4288, -0.5003],
+        [ 0.1173,  0.3713, -0.2347, -0.2251]]    
+    )
+    params["W_k.weight"][:,:] = torch.tensor(
+        [[ 0.1557,  0.4673,  0.0920,  0.3889],
+        [ 0.5867,  0.0088,  0.4371,  0.0371],
+        [ 0.4897, -0.0109, -0.0646,  0.5190],
+        [-0.5768,  0.1376, -0.5507,  0.5315]],
+    )
+    params["W_v.weight"][:,:] = torch.tensor(
+        [[-0.3599, -0.4841,  0.0526, -0.5235],
+        [-0.1576,  0.4844, -0.3817,  0.2549],
+        [-0.1432,  0.5141, -0.5741, -0.0179],
+        [-0.0103, -0.4235, -0.5195, -0.1589]]
+    )
+    params["W_o.weight"][:,:] = torch.tensor(
+        [[-0.2588,  0.4873,  0.0642,  0.4206],
+        [ 0.3272,  0.3202,  0.4458, -0.3825],
+        [-0.4631, -0.2740, -0.2628, -0.4749],
+        [-0.3654,  0.4841,  0.4618, -0.1188]]
+    )
+
+    params["W_q.bias"][:] = torch.tensor(
+        [0.4755, 0.1042, 0.6459, 0.2230]
+    )
+    params["W_k.bias"][:] = torch.tensor(
+        [0.0739, 0.6705, 0.8532, 0.7830]
+    )
+    params["W_v.bias"][:] = torch.tensor(
+        [0.1097, 0.8451, 0.7208, 0.2440]
+    )
+    params["W_o.bias"][:] = torch.tensor(
+        [0.0307, 0.1667, 0.4442, 0.1971]
+    )
+
+    print("Start Attention Params")
+    for name in attention.state_dict():
+        print("name:", name)
+        param = attention.state_dict()[name]
+        print("shape:", param.shape)
+        print(param)
+        if param.detach().numpy().sum() == 0:
+          param[0:param.shape[0]] = torch.rand(1, param.shape[0]) 
+    print("End Attention Params")
+    
+    output = attention(q, k, v)
+    
+    print("Attention output")
+    print(output)
 
 def test_softmax():
     print("=== test_softmax")
@@ -169,4 +248,5 @@ def test_softmax():
 if __name__ == "__main__":
     #test_softmax()
     #test_attention()
-    test_multihead_attention()
+    #test_multihead_attention()
+    test_my_multihead_attention()    

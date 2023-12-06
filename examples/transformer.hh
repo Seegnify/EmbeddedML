@@ -114,7 +114,7 @@ public:
   MultiHeadAttention(
     Graph& g, Function& q, Function& k, Function& v,
     int trg_size, int seq_size, int emb_size, int num_heads,
-    bool bias = true, DTYPE dropout=0.0) :
+    bool bias = true, DTYPE dropout = 0.0) :
     Function(g)
   {
     const int L = trg_size; // q.rows()
@@ -134,10 +134,10 @@ public:
     g.name(Wo, "Wo");
 
     // projection bias
-    auto Bq = (bias) ? g.new_variable(E, E) : nullptr;
-    auto Bk = (bias) ? g.new_variable(E, E) : nullptr;
-    auto Bv = (bias) ? g.new_variable(E, E) : nullptr;
-    auto Bo = (bias) ? g.new_variable(E, E) : nullptr;
+    auto Bq = (bias) ? g.new_variable(1, E) : nullptr;
+    auto Bk = (bias) ? g.new_variable(1, E) : nullptr;
+    auto Bv = (bias) ? g.new_variable(1, E) : nullptr;
+    auto Bo = (bias) ? g.new_variable(1, E) : nullptr;
     g.name(Bq, "Bq");
     g.name(Bk, "Bk");
     g.name(Bv, "Bv");
@@ -176,7 +176,7 @@ private:
   Function& linear(Function& x, Function& W, Function* b)
   {
     auto y = _graph.new_product(x, *_graph.new_transpose(W));
-    return (b) ? (*y + *b) : (*y);
+    return (b) ? (*y + *_graph.new_broadcast(*b, *y)) : (*y);
   }
 
   std::vector<Function*> split_heads(
