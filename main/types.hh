@@ -28,10 +28,13 @@ typedef Eigen::Matrix<int, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> Tens
 typedef Eigen::Map<TensorXi> TensorXiMap;
 typedef Eigen::Map<const TensorXi> ConstTensorXiMap;
 
-//typedef Eigen::Matrix<DTYPE, Eigen::Dynamic, 1, Eigen::ColMajor> Vector;
-typedef Eigen::Matrix<DTYPE, 1, Eigen::Dynamic, Eigen::RowMajor> Vector;
-typedef Eigen::Map<Vector> VectorMap;
-typedef Eigen::Map<const Vector> ConstVectorMap;
+typedef Eigen::Matrix<DTYPE, 1, Eigen::Dynamic, Eigen::RowMajor> RowVector;
+typedef Eigen::Map<RowVector> RowVectorMap;
+typedef Eigen::Map<const RowVector> ConstRowVectorMap;
+
+typedef Eigen::Matrix<DTYPE, Eigen::Dynamic, 1, Eigen::ColMajor> ColVector;
+typedef Eigen::Map<ColVector> ColVectorMap;
+typedef Eigen::Map<const ColVector> ConstColVectorMap;
 
 // Export symbols
 #ifndef DLL_EXPORT

@@ -771,22 +771,24 @@ void test_broadcast_forward()
   ASSERT(z.forward().rows() == IN);
   ASSERT(z.forward().cols() == 1);
 
-  // v vector
-  Variable v(g, IN, 1);
-  v.value() << 5,6;
+  // v matrix
+  Variable v(g, IN, IN);
+  v.value() << 1,2,
+               3,4;
   ASSERT(v.forward().rows() == IN);
-  ASSERT(v.forward().cols() == 1);
+  ASSERT(v.forward().cols() == IN);
 
   // b broadcast
-  Broadcast b(g, z, x);
+  Broadcast b(g, z, v);
   ASSERT(b.forward().rows() == IN);
-  ASSERT(b.forward().cols() == 1);
+  ASSERT(b.forward().cols() == IN);
 
-  Function& vb = v * b;
+  Function& vb = v + b;
 
   // vs_hat
-  Tensor vb_hat(IN, 1);
-  vb_hat << 35, 42;
+  Tensor vb_hat(IN, IN);
+  vb_hat << 1+3, 2+3,
+            3+4, 4+4;
   ASSERT(vb_hat == vb.forward());
 
   TEST_END()
@@ -798,60 +800,57 @@ void test_broadcast_backward()
   Graph g;
 
   // size
-  int IN = 2;
+  int ROWS = 2;
+  int COLS = 3;
 
   // x vector
-  auto& x = *g.new_variable(IN, 1);
-  x.value() << 1, 2;
-  ASSERT(x.forward().rows() == IN);
-  ASSERT(x.forward().cols() == 1);
+  auto& x = *g.new_variable(1, COLS);
+  x.value() << 1, 2, 3;
+  ASSERT(x.forward().rows() == 1);
+  ASSERT(x.forward().cols() == COLS);
 
-  // z vector
-  auto& z = *g.new_variable(IN, 1);
-  z.value() << 3,4;
-  ASSERT(z.forward().rows() == IN);
-  ASSERT(z.forward().cols() == 1);
-
-  // v vector
-  auto& v = *g.new_variable(IN, 1);
-  v.value() << 5,6;
-  ASSERT(v.forward().rows() == IN);
-  ASSERT(v.forward().cols() == 1);
+  // v matrix
+  auto& v = *g.new_variable(ROWS, COLS);
+  v.value() << 4,5,6,
+               7,8,9;
+  ASSERT(v.forward().rows() == ROWS);
+  ASSERT(v.forward().cols() == COLS);
 
   // s broadcast
-  auto& s = *g.new_broadcast(z, x);
-  ASSERT(s.forward().rows() == IN);
-  ASSERT(s.forward().cols() == 1);
+  auto& s = *g.new_broadcast(x, v);
+  ASSERT(s.forward().rows() == ROWS);
+  ASSERT(s.forward().cols() == COLS);
 
   auto& F = v * s;
 
   // vs_hat
-  Tensor F_hat(IN, 1);
-  F_hat << 35, 42;
+  Tensor F_hat(ROWS, COLS);
+  F_hat << 4*1,5*2,6*3,
+           7*1,8*2,9*3;
   ASSERT(F_hat == F.forward());
 
-  g.backward(F, Tensor::Ones(IN,1));
+  g.backward(F, Tensor::Ones(ROWS,COLS));
 
   // dFdv
   Tensor dFdv = v.gradient();
-  ASSERT(dFdv.rows() == IN);
-  ASSERT(dFdv.cols() == 1);
+  ASSERT(dFdv.rows() == ROWS);
+  ASSERT(dFdv.cols() == COLS);
   ASSERT(dFdv == s.forward());
 
   // dFds
   Tensor dFds = s.gradient();
-  ASSERT(dFds.rows() == IN);
-  ASSERT(dFds.cols() == 1);
+  ASSERT(dFds.rows() == ROWS);
+  ASSERT(dFds.cols() == COLS);
   ASSERT(dFds == v.forward());
 
-  // dFdz_num
-  auto dFdz_num = g.dFdX(F, z);
+  // dFdx_num
+  auto dFdx_num = g.dFdX(F, x);
 
   // dFdz
-  Tensor dFdz = z.gradient();
-  ASSERT(dFdz.rows() == IN);
-  ASSERT(dFdz.cols() == 1);
-  ASSERT(dFdz.isApprox(dFdz_num, 0.001));
+  Tensor dFdx = x.gradient();
+  ASSERT(dFdx.rows() == 1);
+  ASSERT(dFdx.cols() == COLS);
+  ASSERT(dFdx.isApprox(dFdx_num, 0.001));
 
   TEST_END()
 }
@@ -3178,7 +3177,7 @@ void test_conv2d_forward()
 
   // convert 2D input to 1D col-major vector
   Variable x(g, 1, x2d.size());
-  x.value() = ConstVectorMap(x2d.data(), 1, x2d.size());
+  x.value() = ConstRowVectorMap(x2d.data(), x2d.size());
 
   // 2D conv layer
   Conv2D c(

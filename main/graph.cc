@@ -134,7 +134,7 @@ Function& operator/(Function& x, Function& y)
 static Tensor ATB(const Tensor& A, const Tensor& B)
 {
   if (B.cols() == 1)
-    return (ConstVectorMap(B.data(), B.size()) * A).transpose();
+    return (ConstRowVectorMap(B.data(), B.size()) * A).transpose();
   else
     return A.transpose() * B;
 }
@@ -164,7 +164,7 @@ static SparseTensor ATB(
 static Tensor ABT(const Tensor& A, const Tensor& B)
 {
   if (B.cols() == 1)
-    return A * ConstVectorMap(B.data(), B.size());
+    return A * ConstRowVectorMap(B.data(), B.size());
   else
     return A * B.transpose();
 }
@@ -319,11 +319,24 @@ Function(graph), _x(x), _t(target)
       auto& g = _base.backward();
       auto& x = _base._x.forward();
 
-      // aggregate the gradient broadcast
-      Tensor dFdx = Tensor::Constant(x.rows(), x.cols(), g.sum());
-
-      // update gradient value
-      _value = dFdx;
+      // broadcast row-wise
+      if (x.rows() == 1 && x.cols() > 1)
+      {
+        Tensor dFdx = g.colwise().sum();
+        _value = dFdx;
+      }
+      // broadcast col-wise
+      else if (x.rows() > 1 && x.cols() == 1)
+      {
+        Tensor dFdx = g.rowwise().sum();
+        _value = dFdx;
+      }
+      // broadcast any size
+      else
+      {
+        Tensor dFdx = Tensor::Constant(x.rows(), x.cols(), g.sum());
+        _value = dFdx;
+      }
 
       // return gradient value
       return _value;
@@ -346,8 +359,23 @@ const Tensor& Broadcast::forward()
   auto& x = _x.forward();
   auto& t = _t.forward();
 
-  // broadcast input to target size
-  _value = Tensor::Constant(t.rows(), t.cols(), x.sum());
+  // broadcast row-wise
+  if (x.rows() == 1 && x.cols() > 1)
+  {
+    _value = Tensor::Zero(t.rows(), t.cols());
+    _value.rowwise() += ConstRowVectorMap(x.data(), x.size());
+  }
+  // broadcast col-wise
+  else if (x.rows() > 1 && x.cols() == 1)
+  {
+    _value = Tensor::Zero(t.rows(), t.cols());
+    _value.colwise() += ConstColVectorMap(x.data(), x.size());
+  }
+  // broadcast any size
+  else
+  {
+    _value = Tensor::Constant(t.rows(), t.cols(), x.sum());
+  }
 
   return _value;
 }
@@ -488,9 +516,9 @@ const Tensor& Join::forward()
   auto& y = _y.forward();
 
   // join x and y into a flat vector
-  ConstVectorMap vx(x.data(), x.size());
-  ConstVectorMap vy(y.data(), y.size());
-  Vector xy(x.size() + y.size());
+  ConstRowVectorMap vx(x.data(), x.size());
+  ConstRowVectorMap vy(y.data(), y.size());
+  RowVector xy(x.size() + y.size());
   xy.leftCols(x.size()) = vx;
   xy.rightCols(y.size()) = vy;
 
@@ -700,7 +728,7 @@ Function(graph)
   // _b = (bias) ? graph.new_variable(out, samples) : nullptr;
 
   // row major
-  _b = (bias) ? graph.new_variable(samples, out) : nullptr;
+  _b = (bias) ? graph.new_variable(1, out) : nullptr;
 
   init(x);
 }
