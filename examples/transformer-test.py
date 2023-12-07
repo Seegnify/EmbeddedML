@@ -112,7 +112,7 @@ def test_multihead_attention():
         print("New inputs saved to", input_path)
 
     # Create MultiheadAttention module
-    attention = torch.nn.MultiheadAttention(embed_size, num_heads, bias=False)
+    attention = torch.nn.MultiheadAttention(embed_size, num_heads, bias=True)
 
     # Load model
     model_path = "attention_model.pt"
@@ -122,6 +122,20 @@ def test_multihead_attention():
     except:
         torch.save(attention.state_dict(), model_path)
         print("New model saved to", model_path)
+
+    """
+    bias = attention.state_dict()["in_proj_bias"]
+    bias[0:bias.shape[0]] = torch.tensor([
+        0.4755, 0.1042, 0.6459, 0.2230,      
+        0.0739, 0.6705, 0.8532, 0.7830,
+        0.1097, 0.8451, 0.7208, 0.2440
+    ])
+
+    bias = attention.state_dict()["out_proj.bias"]
+    bias[0:bias.shape[0]] = torch.tensor([
+        0.0307, 0.1667, 0.4442, 0.1971
+    ])
+    """
 
     print("Start Attention Params")
     for name in attention.state_dict():

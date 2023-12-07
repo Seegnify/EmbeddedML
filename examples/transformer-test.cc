@@ -460,6 +460,14 @@ void test_multihead_attention_forward()
       Bo->value() <<
         0.0307, 0.1667, 0.4442, 0.1971;
     }
+    
+    print("Lq", *g.function("Lq"));
+    print("Lk", *g.function("Lk"));
+    print("Lv", *g.function("Lv"));
+    
+    print("QhFirst", *g.function("QhFirst"));
+    print("QhLast", *g.function("QhLast"));
+    print("JoinedHeads", *g.function("JoinedHeads"));
       
     print("MHA", mha);
 

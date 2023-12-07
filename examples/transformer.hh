@@ -143,9 +143,18 @@ public:
     g.name(Bv, "Bv");
     g.name(Bo, "Bo");
 
-    auto q_heads = split_heads(linear(q, *Wq, Bq), H, S, D);
-    auto k_heads = split_heads(linear(k, *Wk, Bk), H, S, D);
-    auto v_heads = split_heads(linear(v, *Wv, Bv), H, S, D);
+    auto& Lq = linear(q, *Wq, Bq);
+    auto& Lk = linear(k, *Wk, Bk);
+    auto& Lv = linear(v, *Wv, Bv);
+    g.name(&Lq, "Lq");
+    g.name(&Lk, "Lk");
+    g.name(&Lv, "Lv");
+
+    auto q_heads = split_heads(Lq, H, S, D);
+    auto k_heads = split_heads(Lk, H, S, D);
+    auto v_heads = split_heads(Lv, H, S, D);
+    g.name(q_heads.front(), "QhFirst");
+    g.name(q_heads.back(), "QhLast");
 
     std::vector<Function*> heads(num_heads, nullptr);
 
@@ -158,6 +167,7 @@ public:
     }
 
     auto& joined = join_heads(heads, S, H);
+    g.name(&joined, "JoinedHeads");
     _attention = &linear(joined, *Wo, Bo);
   }
 
@@ -189,10 +199,10 @@ private:
     int S = seq_size;
     int D = head_size;
 
+    // split horizontally
     for (int i=0; i<num_heads; i++)
     {
-      auto head = _graph.new_split(x, 0,i*D, S,D);
-      heads[i] = _graph.new_transpose(*head);
+      heads[i] = _graph.new_split(x, 0,i*D, S,D);
     }
 
     return heads;
@@ -210,13 +220,15 @@ private:
 
     Function* joined = nullptr;
 
+    // join horizontally
     for (int i=0; i<num_heads; i++)
     {
+      // transpose for row-major join
       auto head = _graph.new_transpose(*heads[i]);
 
       if (joined)
       {
-        joined = _graph.new_join(*joined, *head, S,(i+1)*D);
+        joined = _graph.new_join(*joined, *head, (i+1)*D,S);
       }
       else
       {
@@ -224,7 +236,8 @@ private:
       }
     }
 
-    return *joined;
+    // inverse the transpose
+    return *_graph.new_transpose(*joined);
   }
 
 protected:
