@@ -332,55 +332,7 @@ void test_attention_backward()
 void test_multihead_attention_forward()
 {
     TEST_BEGIN("Multi-Head Attention Forward")
-    
-    /*
-    Start Attention Params
-    name: in_proj_weight
-    shape: torch.Size([12, 4])
-    tensor([[ 0.4271,  0.3013, -0.4279, -0.2122],
-            [ 0.2983,  0.3350, -0.4619,  0.5432],
-            [-0.1488,  0.1778, -0.4288, -0.5003],
-            [ 0.1173,  0.3713, -0.2347, -0.2251],
-            [ 0.1557,  0.4673,  0.0920,  0.3889],
-            [ 0.5867,  0.0088,  0.4371,  0.0371],
-            [ 0.4897, -0.0109, -0.0646,  0.5190],
-            [-0.5768,  0.1376, -0.5507,  0.5315],
-            [-0.3599, -0.4841,  0.0526, -0.5235],
-            [-0.1576,  0.4844, -0.3817,  0.2549],
-            [-0.1432,  0.5141, -0.5741, -0.0179],
-            [-0.0103, -0.4235, -0.5195, -0.1589]])
-    name: in_proj_bias
-    shape: torch.Size([12])
-    tensor([0.4755, 0.1042, 0.6459, 0.2230, 0.0739, 0.6705, 0.8532, 0.7830, 0.1097,
-            0.8451, 0.7208, 0.2440])
-    name: out_proj.weight
-    shape: torch.Size([4, 4])
-    tensor([[-0.2588,  0.4873,  0.0642,  0.4206],
-            [ 0.3272,  0.3202,  0.4458, -0.3825],
-            [-0.4631, -0.2740, -0.2628, -0.4749],
-            [-0.3654,  0.4841,  0.4618, -0.1188]])
-    name: out_proj.bias
-    shape: torch.Size([4])
-    tensor([0.0307, 0.1667, 0.4442, 0.1971])
-    End Attention Params
-    Query: torch.Size([1, 3, 4])
-    tensor([[[0.0878, 0.0416, 0.6166, 0.1477],
-             [0.9752, 0.8866, 0.5407, 0.1911],
-             [0.5300, 0.2800, 0.5306, 0.4950]]])
-    Key: torch.Size([1, 3, 4])
-    tensor([[[0.2248, 0.4832, 0.5916, 0.0345],
-             [0.4916, 0.0881, 0.3768, 0.3048],
-             [0.0780, 0.3594, 0.0297, 0.6474]]])
-    Value: torch.Size([1, 3, 4])
-    tensor([[[0.2014, 0.0033, 0.2326, 0.5677],
-             [0.6842, 0.1161, 0.8033, 0.6450],
-             [0.4097, 0.3034, 0.8000, 0.7103]]])
-    Output: torch.Size([1, 3, 4])
-    tensor([[[0.5673, 0.5978, 0.1625, 0.9602],
-             [0.3483, 0.4360, 0.5943, 0.8270],
-             [0.4020, 0.5694, 0.5695, 0.9832]]], grad_fn=<ViewBackward0>)    
-    */
-    
+        
     Graph g;
 
     int trg_size = 3;
@@ -389,22 +341,17 @@ void test_multihead_attention_forward()
     int num_heads = 2;
     bool bias = true;
     DTYPE dropout = 0.0;
-    
+
     auto q = g.new_variable(trg_size, emb_size);
     auto k = g.new_variable(seq_size, emb_size);
     auto v = g.new_variable(trg_size, emb_size);
     auto o = g.new_constant(trg_size, emb_size);
-    
+
     MultiHeadAttention mha(
       g, *q, *k, *v,
       trg_size, seq_size, emb_size, num_heads,
       bias, dropout
     );
-    
-    auto Wq = g.function("Wq");
-    auto Wk = g.function("Wk");
-    auto Wv = g.function("Wv");
-    auto Wo = g.function("Wo");
 
     q->value() <<
       0.0878, 0.0416, 0.6166, 0.1477,
@@ -423,22 +370,22 @@ void test_multihead_attention_forward()
       0.3483, 0.4360, 0.5943, 0.8270,
       0.4020, 0.5694, 0.5695, 0.9832;
 
-    Wq->value() <<
+    mha.Wq().value() <<
       0.4271,  0.3013, -0.4279, -0.2122,
       0.2983,  0.3350, -0.4619,  0.5432,
       -0.1488,  0.1778, -0.4288, -0.5003,
       0.1173,  0.3713, -0.2347, -0.2251;   
-    Wk->value() <<
+    mha.Wk().value() <<
       0.1557,  0.4673,  0.0920,  0.3889,
       0.5867,  0.0088,  0.4371,  0.0371,
       0.4897, -0.0109, -0.0646,  0.5190,
       -0.5768,  0.1376, -0.5507,  0.5315;
-    Wv->value() <<
+    mha.Wv().value() <<
       -0.3599, -0.4841,  0.0526, -0.5235,
       -0.1576,  0.4844, -0.3817,  0.2549,
       -0.1432,  0.5141, -0.5741, -0.0179,
       -0.0103, -0.4235, -0.5195, -0.1589;
-    Wo->value() <<
+    mha.Wo().value() <<
       -0.2588,  0.4873,  0.0642,  0.4206,
       0.3272,  0.3202,  0.4458, -0.3825,
       -0.4631, -0.2740, -0.2628, -0.4749,
@@ -446,30 +393,26 @@ void test_multihead_attention_forward()
 
     if (bias)
     {
-      auto Bq = g.function("Bq");
-      auto Bk = g.function("Bk");
-      auto Bv = g.function("Bv");
-      auto Bo = g.function("Bo");
-
-      Bq->value() <<
+      mha.bq().value() <<
         0.4755, 0.1042, 0.6459, 0.2230;      
-      Bk->value() <<
+      mha.bk().value() <<
         0.0739, 0.6705, 0.8532, 0.7830;
-      Bv->value() <<
+      mha.bv().value() <<
         0.1097, 0.8451, 0.7208, 0.2440; 
-      Bo->value() <<
+      mha.bo().value() <<
         0.0307, 0.1667, 0.4442, 0.1971;
     }
-    
-    print("Lq", *g.function("Lq"));
-    print("Lk", *g.function("Lk"));
-    print("Lv", *g.function("Lv"));
-    
-    print("QhFirst", *g.function("QhFirst"));
-    print("QhLast", *g.function("QhLast"));
-    print("JoinedHeads", *g.function("JoinedHeads"));
-      
+
+    Tensor mha_hat(trg_size, emb_size);
+    mha_hat <<   
+        0.4363, 0.5356, 0.4469, 0.9232,
+        0.4293, 0.5403, 0.4531, 0.9223,
+        0.4353, 0.5364, 0.4456, 0.9224;
+
+    print("MHA_hat", mha_hat);
     print("MHA", mha);
+
+    ASSERT(mha().isApprox(mha_hat, 0.0001))
 
     TEST_END()
 }

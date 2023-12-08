@@ -579,12 +579,26 @@ protected:
 class Norm : public Function
 {
 public:
-  Norm(Graph& graph, Function& x, DTYPE g, DTYPE b);
+  Norm(Graph& graph, Function& x,
+  int rows = -1, int cols = -1, DTYPE eps = EPSILON);
+
+  Norm(Graph& graph, Function& x, const Norm& other);
 
   virtual const Tensor& forward();
 
+  // variable access
+  Variable& g() { return *_g; }
+  Variable& b() { return *_b; }
+
+private:
+  void init();
+
 protected:
+  const bool _affine;
+  const DTYPE _epsilon;
   Function &_x;
+  Variable *_g;
+  Variable *_b;
   Function *_N;
   Constant *_H;
 };
@@ -1132,9 +1146,25 @@ public:
     return node;
   }
 
-  Norm* new_norm(Function& x, DTYPE g = 1.0, DTYPE b = 0.0)
+  Norm* new_norm(Function& x, int rows = -1, int cols = -1, DTYPE eps = EPSILON,
+  const char* name = nullptr)
   {
-    auto node = new Norm(*this, x, g, b);
+    auto other = function(name);
+    if (other)
+    {
+      return new_norm(x, (Norm&)*other);
+    }
+    else
+    {
+      auto node = new Norm(*this, x, rows, cols, eps);
+      keep(node);
+      return node;
+    }
+  }
+
+  Norm* new_norm(Function& x, const Norm& other)
+  {
+    auto node = new Norm(*this, x, other);
     keep(node);
     return node;
   }

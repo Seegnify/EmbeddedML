@@ -124,37 +124,20 @@ public:
     const int D = emb_size / num_heads;
 
     // projection matrices
-    auto Wq = g.new_variable(E, E);
-    auto Wk = g.new_variable(E, E);
-    auto Wv = g.new_variable(E, E);
-    auto Wo = g.new_variable(E, E);
-    g.name(Wq, "Wq");
-    g.name(Wk, "Wk");
-    g.name(Wv, "Wv");
-    g.name(Wo, "Wo");
+    _Wq = g.new_variable(E, E);
+    _Wk = g.new_variable(E, E);
+    _Wv = g.new_variable(E, E);
+    _Wo = g.new_variable(E, E);
 
     // projection bias
-    auto Bq = (bias) ? g.new_variable(1, E) : nullptr;
-    auto Bk = (bias) ? g.new_variable(1, E) : nullptr;
-    auto Bv = (bias) ? g.new_variable(1, E) : nullptr;
-    auto Bo = (bias) ? g.new_variable(1, E) : nullptr;
-    g.name(Bq, "Bq");
-    g.name(Bk, "Bk");
-    g.name(Bv, "Bv");
-    g.name(Bo, "Bo");
+    _bq = (bias) ? g.new_variable(1, E) : nullptr;
+    _bk = (bias) ? g.new_variable(1, E) : nullptr;
+    _bv = (bias) ? g.new_variable(1, E) : nullptr;
+    _bo = (bias) ? g.new_variable(1, E) : nullptr;
 
-    auto& Lq = linear(q, *Wq, Bq);
-    auto& Lk = linear(k, *Wk, Bk);
-    auto& Lv = linear(v, *Wv, Bv);
-    g.name(&Lq, "Lq");
-    g.name(&Lk, "Lk");
-    g.name(&Lv, "Lv");
-
-    auto q_heads = split_heads(Lq, H, S, D);
-    auto k_heads = split_heads(Lk, H, S, D);
-    auto v_heads = split_heads(Lv, H, S, D);
-    g.name(q_heads.front(), "QhFirst");
-    g.name(q_heads.back(), "QhLast");
+    auto q_heads = split_heads(linear(q, _Wq, _bq), H, S, D);
+    auto k_heads = split_heads(linear(k, _Wk, _bk), H, S, D);
+    auto v_heads = split_heads(linear(v, _Wv, _bv), H, S, D);
 
     std::vector<Function*> heads(num_heads, nullptr);
 
@@ -167,8 +150,7 @@ public:
     }
 
     auto& joined = join_heads(heads, S, H);
-    g.name(&joined, "JoinedHeads");
-    _attention = &linear(joined, *Wo, Bo);
+    _attention = &linear(joined, _Wo, _bo);
   }
 
   virtual const Tensor& forward()
@@ -181,11 +163,22 @@ public:
 
     return _value;
   }
+  
+  // variable access
+  Variable& Wq() { return *_Wq; }
+  Variable& Wk() { return *_Wk; }
+  Variable& Wv() { return *_Wv; }
+  Variable& Wo() { return *_Wo; }
+  
+  Variable& bq() { return *_bq; }
+  Variable& bk() { return *_bk; }
+  Variable& bv() { return *_bv; }
+  Variable& bo() { return *_bo; }
 
 private:
-  Function& linear(Function& x, Function& W, Function* b)
+  Function& linear(Function& x, Function* W, Function* b)
   {
-    auto y = _graph.new_product(x, *_graph.new_transpose(W));
+    auto y = _graph.new_product(x, *_graph.new_transpose(*W));
     return (b) ? (*y + *_graph.new_broadcast(*b, *y)) : (*y);
   }
 
@@ -240,8 +233,10 @@ private:
     return *_graph.new_transpose(*joined);
   }
 
-protected:
-  Function* _attention;
+private:
+  Variable *_Wq, *_Wk, *_Wv, *_Wo;
+  Variable *_bq, *_bk, *_bv, *_bo;
+  Function *_attention;
 };
 
 

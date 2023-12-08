@@ -2167,27 +2167,54 @@ const Tensor& Sampler::forward()
 // Norm
 ///////////////////////////////////////////
 
-Norm::Norm(Graph& graph, Function& x, DTYPE g, DTYPE b) :
-Function(graph), _x(x)
+Norm::Norm(Graph& graph, Function& x, int rows, int cols, DTYPE eps) :
+Function(graph), _x(x), _affine(rows > 0 && cols > 0), _epsilon(eps)
 {
-  _H = graph.new_constant(1,1); // dimension placeholder
-
-  auto& mean = *graph.new_sum(x) / *_H;
-  auto& x_mean = x - *graph.new_broadcast(mean, x);
-
-  auto& var = *graph.new_sum(x_mean * x_mean) / *_H;
-  auto& std = power(var, 0.5);
-
-  _N = &(x_mean / *graph.new_broadcast(std, x_mean));
-
-  if (g != 1)
+  if (_affine)
   {
-    _N = &(*_N * g);
+    _g = graph.new_variable(rows, cols);
+    _b = graph.new_variable(rows, cols);
+  }
+  else
+  {
+    _g = graph.new_variable(1, 1);
+    _b = graph.new_variable(1, 1);
   }
 
-  if (b != 0)
+  init();
+}
+
+Norm::Norm(Graph& graph, Function& x, const Norm& other) :
+Function(graph), _x(x), _affine(other._affine), _epsilon(other._epsilon)
+{
+  _g = other._g;
+  _b = other._b;
+
+  init();
+}
+
+void Norm::init()
+{
+  _H = _graph.new_constant(1,1); // dimension placeholder
+
+  auto& mean = *_graph.new_sum(_x) / *_H;
+  auto& x_mean = _x - *_graph.new_broadcast(mean, _x);
+
+  auto& var = *_graph.new_sum(x_mean * x_mean) / *_H;
+  auto& std = power(var + _epsilon, 0.5);
+
+  _N = &(x_mean / *_graph.new_broadcast(std, x_mean));
+
+  if (_affine)
   {
-    _N = &(*_N + b);
+    _N = &(*_N * *_g + *_b);
+  }
+  else
+  {
+    auto g = _graph.new_broadcast(*_g, *_N);
+    auto b = _graph.new_broadcast(*_b, *_N);
+
+    _N = &(*_N * *g + *b);
   }
 
   _N->derivative(_graph.new_iderivative(*this));
