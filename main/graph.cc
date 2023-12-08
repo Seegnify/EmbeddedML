@@ -2168,9 +2168,9 @@ const Tensor& Sampler::forward()
 ///////////////////////////////////////////
 
 Norm::Norm(Graph& graph, Function& x, int rows, int cols, DTYPE eps) :
-Function(graph), _x(x), _affine(rows > 0 && cols > 0), _epsilon(eps)
+Function(graph), _x(x), _epsilon(eps)
 {
-  if (_affine)
+  if (rows * cols > 1)
   {
     _g = graph.new_variable(rows, cols);
     _b = graph.new_variable(rows, cols);
@@ -2181,11 +2181,14 @@ Function(graph), _x(x), _affine(rows > 0 && cols > 0), _epsilon(eps)
     _b = graph.new_variable(1, 1);
   }
 
+  _g->value() = Tensor::Ones(_g->value().rows(), _g->value().cols());
+  _b->value() = Tensor::Zero(_b->value().rows(), _b->value().cols());
+
   init();
 }
 
 Norm::Norm(Graph& graph, Function& x, const Norm& other) :
-Function(graph), _x(x), _affine(other._affine), _epsilon(other._epsilon)
+Function(graph), _x(x), _epsilon(other._epsilon)
 {
   _g = other._g;
   _b = other._b;
@@ -2205,7 +2208,7 @@ void Norm::init()
 
   _N = &(x_mean / *_graph.new_broadcast(std, x_mean));
 
-  if (_affine)
+  if (_g->value().size() > 1 && _b->value().size() > 1)
   {
     _N = &(*_N * *_g + *_b);
   }

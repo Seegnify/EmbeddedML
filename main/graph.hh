@@ -594,7 +594,6 @@ private:
   void init();
 
 protected:
-  const bool _affine;
   const DTYPE _epsilon;
   Function &_x;
   Variable *_g;

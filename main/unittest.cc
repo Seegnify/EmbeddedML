@@ -2917,10 +2917,6 @@ void test_norm_forward()
   y_hat << -1.41421356, -0.70710678,  0, 0.70710678, 1.41421356;
 
   auto& N = *g.new_norm(x);
-
-  N.g().value() << 1;
-  N.b().value() << 0;
-
   auto& y = N.forward();
 
   ASSERT(y.isApprox(y_hat, 0.001))
@@ -2942,9 +2938,6 @@ void test_norm_backward()
   auto& N = *g.new_norm(x, IN, 1);
   auto& G = N.g();
   auto& B = N.b();
-
-  G.value() = Tensor::Ones(IN,1);
-  B.value() = Tensor::Ones(IN,1);
 
   N.forward();
   N.gradient() = Tensor::Zero(IN,1);
