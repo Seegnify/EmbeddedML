@@ -2917,6 +2917,10 @@ void test_norm_forward()
   y_hat << -1.41421356, -0.70710678,  0, 0.70710678, 1.41421356;
 
   auto& N = *g.new_norm(x);
+
+  N.g().value() << 1;
+  N.b().value() << 0;
+
   auto& y = N.forward();
 
   ASSERT(y.isApprox(y_hat, 0.001))
@@ -2935,13 +2939,20 @@ void test_norm_backward()
   auto& x = *g.new_variable(IN,1);
   x.value() << -0.5, 0.6, 0.2, -0.3, 0.8;
 
-  auto& N = *g.new_norm(x);
+  auto& N = *g.new_norm(x, IN, 1);
+  auto& G = N.g();
+  auto& B = N.b();
+
+  G.value() = Tensor::Ones(IN,1);
+  B.value() = Tensor::Ones(IN,1);
 
   N.forward();
   N.gradient() = Tensor::Zero(IN,1);
   N.gradient()(0) = 1; // dN(0)dx
 
   auto& dNdx = x.backward();
+  auto& dNdG = G.backward();
+  auto& dNdB = B.backward();
 
   // numerical derivative of N(0) wrt x(0:N)
   Tensor dNdx_num(IN, 1);
@@ -2961,8 +2972,47 @@ void test_norm_backward()
 
     x.value()(i) = v;
   }
-
   ASSERT(dNdx.isApprox(dNdx_num, 0.1))
+
+  // numerical derivative of N(0) wrt G(0:N)
+  Tensor dNdG_num(IN, 1);
+  for (int i=0; i<IN; i++)
+  {
+    auto v = G.value()(i);
+
+    g.recache();
+    G.value()(i) = v + EPSILON;
+    auto N2 = N();
+
+    g.recache();
+    G.value()(i) = v - EPSILON;
+    auto N1 = N();
+
+    dNdG_num(i) = (N2(0) - N1(0)) / (2 * EPSILON);
+
+    G.value()(i) = v;
+  }
+  ASSERT(dNdG.isApprox(dNdG_num, 0.1))
+
+  // numerical derivative of N(0) wrt B(0:N)
+  Tensor dNdB_num(IN, 1);
+  for (int i=0; i<IN; i++)
+  {
+    auto v = B.value()(i);
+
+    g.recache();
+    B.value()(i) = v + EPSILON;
+    auto N2 = N();
+
+    g.recache();
+    B.value()(i) = v - EPSILON;
+    auto N1 = N();
+
+    dNdB_num(i) = (N2(0) - N1(0)) / (2 * EPSILON);
+
+    B.value()(i) = v;
+  }
+  ASSERT(dNdB.isApprox(dNdB_num, 0.1))
 
   TEST_END()
 }
