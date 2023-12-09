@@ -2103,6 +2103,10 @@ void test_softmax_backward()
   dFdz_hat << 0.1241, -0.0112, -0.0304, -0.0826;
   ASSERT(dFdz.isApprox(dFdz_hat, 0.01))
 
+  // dFdX_num
+  Tensor dFdX_num = g.dFdX(y, z);
+  ASSERT(dFdz.isApprox(dFdX_num, 0.01))
+
   TEST_END()
 }
 
@@ -2907,14 +2911,15 @@ void test_norm_forward()
   TEST_BEGIN("Norm Forward")
 
   // size
-  int IN = 5;
   Graph g;
 
-  auto& x = *g.new_variable(IN,1);
-  x.value() << 11, 12, 13, 14, 15;
+  auto& x = *g.new_variable(2, 3);
+  x.value() <<  1, 2, 3,
+                4, 5, 6;
 
-  Tensor y_hat(IN, 1);
-  y_hat << -1.41421356, -0.70710678,  0, 0.70710678, 1.41421356;
+  Tensor y_hat(2, 3);
+  y_hat << -1.4638, -0.8783, -0.2928,
+            0.2928,  0.8783,  1.4638;
 
   auto& N = *g.new_norm(x);
   auto& y = N.forward();
@@ -2929,82 +2934,43 @@ void test_norm_backward()
   TEST_BEGIN("Norm Backward")
 
   // size
-  int IN = 5;
   Graph g;
 
-  auto& x = *g.new_variable(IN,1);
-  x.value() << -0.5, 0.6, 0.2, -0.3, 0.8;
+  auto& x = *g.new_variable(2,3);
+  x.value() <<  1, 2, 3,
+                4, 5, 6;
 
-  auto& N = *g.new_norm(x, IN, 1);
+  int ROWS = x.value().rows();
+  int COLS = x.value().cols();
+
+  auto& N = *g.new_norm(x, ROWS, COLS);
   auto& G = N.g();
   auto& B = N.b();
 
   N.forward();
-  N.gradient() = Tensor::Zero(IN,1);
-  N.gradient()(0) = 1; // dN(0)dx
+  N.gradient() = Tensor::Zero(ROWS, COLS);
+  N.gradient()(0) = 1;
 
   auto& dNdx = x.backward();
   auto& dNdG = G.backward();
   auto& dNdB = B.backward();
 
-  // numerical derivative of N(0) wrt x(0:N)
-  Tensor dNdx_num(IN, 1);
-  for (int i=0; i<IN; i++)
-  {
-    auto v = x.value()(i);
+  // partial torch derivative of N(0) wrt x
+  Tensor dNdx_hat(ROWS, COLS);
+  dNdx_hat << 0.2788, -0.2231, -0.1394,
+              -0.0558,  0.0279,  0.1115;
+  ASSERT(dNdx.isApprox(dNdx_hat, 0.1))
 
-    g.recache();
-    x.value()(i) = v + EPSILON;
-    auto N2 = N();
-
-    g.recache();
-    x.value()(i) = v - EPSILON;
-    auto N1 = N();
-
-    dNdx_num(i) = (N2(0) - N1(0)) / (2 * EPSILON);
-
-    x.value()(i) = v;
-  }
+  // partial numerical derivative of N(0) wrt x
+  auto dNdx_num = g.dFdX(N, x);
   ASSERT(dNdx.isApprox(dNdx_num, 0.1))
 
-  // numerical derivative of N(0) wrt G(0:N)
-  Tensor dNdG_num(IN, 1);
-  for (int i=0; i<IN; i++)
-  {
-    auto v = G.value()(i);
-
-    g.recache();
-    G.value()(i) = v + EPSILON;
-    auto N2 = N();
-
-    g.recache();
-    G.value()(i) = v - EPSILON;
-    auto N1 = N();
-
-    dNdG_num(i) = (N2(0) - N1(0)) / (2 * EPSILON);
-
-    G.value()(i) = v;
-  }
+  // partial numerical derivative of N(0) wrt G
+  auto dNdG_num = g.dFdX(N, G);
   ASSERT(dNdG.isApprox(dNdG_num, 0.1))
 
-  // numerical derivative of N(0) wrt B(0:N)
-  Tensor dNdB_num(IN, 1);
-  for (int i=0; i<IN; i++)
-  {
-    auto v = B.value()(i);
-
-    g.recache();
-    B.value()(i) = v + EPSILON;
-    auto N2 = N();
-
-    g.recache();
-    B.value()(i) = v - EPSILON;
-    auto N1 = N();
-
-    dNdB_num(i) = (N2(0) - N1(0)) / (2 * EPSILON);
-
-    B.value()(i) = v;
-  }
+  // partial numerical derivative of N(0) wrt B
+  auto dNdB_num = g.dFdX(N, B);
   ASSERT(dNdB.isApprox(dNdB_num, 0.1))
 
   TEST_END()

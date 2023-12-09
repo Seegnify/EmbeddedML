@@ -3164,17 +3164,34 @@ DTYPE Graph::dFdX(Function& f, Variable& x, int fr, int fc, int xr, int xc)
 
 Tensor Graph::dFdX(Function& f, Variable& x)
 {
-  int y_rows = f.forward().rows();
-  int y_cols = f.forward().cols();
+  // get provided gradient and its size
+  Tensor df = f.gradient();
+  auto size = df.size();
+
+  int f_rows = f.forward().rows();
+  int f_cols = f.forward().cols();
   int x_rows = x.forward().rows();
   int x_cols = x.forward().cols();
+
+  // set default gradient value to 1, if not provided
+  if (!size)
+  {
+    df = Tensor::Ones(f_rows, f_cols);
+  }
+
   Tensor dfdx = Tensor::Zero(x_rows, x_cols);
   
-  for (int yr=0; yr<y_rows; yr++)
-  for (int yc=0; yc<y_cols; yc++)
+  for (int fr=0; fr<f_rows; fr++)
+  for (int fc=0; fc<f_cols; fc++)
   for (int xr=0; xr<x_rows; xr++)
   for (int xc=0; xc<x_cols; xc++)
-  dfdx(xr, xc) = dfdx(xr, xc) + dFdX(f, x, yr, yc, xr, xc);
+  dfdx(xr, xc) = dfdx(xr, xc) + dFdX(f, x, fr, fc, xr, xc) * df(fr, fc);
+
+  // reset gradient to the provided value
+  if (size)
+  {
+    f.gradient() = df;
+  }
 
   return dfdx;
 }
