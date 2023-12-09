@@ -151,6 +151,8 @@ public:
 
     auto& joined = join_heads(heads, S, H);
     _attention = &linear(joined, _Wo, _bo);
+
+    _attention->derivative(_graph.new_iderivative(*this));
   }
 
   virtual const Tensor& forward()

@@ -256,7 +256,6 @@ void test_attention_backward()
     auto Q = g.new_variable(2, 3);
     Q->value() << 1,2,3,
                   4,5,6;
-    //print("Q", *Q);
 
     // [4x3]
     auto K = g.new_variable(4, 3);
@@ -264,15 +263,11 @@ void test_attention_backward()
                   0.4,0.5,0.6,
                   1.4,1.5,1.6,
                   2.4,2.5,2.6;
-    //print("K", *K);
 
     // QK_T -> [2x4]
-
-    // [2x4]
     auto M = g.new_constant(2, 4);
     M->value() << 1,1,1,1,
                   1,1,0,0;
-    //print("M", *M);
 
     // [4x5]
     auto V = g.new_variable(4, 5);
@@ -280,7 +275,6 @@ void test_attention_backward()
                   4,1,-9,3,3,
                   1,2,3,4,4,
                   4,5,6,5,5;
-    //print("V", *V);
 
     // QK_TV -> [2x5]
 
@@ -288,23 +282,25 @@ void test_attention_backward()
     int S = K->value().rows();
     int D = K->value().cols();
 
-    Attention attn(g, *Q,*K,*V, M, T, S, D, dropout);
+    auto attnptr = new Attention(g, *Q,*K,*V, M, T, S, D, dropout);
+    g.keep(attnptr); // for auto-grad
+    auto& attn = *attnptr;
 
-    auto& A = attn();
-    //print("A", A);
-
-    attn.forward();
-    attn.gradient() = Tensor::Ones(attn.forward().rows(),attn.forward().cols());
+    attn.gradient() = Tensor::Ones(attn().rows(),attn().cols());
     attn.gradient().block(0,0, attn.forward().rows(), 1) = 
-      5 * Tensor::Ones(attn.forward().rows(), 1);
-    //print("dA", attn.gradient());
+      5 * Tensor::Ones(attn().rows(), 1);
 
     Tensor dQ = Q->backward();
     Tensor dK = K->backward();
     Tensor dV = V->backward();
-    //print("dQ", dQ);
-    //print("dK", dK);
-    //print("dV", dV);
+
+    auto dQ_num = g.dFdX(attn, *Q);
+    auto dK_num = g.dFdX(attn, *K);
+    auto dV_num = g.dFdX(attn, *V);
+
+    ASSERT(dQ_num.isApprox(dQ, 0.01))
+    ASSERT(dK_num.isApprox(dK, 0.01))
+    ASSERT(dV_num.isApprox(dV, 0.01))
 
     Tensor dQ_torch(2,3);
     dQ_torch << 0.4281, 0.4281, 0.4281,
@@ -345,7 +341,6 @@ void test_multihead_attention_forward()
     auto q = g.new_variable(trg_size, emb_size);
     auto k = g.new_variable(seq_size, emb_size);
     auto v = g.new_variable(trg_size, emb_size);
-    auto o = g.new_constant(trg_size, emb_size);
 
     MultiHeadAttention mha(
       g, *q, *k, *v,
@@ -365,10 +360,6 @@ void test_multihead_attention_forward()
       0.2014, 0.0033, 0.2326, 0.5677,
       0.6842, 0.1161, 0.8033, 0.6450,
       0.4097, 0.3034, 0.8000, 0.7103;
-    o->value() <<
-      0.5673, 0.5978, 0.1625, 0.9602,
-      0.3483, 0.4360, 0.5943, 0.8270,
-      0.4020, 0.5694, 0.5695, 0.9832;
 
     mha.Wq().value() <<
       0.4271,  0.3013, -0.4279, -0.2122,
@@ -398,7 +389,7 @@ void test_multihead_attention_forward()
       mha.bk().value() <<
         0.0739, 0.6705, 0.8532, 0.7830;
       mha.bv().value() <<
-        0.1097, 0.8451, 0.7208, 0.2440; 
+        0.1097, 0.8451, 0.7208, 0.2440;
       mha.bo().value() <<
         0.0307, 0.1667, 0.4442, 0.1971;
     }
@@ -409,10 +400,122 @@ void test_multihead_attention_forward()
         0.4293, 0.5403, 0.4531, 0.9223,
         0.4353, 0.5364, 0.4456, 0.9224;
 
-    print("MHA_hat", mha_hat);
-    print("MHA", mha);
-
     ASSERT(mha().isApprox(mha_hat, 0.0001))
+    ASSERT(mha().rows() == trg_size)
+    ASSERT(mha().cols() == emb_size)
+
+    TEST_END()
+}
+
+void test_multihead_attention_backward()
+{
+    TEST_BEGIN("Multi-Head Attention Backward")
+
+    Graph g;
+
+    int trg_size = 3;
+    int seq_size = 3;
+    int emb_size = 4;
+    int num_heads = 2;
+    bool bias = true;
+    DTYPE dropout = 0.0;
+
+    auto q = g.new_variable(trg_size, emb_size);
+    auto k = g.new_variable(seq_size, emb_size);
+    auto v = g.new_variable(trg_size, emb_size);
+
+    auto mhaptr = new MultiHeadAttention(
+      g, *q, *k, *v,
+      trg_size, seq_size, emb_size, num_heads,
+      bias, dropout
+    );
+    g.keep(mhaptr); // for auto-grad
+    auto& mha = *mhaptr;
+
+    q->value() <<
+      0.0878, 0.0416, 0.6166, 0.1477,
+      0.9752, 0.8866, 0.5407, 0.1911,
+      0.5300, 0.2800, 0.5306, 0.4950;
+    k->value() <<
+      0.2248, 0.4832, 0.5916, 0.0345,
+      0.4916, 0.0881, 0.3768, 0.3048,
+      0.0780, 0.3594, 0.0297, 0.6474;
+    v->value() <<
+      0.2014, 0.0033, 0.2326, 0.5677,
+      0.6842, 0.1161, 0.8033, 0.6450,
+      0.4097, 0.3034, 0.8000, 0.7103;
+
+    mha.Wq().value() <<
+      0.4271,  0.3013, -0.4279, -0.2122,
+      0.2983,  0.3350, -0.4619,  0.5432,
+      -0.1488,  0.1778, -0.4288, -0.5003,
+      0.1173,  0.3713, -0.2347, -0.2251;
+    mha.Wk().value() <<
+      0.1557,  0.4673,  0.0920,  0.3889,
+      0.5867,  0.0088,  0.4371,  0.0371,
+      0.4897, -0.0109, -0.0646,  0.5190,
+      -0.5768,  0.1376, -0.5507,  0.5315;
+    mha.Wv().value() <<
+      -0.3599, -0.4841,  0.0526, -0.5235,
+      -0.1576,  0.4844, -0.3817,  0.2549,
+      -0.1432,  0.5141, -0.5741, -0.0179,
+      -0.0103, -0.4235, -0.5195, -0.1589;
+    mha.Wo().value() <<
+      -0.2588,  0.4873,  0.0642,  0.4206,
+      0.3272,  0.3202,  0.4458, -0.3825,
+      -0.4631, -0.2740, -0.2628, -0.4749,
+      -0.3654,  0.4841,  0.4618, -0.1188;
+
+    if (bias)
+    {
+      mha.bq().value() <<
+        0.4755, 0.1042, 0.6459, 0.2230;
+      mha.bk().value() <<
+        0.0739, 0.6705, 0.8532, 0.7830;
+      mha.bv().value() <<
+        0.1097, 0.8451, 0.7208, 0.2440; 
+      mha.bo().value() <<
+        0.0307, 0.1667, 0.4442, 0.1971;
+    }
+
+    auto& F = mha();
+
+    mha.gradient() = Tensor::Ones(trg_size, emb_size);
+    mha.gradient()(0) = 5;
+
+    const Tensor dFdq = q->backward();
+    const Tensor dFdk = k->backward();
+    const Tensor dFdv = v->backward();
+
+    Tensor dFdq_hat(trg_size, emb_size);
+    dFdq_hat <<
+      -0.0026, -0.0249,  0.0291,  0.0100,
+      0.0004,  0.0037, -0.0015, -0.0093,
+      0.0003,  0.0034, -0.0013, -0.0091;
+
+    Tensor dFdk_hat(trg_size, emb_size);
+    dFdk_hat <<
+      0.0074, -0.0047, -0.0078,  0.0137,
+     -0.0168, -0.0184,  0.0007, -0.0346,
+      0.0094,  0.0231,  0.0071,  0.0209;
+
+    Tensor dFdv_hat(trg_size, emb_size);
+    dFdv_hat <<
+      0.0305,  1.7188, -1.1291,  0.9921,
+      0.0227,  1.7295, -1.1511,  0.9818,
+      0.0102,  1.7986, -1.1801,  0.9916;
+
+    ASSERT(dFdq.isApprox(dFdq_hat, 0.01));
+    ASSERT(dFdk.isApprox(dFdk_hat, 0.01));
+    ASSERT(dFdv.isApprox(dFdv_hat, 0.01));
+
+    auto dFdq_num = g.dFdX(mha, *q);
+    auto dFdk_num = g.dFdX(mha, *k);
+    auto dFdv_num = g.dFdX(mha, *v);
+
+    ASSERT(dFdq.isApprox(dFdq_num, 0.01));
+    ASSERT(dFdk.isApprox(dFdk_num, 0.01));
+    ASSERT(dFdv.isApprox(dFdv_num, 0.01));
 
     TEST_END()
 }
@@ -425,6 +528,7 @@ int main(int argc, char* argv[]) {
     //test_attention_forward();
     //test_attention_backward();
     test_multihead_attention_forward();
+    test_multihead_attention_backward();
 
     return 0;
 }

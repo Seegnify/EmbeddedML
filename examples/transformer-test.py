@@ -35,6 +35,7 @@ def scaled_dot_product_attention(query, key, value, attn_mask=None, dropout_p=0.
     return attn_weight @ value
 
 def test_attention():
+    print("=== test_attention")
     # Set random seed for reproducibility
     np.random.seed(42)
 
@@ -74,7 +75,7 @@ def test_attention():
     print("\nSinglehead Attention Output:\n", attention)
 
     attn_grad = torch.ones_like(attention);
-    attn_grad[:,0] = 5
+    attn_grad[0,0] = 5
     print("attn_grad", attn_grad)
     attention.backward(attn_grad)
 
@@ -163,6 +164,7 @@ def test_multihead_attention():
     print(attention_weights)
 
 def test_my_multihead_attention():
+    print("=== test_my_multihead_attention")
     embed_size = 4
     num_heads = 2
         
@@ -171,17 +173,20 @@ def test_my_multihead_attention():
     q = torch.tensor(
         [[[0.0878, 0.0416, 0.6166, 0.1477],
          [0.9752, 0.8866, 0.5407, 0.1911],
-         [0.5300, 0.2800, 0.5306, 0.4950]]]
+         [0.5300, 0.2800, 0.5306, 0.4950]]],
+         requires_grad=True
     )
     k = torch.tensor(
         [[[0.2248, 0.4832, 0.5916, 0.0345],
          [0.4916, 0.0881, 0.3768, 0.3048],
-         [0.0780, 0.3594, 0.0297, 0.6474]]]
+         [0.0780, 0.3594, 0.0297, 0.6474]]],
+         requires_grad=True
     )
     v = torch.tensor(
         [[[0.2014, 0.0033, 0.2326, 0.5677],
          [0.6842, 0.1161, 0.8033, 0.6450],
-         [0.4097, 0.3034, 0.8000, 0.7103]]]
+         [0.4097, 0.3034, 0.8000, 0.7103]]],
+         requires_grad=True
     ) 
 
     params = attention.state_dict()
@@ -233,10 +238,22 @@ def test_my_multihead_attention():
           param[0:param.shape[0]] = torch.rand(1, param.shape[0]) 
     print("End Attention Params")
     
-    output = attention(q, k, v)
-    
+    A = attention(q, k, v)
     print("Attention output")
-    print(output)
+    print(A)
+
+    dA = torch.ones_like(A)
+    dA[0,0,0] = 5
+    print("dA", dA)
+
+    A.backward(dA)
+    print("dAdq", q.grad)
+    print("dAdk", k.grad)
+    print("dAdv", v.grad)
+
+    for p in params:
+      print(p, "grad", params[p].grad)
+
 
 def test_softmax():
     print("=== test_softmax")
@@ -259,8 +276,28 @@ def test_softmax():
     sQ.backward(sQ_grad)
     print("Q.grad", Q.grad)
 
+def test_normlayer():
+    print("=== test_normlayer")
+    Q = torch.tensor([
+        [1.0,2,3],
+        [4,5,6],
+    ], requires_grad=True)
+    print("Q", Q)
+
+    N = torch.nn.LayerNorm(Q.shape)
+    NQ = N(Q)
+    print("N", NQ)
+
+    NQ_grad = torch.zeros_like(NQ);
+    NQ_grad[0][0] = 1
+    print("N(Q).grad", NQ_grad)
+
+    NQ.backward(NQ_grad)
+    print("dNdQ.grad", Q.grad)
+
 if __name__ == "__main__":
     #test_softmax()
-    #test_attention()
+    test_attention()
     #test_multihead_attention()
-    test_my_multihead_attention()    
+    test_my_multihead_attention()
+    #test_normlayer()
