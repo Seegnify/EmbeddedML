@@ -141,6 +141,20 @@ protected:
   Function& _t;
 };
 
+// Reshape function
+class Reshape : public Function
+{
+public:
+  Reshape(Graph& graph, Function& x, int rows, int cols);
+
+  virtual const Tensor& forward();
+
+protected:
+  const int _rows;
+  const int _cols;
+  Function& _x;
+};
+
 // Split function (takes a fragment of the input)
 class Split : public Function
 {
@@ -887,6 +901,13 @@ public:
   Broadcast* new_broadcast(Function& x, Function& target)
   {
     auto node = new Broadcast(*this, x, target);
+    keep(node);
+    return node;
+  }
+
+  Reshape* new_reshape(Function& x, int rows, int cols)
+  {
+    auto node = new Reshape(*this, x, rows, cols);
     keep(node);
     return node;
   }

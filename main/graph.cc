@@ -381,6 +381,61 @@ const Tensor& Broadcast::forward()
 }
 
 ///////////////////////////////////////////
+// Function Reshape
+///////////////////////////////////////////
+
+Reshape::Reshape(Graph& graph, Function& x, int rows, int cols) :
+Function(graph), _x(x), _rows(rows), _cols(cols)
+{
+  // Reshape Backward function
+  class Derivative_x : public Function
+  {
+  public:
+    Derivative_x(Graph& graph, Reshape& base) :
+    Function(graph), _base(base) { graph.keep(this); }
+
+    // dFdx = 1
+    virtual const Tensor& forward()
+    {
+      // return cached value
+      if (_value.size()) return _value;
+
+      auto& g = _base.backward();
+      auto& x = _base._x.forward();
+
+      // pass the reshaped gradient through (default is ColMajor)
+      auto dFdx = g.reshaped<Eigen::RowMajor>(x.rows(), x.cols());
+
+      // update gradient value
+      _value = dFdx;
+
+      // return gradient value
+      return _value;
+    }
+
+  private:
+    Reshape& _base;
+  };
+
+  _x.derivative(new Derivative_x(graph, *this));
+}
+
+// F = x
+const Tensor& Reshape::forward()
+{
+  // return cached value
+  if (_value.size()) return _value;
+
+  // get input
+  auto& x = _x.forward();
+
+  // update value (reshaped() default is ColMajor)
+  _value = x.reshaped<Eigen::RowMajor>(_rows, _cols);
+
+  return _value;
+}
+
+///////////////////////////////////////////
 // Function Split
 ///////////////////////////////////////////
 
