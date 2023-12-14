@@ -3252,6 +3252,41 @@ Tensor Graph::dFdX(Function& f, Variable& x)
 }
 
 ///////////////////////////////////////////
+// block-wise constructors
+///////////////////////////////////////////
+
+Function* Graph::new_rowwise(Function& x, int rows, int cols,
+std::function<Function*(Function& block)> ctor)
+{
+  // split x by row and join rows
+  Function* y = nullptr;
+  for (int r=0; r<rows; r++)
+  {
+    auto row = ctor(*new_split(x, r,0, 1,cols));
+    if (y)
+    {
+      y = new_join(*y, *row, r+1,cols); // row major
+    }
+    else
+    {
+      y = row;
+    }
+  }
+  return y;
+}
+
+Function* Graph::new_colwise(Function& x, int rows, int cols,
+std::function<Function*(Function& block)> ctor)
+{
+  // transpose and apply row-wise ctor, then transpose again
+  return new_transpose(
+    *new_rowwise(
+      *new_transpose(x), rows, cols, ctor
+    )
+  );
+}
+
+///////////////////////////////////////////
 // Default gradient aggregator
 ///////////////////////////////////////////
 

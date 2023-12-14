@@ -46,23 +46,10 @@ public:
     // scale and add attention mask as bias
     _attention = &(*_attention / sqrt(D) + *_bias);
 
-    // apply softmax on qk_T rows
-    Function* softmax = nullptr;
-    for (int r=0; r<L; r++)
-    {
-      auto softmax_row = _graph.new_softmax(*_graph.new_split(*_attention, r,0, 1,S));
-      if (softmax)
-      {
-        softmax = _graph.new_join(*softmax, *softmax_row, r+1,S); // row major
-      }
-      else
-      {
-        softmax = softmax_row;
-      }
-    }
-
-    // transpose joined softmax columns back to rows [LxS]
-    _attention = softmax;
+    // apply row-wise softmax [LxS]
+    _attention = _graph.new_rowwise(*_attention, L, S, [&](Function& row) {
+      return _graph.new_softmax(row);
+    });
 
     // apply dropout if present
     if (_dropout > 0)

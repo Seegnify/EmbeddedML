@@ -865,6 +865,18 @@ public:
   Tensor dFdX(Function& f, Variable& x);
 
   ///////////////////////////////////////////
+  // block-wise constructors
+  ///////////////////////////////////////////
+
+  // create node using row-wise constructor function
+  Function* new_rowwise(Function& x, int rows, int cols,
+  std::function<Function*(Function& block)> ctor);
+
+  // create node using column-wise constructor function
+  Function* new_colwise(Function& x, int rows, int cols,
+  std::function<Function*(Function& block)> ctor);
+
+  ///////////////////////////////////////////
   // node constructors
   ///////////////////////////////////////////
 

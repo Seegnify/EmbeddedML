@@ -1090,22 +1090,49 @@ void test_max_backward()
   TEST_END()
 }
 
-void test_clip_forward()
+void test_reshape_forward()
 {
-  TEST_BEGIN("Clip Forward")
+  TEST_BEGIN("Reshape Forward")
 
-  // TODO: not implemented
-  ASSERT(false)
+  Graph g;
+
+  auto x = g.new_variable(3,4);
+  x->value() << 1, 2, 3, 4,
+                5, 6, 7, 8,
+                9, 10,11,12;
+
+  Reshape R(g, *x, 2, 6);
+
+  Tensor y_hat(2, 6);
+  y_hat << 1, 2, 3, 4, 5, 6,
+           7, 8, 9, 10,11,12;
+
+  ASSERT(y_hat == R())
 
   TEST_END()
 }
 
-void test_clip_backward()
+void test_reshape_backward()
 {
-  TEST_BEGIN("Clip Backward")
+  TEST_BEGIN("Reshape Backward")
 
-  // TODO: not implemented
-  ASSERT(false)
+  Graph g;
+
+  auto x = g.new_variable(3,4);
+  x->value() << 1, 2, 3, 4,
+                5, 6, 7, 8,
+                9, 10,11,12;
+
+  auto R = g.new_reshape(*x, 2, 6);
+  R->forward();
+  R->gradient() = Tensor::Ones(2, 6);
+
+  Tensor dRdx = x->backward();
+  Tensor dRdx_hat = Tensor::Ones(3, 4);
+  Tensor dRdx_num = g.dFdX(*R, *x);
+
+  ASSERT(dRdx == dRdx_hat)
+  ASSERT(dRdx.isApprox(dRdx_num, 0.001))
 
   TEST_END()
 }
@@ -4008,8 +4035,8 @@ int main(int argc, char* argv[]) {
   test_max_forward();
   test_max_backward();
 
-  test_clip_forward();
-  test_clip_backward();
+  test_reshape_forward();
+  test_reshape_backward();
 
   test_linear_forward();
   test_linear_backward();
