@@ -104,6 +104,44 @@ protected:
   Graph& _graph;
 };
 
+// Identity (pass-through) derivarive
+class IDerivative : public Function
+{
+public:
+  IDerivative(Graph& graph, Function& base);
+
+  virtual const Tensor& forward();
+
+protected:
+  Function& _base;
+};
+
+// Rowwise function
+class Rowwise : public Function
+{
+public:
+  Rowwise(Graph& graph, Function& x, int rows, int cols,
+  std::function<Function*(Function& block)> ctor);
+
+  virtual const Tensor& forward();
+
+protected:
+  Function* _y;
+};
+
+// Colwise function
+class Colwise : public Function
+{
+public:
+  Colwise(Graph& graph, Function& x, int rows, int cols,
+  std::function<Function*(Function& block)> ctor);
+
+  virtual const Tensor& forward();
+
+protected:
+  Function* _y;
+};
+
 // Constant function
 class Constant : public Function
 {
@@ -659,27 +697,6 @@ protected:
   Function *_z; // log(exp(z))
 };
 
-// Hopfield
-class Hopfield : public Function
-{
-public:
-  Hopfield(Graph& graph, Function& x, DTYPE b, int size, int count);
-  Hopfield(Graph& graph, Function& x, const Hopfield& other);
-
-  // variable access
-  Variable& W() { return *_W; }
-
-  virtual const Tensor& forward();
-
-private:
-  void init(Function& x);
-
-protected:
-  DTYPE _b;
-  Variable *_W;
-  Function *_H;
-};
-
 // Embedding function
 class Embedding : public Function
 {
@@ -776,18 +793,6 @@ protected:
 #endif
 };
 
-// Identity (pass-through) derivarive
-class IDerivative : public Function
-{
-public:
-  IDerivative(Graph& graph, Function& base);
-
-  virtual const Tensor& forward();
-
-protected:
-  Function& _base;
-};
-
 // No Value computed in the graph exception
 class NoValueException : public std::runtime_error
 {
@@ -865,24 +870,28 @@ public:
   Tensor dFdX(Function& f, Variable& x);
 
   ///////////////////////////////////////////
-  // block-wise constructors
-  ///////////////////////////////////////////
-
-  // create node using row-wise constructor function
-  Function* new_rowwise(Function& x, int rows, int cols,
-  std::function<Function*(Function& block)> ctor);
-
-  // create node using column-wise constructor function
-  Function* new_colwise(Function& x, int rows, int cols,
-  std::function<Function*(Function& block)> ctor);
-
-  ///////////////////////////////////////////
   // node constructors
   ///////////////////////////////////////////
 
   IDerivative* new_iderivative(Function& base)
   {
     auto node = new IDerivative(*this, base);
+    keep(node);
+    return node;
+  }
+
+  Function* new_rowwise(Function& x, int rows, int cols,
+  std::function<Function*(Function& block)> ctor)
+  {
+    auto node = new Rowwise(*this, x, rows, cols, ctor);
+    keep(node);
+    return node;
+  }
+
+  Function* new_colwise(Function& x, int rows, int cols,
+  std::function<Function*(Function& block)> ctor)
+  {
+    auto node = new Colwise(*this, x, rows, cols, ctor);
     keep(node);
     return node;
   }
@@ -1211,29 +1220,6 @@ public:
   LogGaussian* new_log_gaussian(Function& x, Function& m, Function& s)
   {
     auto node = new LogGaussian(*this, x, m, s);
-    keep(node);
-    return node;
-  }
-
-  Hopfield* new_hopfield(Function& x, DTYPE b, int size, int count,
-  const char* name = nullptr)
-  {
-    auto other = function(name);
-    if (other)
-    {
-      return new_hopfield(x, (Hopfield&)*other);
-    }
-    else
-    {
-      auto node = new Hopfield(*this, x, b, size, count);
-      keep(node, name);
-      return node;
-    }
-  }
-
-  Hopfield* new_hopfield(Function& x, const Hopfield& other)
-  {
-    auto node = new Hopfield(*this, x, other);
     keep(node);
     return node;
   }

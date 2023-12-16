@@ -197,28 +197,6 @@ static Tensor clip(const Tensor& t, DTYPE min_val, DTYPE max_val)
 }
 
 ///////////////////////////////////////////
-// Identity Derivarive impl
-///////////////////////////////////////////
-
-IDerivative::IDerivative(Graph& graph, Function& base) :
-Function(graph), _base(base) {}
-
-// dFdx = base.dFdx
-const Tensor& IDerivative::forward()
-{
-  // return cached value
-  if (_value.size()) return _value;
-
-  auto& g = _base.backward();
-
-  // update gradient value
-  _value = g;
-
-  // return gradient value
-  return _value;
-}
-
-///////////////////////////////////////////
 // Function impl
 ///////////////////////////////////////////
 
@@ -251,6 +229,97 @@ void Function::recache()
 {
   _value.resize(0,0);
   _gradient.resize(0,0);
+}
+
+///////////////////////////////////////////
+// Identity Derivarive impl
+///////////////////////////////////////////
+
+IDerivative::IDerivative(Graph& graph, Function& base) :
+Function(graph), _base(base) {}
+
+// dFdx = base.dFdx
+const Tensor& IDerivative::forward()
+{
+  // return cached value
+  if (_value.size()) return _value;
+
+  auto& g = _base.backward();
+
+  // update gradient value
+  _value = g;
+
+  // return gradient value
+  return _value;
+}
+
+///////////////////////////////////////////
+// Function Rowwise
+///////////////////////////////////////////
+
+Rowwise::Rowwise(Graph& graph, Function& x, int rows, int cols,
+std::function<Function*(Function& block)> ctor) : Function(graph)
+{
+  _y = nullptr;
+
+  // split x by row and join rows
+  for (int r=0; r<rows; r++)
+  {
+    auto row = ctor(*graph.new_split(x, r,0, 1,cols));
+    if (_y)
+    {
+      _y = graph.new_join(*_y, *row, r+1,cols); // row major
+    }
+    else
+    {
+      _y = row;
+    }
+  }
+
+  _y->derivative(graph.new_iderivative(*this));
+}
+
+// F = f(x rowwise)
+const Tensor& Rowwise::forward()
+{
+  // return cached value
+  if (_value.size()) return _value;
+
+  // update value
+  _value = _y->forward();
+
+  // return gradient value
+  return _value;
+}
+
+///////////////////////////////////////////
+// Function Colwise
+///////////////////////////////////////////
+
+Colwise::Colwise(Graph& graph, Function& x, int rows, int cols,
+std::function<Function*(Function& block)> ctor) : Function(graph)
+{
+  // transpose and apply row-wise ctor, then transpose again
+  _y = graph.new_transpose(
+    *graph.new_rowwise(
+      *graph.new_transpose(x), rows, cols, ctor
+    )
+  );
+
+  _y->derivative(graph.new_iderivative(*this));
+}
+
+// F = f(x colwise)
+const Tensor& Colwise::forward()
+{
+  // return cached value
+  if (_value.size()) return _value;
+
+  // update value
+  _value = _y->forward();
+
+  // return gradient value
+  return _value;
 }
 
 ///////////////////////////////////////////
@@ -3249,41 +3318,6 @@ Tensor Graph::dFdX(Function& f, Variable& x)
   }
 
   return dfdx;
-}
-
-///////////////////////////////////////////
-// block-wise constructors
-///////////////////////////////////////////
-
-Function* Graph::new_rowwise(Function& x, int rows, int cols,
-std::function<Function*(Function& block)> ctor)
-{
-  // split x by row and join rows
-  Function* y = nullptr;
-  for (int r=0; r<rows; r++)
-  {
-    auto row = ctor(*new_split(x, r,0, 1,cols));
-    if (y)
-    {
-      y = new_join(*y, *row, r+1,cols); // row major
-    }
-    else
-    {
-      y = row;
-    }
-  }
-  return y;
-}
-
-Function* Graph::new_colwise(Function& x, int rows, int cols,
-std::function<Function*(Function& block)> ctor)
-{
-  // transpose and apply row-wise ctor, then transpose again
-  return new_transpose(
-    *new_rowwise(
-      *new_transpose(x), rows, cols, ctor
-    )
-  );
 }
 
 ///////////////////////////////////////////
