@@ -842,14 +842,14 @@ const Tensor& Max::forward()
 // x dim = [samples x in]
 // W dim = [out x in]
 // b dim = [samples x out]
-Linear::Linear(Graph& graph, Function& x, int in, int out, bool bias, int samples) :
+Linear::Linear(Graph& graph, Function& x, int in, int out, bool bias) :
 Function(graph)
 {
   // construct new variables
   _W = graph.new_variable(out, in);
 
   // col major
-  // _b = (bias) ? graph.new_variable(out, samples) : nullptr;
+  // _b = (bias) ? graph.new_variable(out, 1) : nullptr;
 
   // row major
   _b = (bias) ? graph.new_variable(1, out) : nullptr;
@@ -879,7 +879,7 @@ void Linear::init(Function& x)
 
   if (_b)
   {
-    _y = _graph.new_add(*_y, *_b);
+    _y = _graph.new_add(*_y, *_graph.new_broadcast(*_b, *_y));
   }
 
   _y->derivative(_graph.new_iderivative(*this));

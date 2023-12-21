@@ -612,10 +612,10 @@ void test_numerical_derivative()
   Graph g;
 
   // x
-  auto& x = *g.new_variable(IN, 1);
+  auto& x = *g.new_variable(1, IN);
   x.value() << 1, 2;
 
-  // F = Wx + b
+  // F = xW.T + b
   auto& y = *g.new_linear(x, IN, OUT);
   
   // W
@@ -626,9 +626,7 @@ void test_numerical_derivative()
 
   // b
   auto& b = y.b();
-  b.value() << 1,
-               2,
-               3;
+  b.value() << 1, 2, 3;
 
   // dFdx
   Tensor dFdx = g.dFdX(y, x);
@@ -1143,43 +1141,52 @@ void test_linear_forward()
   Graph g;
 
   // size
-  int IN = 2;
-  int OUT = 4;
+  int X_ROWS = 2;
+  int X_COLS = 3;
+  int Y_ROWS = 4;
+  int Y_COLS = X_COLS;
 
   // x
-  Constant x(g, 1, IN);
-  x.value() << 1, 2;
-  ASSERT(x.forward().rows() == 1);
-  ASSERT(x.forward().cols() == IN);
+  Constant x(g, X_ROWS, X_COLS);
+  x.value() <<
+    1, 2, 3,
+    4, 5, 6;
+  ASSERT(x.forward().rows() == X_ROWS);
+  ASSERT(x.forward().cols() == X_COLS);
 
-  // y = Wx + b
-  Linear y(g, x, IN, OUT);
+  // y = xW.T + b
+  Linear y(g, x, X_COLS, Y_ROWS);
+
+  auto& W = y.W();
+  auto& b = y.b();
+
+  ASSERT(W().rows() == Y_ROWS);
+  ASSERT(W().cols() == Y_COLS);
+  ASSERT(b().rows() == 1);
+  ASSERT(b().cols() == Y_ROWS);
 
   // W
-  auto& W = y.W();
-  W.value() << 1, 2,
-               3, 4,
-               5, 6,
-               7, 8;  
-  ASSERT(W.forward().rows() == OUT);
-  ASSERT(W.forward().cols() == IN);
+  W.value() <<
+     0.5210, -0.3797,  0.2674,
+    -0.5357, -0.1399,  0.0647,
+     0.3203,  0.0407, -0.3343,
+     0.2107, -0.1692,  0.5243;
 
   // b
-  auto& b = y.b();
-  b.value() << 1,
-               2,
-               3,
-               4;
-  ASSERT(b.forward().rows() == 1);
-  ASSERT(b.forward().cols() == OUT);
+  b.value() <<
+    0.3992,  0.3767,  0.5552, -0.2610;
+
+  // y
+  ASSERT(y().rows() == X_ROWS);
+  ASSERT(y().cols() == Y_ROWS);
 
   // y_hat
-  Tensor y_hat(1, OUT);
-  y_hat << 6,
-          13,
-          20,
-          27;
-  ASSERT(y.forward() == y_hat)
+  Tensor y_hat(X_ROWS, Y_ROWS);
+  y_hat <<
+    0.9630, -0.2447, -0.0460,  1.1842,
+    2.1891, -2.0774,  0.0341,  2.8816;
+
+  ASSERT(y().isApprox(y_hat, 0.0001))
 
   TEST_END()
 }
@@ -1188,62 +1195,70 @@ void test_linear_backward()
 {
   TEST_BEGIN("Linear Backward")
   // size
-  int IN = 2;
-  int OUT = 3;
+  int X_ROWS = 1;
+  int X_COLS = 3;
+  int Y_ROWS = 4;
+  int Y_COLS = X_COLS;
   Graph g;
 
   // x
-  auto& x = *g.new_variable(1, IN);
-  x.value() << 1, 2;
+  Variable& x = *g.new_variable(X_ROWS, X_COLS);
+  x.value() <<
+    1, 2, 3,
+    4, 5, 6;
 
-  // y = Wx + b
-  auto& y = *g.new_linear(x, IN, OUT);
+  // y = xW.T + b
+  Linear& y = *g.new_linear(x, X_COLS, Y_ROWS);
+
+  auto& W = y.W();
+  auto& b = y.b();
   
   // W
-  auto& W = y.W();
-  W.value() << 1, 2,
-               3, 4,
-               5, 6;
+  W.value() <<
+     0.5210, -0.3797,  0.2674,
+    -0.5357, -0.1399,  0.0647,
+     0.3203,  0.0407, -0.3343,
+     0.2107, -0.1692,  0.5243;
 
   // b
-  auto& b = y.b();  
-  b.value() << 1, 2, 3;
+  b.value() <<
+    0.3992,  0.3767,  0.5552, -0.2610;
 
   y.forward();
-  g.backward(y, Tensor::Ones(1, OUT));
+  g.backward(y, Tensor::Ones(X_ROWS, Y_ROWS));
 
   // dFdW
   Tensor dFdW = W.gradient();
-  ASSERT(dFdW.rows() == OUT);
-  ASSERT(dFdW.cols() == IN);
+  ASSERT(dFdW.rows() == Y_ROWS);
+  ASSERT(dFdW.cols() == Y_COLS);
 
-  // dFdW_hat = x
-  Tensor dFdW_hat = g.dFdX(y, W);
-  ASSERT(dFdW_hat.rows() == OUT);
-  ASSERT(dFdW_hat.cols() == IN);
-  ASSERT(dFdW.isApprox(dFdW_hat, 0.01))
+  // dFdW_num = x
+  Tensor dFdW_num = g.dFdX(y, W);
+  ASSERT(dFdW_num.rows() == Y_ROWS);
+  ASSERT(dFdW_num.cols() == Y_COLS);
+  ASSERT(dFdW.isApprox(dFdW_num, 0.01))
 
   // dFdb
   Tensor dFdb = b.gradient();
   ASSERT(dFdb.rows() == 1);
-  ASSERT(dFdb.cols() == OUT);
+  ASSERT(dFdb.cols() == Y_ROWS);
 
   // dFdb_hat = 1
-  Tensor dFdb_hat = g.dFdX(y, b);
-  ASSERT(dFdb_hat.rows() == 1);
-  ASSERT(dFdb_hat.cols() == OUT);
-  ASSERT(dFdb.isApprox(dFdb_hat, 0.01))
+  Tensor dFdb_num = g.dFdX(y, b);
+  ASSERT(dFdb_num.rows() == 1);
+  ASSERT(dFdb_num.cols() == Y_ROWS);
+  ASSERT(dFdb.isApprox(dFdb_num, 0.01))
 
   // dFdx
   Tensor dFdx = x.gradient();
-  ASSERT(dFdx.rows() == 1);
-  ASSERT(dFdx.cols() == IN);
+  ASSERT(dFdx.rows() == X_ROWS);
+  ASSERT(dFdx.cols() == X_COLS);
 
-  // dFdx_hat = W
-  Tensor dFdx_hat = g.dFdX(y, x);
-  ASSERT(dFdx_hat.rows() == 1);
-  ASSERT(dFdx_hat.cols() == IN);
-  ASSERT(dFdx.isApprox(dFdx_hat, 0.01))
+  // dFdx_num = W
+  Tensor dFdx_num = g.dFdX(y, x);
+  ASSERT(dFdx_num.rows() == X_ROWS);
+  ASSERT(dFdx_num.cols() == X_COLS);
+  ASSERT(dFdx.isApprox(dFdx_num, 0.01))
 
   TEST_END()
 }
@@ -3999,6 +4014,7 @@ void test_rl_env()
  * test entry point
  */ 
 int main(int argc, char* argv[]) {
+
   test_ImageFP();
   test_painter();
   test_rl_env();

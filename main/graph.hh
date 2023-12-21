@@ -256,7 +256,7 @@ class Linear : public Function
 public:
   Linear(
     Graph& graph, Function& x,
-    int in = 0, int out = 0, bool bias = true, int samples = 1
+    int in = 0, int out = 0, bool bias = true
   );
   Linear(Graph& graph, Function& x, const Linear& other);
 
@@ -961,8 +961,7 @@ public:
     return node;
   }
 
-  Linear* new_linear(Function& x, int in = 0, int out = 0,
-  bool bias = true, int samples = 1,
+  Linear* new_linear(Function& x, int in = 0, int out = 0, bool bias = true,
   const char* name = nullptr)
   {
     auto other = function(name);
@@ -972,7 +971,7 @@ public:
     }
     else
     {
-      auto node = new Linear(*this, x, in, out, bias, samples);
+      auto node = new Linear(*this, x, in, out, bias);
       keep(node, name);
       return node;
     }
