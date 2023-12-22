@@ -40,8 +40,8 @@ public:
     // get qk_T attention component [LxS]
     _attention = _graph.new_product(_q, *_graph.new_transpose(_k));
 
-    // attention bias [LxS]
-    _bias = _graph.new_constant(L, S);
+    // attention bias [LxS] (actual dimension updated in forward)
+    _bias = _graph.new_constant();
 
     // scale and add attention mask as bias
     _attention = &(*_attention / sqrt(D) + *_bias);
@@ -67,13 +67,21 @@ public:
   {
     if (_value.size() > 0) return _value;
 
-    // mask attention
-    _bias->value() = Tensor::Zero(_bias->value().rows(), _bias->value().cols());
+    auto& q = _q();
+    auto& k = _k();
+
+    int L = q.rows(); // actual target length
+    int S = k.rows();
+
+    // init mask attention based on input size
+    auto& b = _bias->value();
+    b = Tensor::Zero(L, S);
 
     if (_mask)
     {
+      auto& m = _mask->forward();
       DTYPE inf = std::numeric_limits<DTYPE>::infinity();
-      _bias->value() = (_mask->forward().array() == 0).select(-inf, _bias->value());
+      b = (m.array() == 0).select(-inf, b);
     }
 
     _value = _attention->forward();
