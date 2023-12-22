@@ -293,8 +293,8 @@ public:
     Tensor prod = position * div_term;
     _pe.resize(max_seq_size, emb_size);
 
-    _pe(Eigen::all, Eigen::seq(0, emb_size, 2)) = prod.array().sin();
-    _pe(Eigen::all, Eigen::seq(1, emb_size, 2)) = prod.array().cos();
+    _pe(Eigen::all, Eigen::seq(0, emb_size-1, 2)) = prod.array().sin();
+    _pe(Eigen::all, Eigen::seq(1, emb_size-1, 2)) = prod.array().cos();
 
     _x.derivative(g.new_iderivative(*this));
   }

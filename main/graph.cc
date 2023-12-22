@@ -288,7 +288,7 @@ const Tensor& Rowwise::forward()
   // update value
   _value = _y->forward();
 
-  // return gradient value
+  // return value
   return _value;
 }
 
@@ -318,7 +318,7 @@ const Tensor& Colwise::forward()
   // update value
   _value = _y->forward();
 
-  // return gradient value
+  // return value
   return _value;
 }
 
