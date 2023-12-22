@@ -701,6 +701,42 @@ void test_position_wise_ff_backward()
     TEST_END()
 }
 
+void test_positional_encoding_forward()
+{
+    TEST_BEGIN("PositionalEncoding Forward")
+
+    int EMB_SIZE = 4;
+    int SEQ_SIZE = 5;
+    int MAX_SEQ_SIZE = 7;
+
+    Graph g;
+
+    auto& x = *g.new_variable(SEQ_SIZE, EMB_SIZE);
+    x.value() <<
+      1,2,3,4,
+      5,6,7,8,
+      0.0878, 0.0416, 0.6166, 0.1477,
+      -0.3883,  0.2742, -0.4652, -0.1417,
+      0.5300, 0.2800, 0.5306, 0.4950;
+    print("x", x);
+
+    PositionalEncoding pe(g, x, MAX_SEQ_SIZE, EMB_SIZE);
+
+    auto y = pe();
+    print("y", y);
+
+    Tensor y_hat(SEQ_SIZE, EMB_SIZE);
+    y_hat <<
+      1.0000,  3.0000,  3.0000,  5.0000,
+      5.8415,  6.5403,  7.0100,  9.0000,
+      0.9971, -0.3745,  0.6366,  1.1475,
+      -0.2472, -0.7158, -0.4352,  0.8579,
+      -0.2268, -0.3736,  0.5706,  1.4942;
+
+    ASSERT(y.isApprox(y_hat, 0.0001))
+
+    TEST_END()
+}
 
 int main(int argc, char* argv[]) {
 
@@ -713,6 +749,7 @@ int main(int argc, char* argv[]) {
     test_multihead_attention_backward();
     test_position_wise_ff_forward();
     test_position_wise_ff_backward();
+    test_positional_encoding_forward();
 
     return 0;
 }

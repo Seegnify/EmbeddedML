@@ -326,6 +326,55 @@ def test_position_wise_feed_forward():
     for name, grad in gradients.items():
         print(f'Gradient for {name}:\n{grad}')
 
+def test_positional_encoding():
+    print("=== test_positional_encoding")
+    emb_size = 4
+    seq_size = 5
+    max_seq_size = 7
+
+    model = transformer.PositionalEncoding(emb_size, max_seq_size)
+    params = model.state_dict()
+
+    x = torch.tensor(
+        [[[1,2,3,4],
+          [5,6,7,8],
+          [0.0878, 0.0416, 0.6166, 0.1477],
+          [-0.3883,  0.2742, -0.4652, -0.1417],
+          [0.5300, 0.2800, 0.5306, 0.4950]]],
+         requires_grad=True
+    )
+    print("x", x)
+
+    print("Start Params")
+    for name in params:
+        print("name:", name)
+        param = params[name]
+        print("shape:", param.shape)
+        print(param)
+        if param.detach().numpy().sum() == 0:
+          param[0:param.shape[0]] = torch.rand(1, param.shape[0])
+    print("End Params")
+
+    A = model(x)
+    print("output")
+    print(A)
+
+    dA = torch.ones_like(A)
+    dA[0,0,0] = 5
+    print("dA", dA)
+
+    A.backward(dA)
+    print("dAdx", x.grad)
+
+    # Collect gradients
+    gradients = {}
+    for name, param in model.named_parameters():
+        gradients[name] = param.grad.clone()
+
+    # Print or use the gradients as needed
+    for name, grad in gradients.items():
+        print(f'Gradient for {name}:\n{grad}')
+
 def test_grad():
   import torch
   import torch.nn as nn
@@ -408,8 +457,8 @@ def test_softmax():
     sQ.backward(sQ_grad)
     print("Q.grad", Q.grad)
 
-def test_normlayer():
-    print("=== test_normlayer")
+def test_layernorm():
+    print("=== test_layernorm")
     Q = torch.tensor([
         [1.0,2,3],
         [4,5,6],
@@ -461,7 +510,8 @@ if __name__ == "__main__":
     #test_scaled_dot_product_attention()
     #test_multihead_attention()
     #test_my_multihead_attention()
-    test_position_wise_feed_forward()
-    #test_normlayer()
+    #test_position_wise_feed_forward()
+    test_positional_encoding()
+    #test_layernorm()
     #test_grad()
     #test_linear()
