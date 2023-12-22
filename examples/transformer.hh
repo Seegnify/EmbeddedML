@@ -15,7 +15,7 @@ using namespace seegnify;
 ///////////////////////////////////
 // Scaled Dot-Product Attention
 ///////////////////////////////////
-class Attention : public Function
+class ScaledDotProductAttention : public Function
 {
 public:
   // q - query vectors
@@ -26,7 +26,7 @@ public:
   // head_size - head size
   // mask - attention mask
   // dropout - dropout probability
-  Attention(
+  ScaledDotProductAttention(
     Graph& g, Function& q, Function& k, Function& v, Function* mask, 
     int trg_size, int seq_size, int head_size, DTYPE dropout=0.0
   ) :
@@ -130,7 +130,7 @@ public:
 
     for (int i=0; i<num_heads; i++)
     {
-      heads[i] = new Attention(
+      heads[i] = new ScaledDotProductAttention(
         _graph, *q_heads[i], *k_heads[i], *v_heads[i], nullptr, L, S, H, dropout
       );
       _graph.keep(heads[i]);
@@ -226,6 +226,49 @@ private:
   Variable *_Wq, *_Wk, *_Wv, *_Wo;
   Variable *_bq, *_bk, *_bv, *_bo;
   Function *_attention;
+};
+
+
+///////////////////////////////////
+// PositionwiseFeedForward
+///////////////////////////////////
+class PositionwiseFeedForward : public Function
+{
+public:
+  PositionwiseFeedForward(
+    Graph& g, Function& x, int emb_size, int hid_size, DTYPE dropout = 0.0) :
+    Function(g)
+  {
+    _l1 = g.new_linear(x, emb_size, hid_size);
+    _y = g.new_relu(*_l1);
+    if (dropout > 0)
+    {
+      _y = g.new_dropout(*_y, dropout);
+    }
+    _l2 = g.new_linear(*_y, hid_size, emb_size);
+    _y = _l2;
+
+    _y->derivative(g.new_iderivative(*this));
+  }
+
+  virtual const Tensor& forward()
+  {
+    if (_value.size() > 0) return _value;
+
+    // update value
+    _value = _y->forward();
+
+    return _value;
+  }
+
+  // variable access
+  Linear& L1() { return *_l1; }
+  Linear& L2() { return *_l2; }
+
+private:
+  Linear *_l1;
+  Linear* _l2;
+  Function* _y;
 };
 
 

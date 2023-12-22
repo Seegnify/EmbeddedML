@@ -1,3 +1,4 @@
+#source: https://towardsdatascience.com/build-your-own-transformer-from-scratch-using-pytorch-84c850470dcb
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -15,33 +16,21 @@ class MultiHeadAttention(nn.Module):
         self.num_heads = num_heads
         self.d_k = d_model // num_heads
         
-        print("=== d_model", d_model)
         self.W_q = nn.Linear(d_model, d_model)
         self.W_k = nn.Linear(d_model, d_model)
         self.W_v = nn.Linear(d_model, d_model)
         self.W_o = nn.Linear(d_model, d_model)
-        print("=== MultiHeadAttention self.W_q in", d_model, d_model)
-        print("=== MultiHeadAttention self.W_k in", d_model, d_model)
-        print("=== MultiHeadAttention self.W_v in", d_model, d_model)
-        print("=== MultiHeadAttention self.W_o in", d_model, d_model)
         
     def scaled_dot_product_attention(self, Q, K, V, mask=None):
         attn_scores = torch.matmul(Q, K.transpose(-2, -1)) / math.sqrt(self.d_k)
         if mask is not None:
             attn_scores = attn_scores.masked_fill(mask == 0, -1e9)
-        print("=== QK", attn_scores.shape)
         attn_probs = torch.softmax(attn_scores, dim=-1)
-        print("=== attn_probs", attn_probs.shape)
-        print("=== attn_probs.sum()", torch.sum(attn_probs, dim=-1).shape)
         output = torch.matmul(attn_probs, V)
-        print("=== QKV", output.shape)
         return output
         
     def split_heads(self, x):
         batch_size, seq_length, d_model = x.size()
-        print("=== batch_size", batch_size)
-        print("=== seq_length", seq_length)
-        print("=== d_model", d_model)
         return x.view(batch_size, seq_length, self.num_heads, self.d_k).transpose(1, 2)
         
     def combine_heads(self, x):
@@ -49,46 +38,41 @@ class MultiHeadAttention(nn.Module):
         return x.transpose(1, 2).contiguous().view(batch_size, seq_length, self.d_model)
         
     def forward(self, Q, K, V, mask=None):
-        print("=== MultiHeadAttention Q in", Q.shape)
-        print("=== MultiHeadAttention K in", K.shape)
-        print("=== MultiHeadAttention V in", V.shape)
         WQ = self.W_q(Q)
         WK = self.W_k(K)
         WV = self.W_v(V)
-        print("Lq", WQ)
-        print("Lk", WK)
-        print("Lv", WV)
-        print("=== MultiHeadAttention WQ in", WQ.shape)
-        print("=== MultiHeadAttention WK in", WK.shape)
-        print("=== MultiHeadAttention WV in", WV.shape)
         Q = self.split_heads(self.W_q(Q))
         K = self.split_heads(self.W_k(K))
         V = self.split_heads(self.W_v(V))
-        print("=== MultiHeadAttention Q split", Q.shape)
-        print("=== MultiHeadAttention K split", K.shape)
-        print("=== MultiHeadAttention V split", V.shape)
-        print("=== MultiHead Q split", Q)
         
         attn_output = self.scaled_dot_product_attention(Q, K, V, mask)
-        print("=== MultiHeadAttention attn_output", attn_output.shape)
-        print(attn_output)
         cobined_heads = self.combine_heads(attn_output)
-        print("=== Combined Heads", cobined_heads.shape)
-        print(cobined_heads)
         output = self.W_o(cobined_heads)
-        print("=== MultiHeadAttention output", output.shape)
         return output
 
-
-class PositionWiseFeedForward(nn.Module):
-    def __init__(self, d_model, d_ff):
-        super(PositionWiseFeedForward, self).__init__()
-        self.fc1 = nn.Linear(d_model, d_ff)
-        self.fc2 = nn.Linear(d_ff, d_model)
-        self.relu = nn.ReLU()
+# source: https://nlp.seas.harvard.edu/2018/04/03/attention.html
+class PositionwiseFeedForward(nn.Module):
+    "Implements FFN equation."
+    def __init__(self, d_model, d_ff, dropout=0.1):
+        super(PositionwiseFeedForward, self).__init__()
+        self.w_1 = nn.Linear(d_model, d_ff)
+        self.w_2 = nn.Linear(d_ff, d_model)
+        self.dropout = nn.Dropout(dropout)
 
     def forward(self, x):
-        return self.fc2(self.relu(self.fc1(x)))
+        l1 = self.w_1(x)
+        print("l1", l1)
+        return self.w_2(self.dropout(torch.nn.functional.relu(l1)))
+
+#class PositionWiseFeedForward(nn.Module):
+#    def __init__(self, d_model, d_ff):
+#        super(PositionWiseFeedForward, self).__init__()
+#        self.fc1 = nn.Linear(d_model, d_ff)
+#        self.fc2 = nn.Linear(d_ff, d_model)
+#        self.relu = nn.ReLU()
+
+#    def forward(self, x):
+#        return self.fc2(self.relu(self.fc1(x)))
 
 
 class PositionalEncoding(nn.Module):
