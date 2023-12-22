@@ -1195,7 +1195,7 @@ void test_linear_backward()
 {
   TEST_BEGIN("Linear Backward")
   // size
-  int X_ROWS = 1;
+  int X_ROWS = 2;
   int X_COLS = 3;
   int Y_ROWS = 4;
   int Y_COLS = X_COLS;
