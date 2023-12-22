@@ -718,12 +718,10 @@ void test_positional_encoding_forward()
       0.0878, 0.0416, 0.6166, 0.1477,
       -0.3883,  0.2742, -0.4652, -0.1417,
       0.5300, 0.2800, 0.5306, 0.4950;
-    print("x", x);
 
     PositionalEncoding pe(g, x, MAX_SEQ_SIZE, EMB_SIZE);
 
     auto y = pe();
-    print("y", y);
 
     Tensor y_hat(SEQ_SIZE, EMB_SIZE);
     y_hat <<
@@ -734,6 +732,42 @@ void test_positional_encoding_forward()
       -0.2268, -0.3736,  0.5706,  1.4942;
 
     ASSERT(y.isApprox(y_hat, 0.0001))
+
+    TEST_END()
+}
+
+void test_positional_encoding_backward()
+{
+    TEST_BEGIN("PositionalEncoding Backward")
+
+    int EMB_SIZE = 4;
+    int SEQ_SIZE = 5;
+    int MAX_SEQ_SIZE = 7;
+
+    Graph g;
+
+    auto& x = *g.new_variable(SEQ_SIZE, EMB_SIZE);
+    x.value() <<
+      1,2,3,4,
+      5,6,7,8,
+      0.0878, 0.0416, 0.6166, 0.1477,
+      -0.3883,  0.2742, -0.4652, -0.1417,
+      0.5300, 0.2800, 0.5306, 0.4950;
+
+    auto& pe = *(new PositionalEncoding(g, x, MAX_SEQ_SIZE, EMB_SIZE));
+    g.keep(&pe);
+
+    auto y = pe();
+
+    pe.gradient() = Tensor::Ones(SEQ_SIZE, EMB_SIZE);
+    pe.gradient()(0) = 5;
+
+    Tensor dFdx = x.backward();
+    Tensor dFdx_num = g.dFdX(pe, x);
+    Tensor dFdx_hat = pe.gradient();
+
+    ASSERT(dFdx == dFdx_hat)
+    ASSERT(dFdx.isApprox(dFdx_num, 0.0001))
 
     TEST_END()
 }
@@ -750,6 +784,7 @@ int main(int argc, char* argv[]) {
     test_position_wise_ff_forward();
     test_position_wise_ff_backward();
     test_positional_encoding_forward();
+    test_positional_encoding_backward();
 
     return 0;
 }

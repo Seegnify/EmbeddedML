@@ -282,31 +282,19 @@ public:
     Graph& g, Function& x, int max_seq_size, int emb_size) :
     Function(g), _x(x)
   {
-    std::cout << "PositionalEncoding" << std::endl;
     Tensor position(max_seq_size, 1);
     Tensor div_term(1, emb_size / 2);
 
     double term = -(log(10000.0) / emb_size);
-    std::cout << "term" << std::endl;
-    std::cout << term << std::endl;
 
     for (int i=0; i<max_seq_size; i++) position(i) = i;
     for (int i=0; i<emb_size; i+=2) div_term(i/2) = exp(i * term);
 
-    std::cout << "position" << std::endl;
-    std::cout << position << std::endl;
-    std::cout << "div_term" << std::endl;
-    std::cout << div_term << std::endl;
-
     Tensor prod = position * div_term;
-    std::cout << "position * div_term" << std::endl;
-    std::cout << prod << std::endl;
     _pe.resize(max_seq_size, emb_size);
 
     _pe(Eigen::all, Eigen::seq(0, emb_size, 2)) = prod.array().sin();
     _pe(Eigen::all, Eigen::seq(1, emb_size, 2)) = prod.array().cos();
-    std::cout << "_pe(Eigen::all, Eigen::seq(1, emb_size, 2))" << std::endl;
-    std::cout << _pe << std::endl;
 
     _x.derivative(g.new_iderivative(*this));
   }
@@ -317,11 +305,6 @@ public:
 
     auto& x = _x.forward();
     int seq_size = x.rows();
-
-    std::cout << "PositionalEncoding::forward" << std::endl;
-    std::cout << "seq_size=" << seq_size << std::endl;
-    std::cout << "pe applied" << std::endl;
-    std::cout << _pe(Eigen::seq(0, seq_size), Eigen::all) << seq_size << std::endl;
 
     // update value
     _value = x + _pe(Eigen::seqN(0, seq_size), Eigen::all);
