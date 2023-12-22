@@ -793,6 +793,30 @@ protected:
 #endif
 };
 
+// Sine function
+class Sin : public Function
+{
+public:
+  Sin(Graph& graph, Function& x);
+
+  virtual const Tensor& forward();
+
+protected:
+  Function& _x;
+};
+
+// Cosine function
+class Cos : public Function
+{
+public:
+  Cos(Graph& graph, Function& x);
+
+  virtual const Tensor& forward();
+
+protected:
+  Function& _x;
+};
+
 // No Value computed in the graph exception
 class NoValueException : public std::runtime_error
 {
@@ -1287,6 +1311,20 @@ public:
   GeLU* new_gelu(Function& x)
   {
     auto node = new GeLU(*this, x);
+    keep(node);
+    return node;
+  }
+
+  Sin* new_sin(Function& x)
+  {
+    auto node = new Sin(*this, x);
+    keep(node);
+    return node;
+  }
+
+  Cos* new_cos(Function& x)
+  {
+    auto node = new Cos(*this, x);
     keep(node);
     return node;
   }

@@ -3152,7 +3152,7 @@ void test_log_gaussian_backward()
 
 void test_embedding_forward()
 {
-  TEST_BEGIN("embedding Forward")
+  TEST_BEGIN("Embedding Forward")
 
   // size
   int IN = 10; // vocabulary size
@@ -3173,7 +3173,7 @@ void test_embedding_forward()
 
 void test_embedding_backward()
 {
-  TEST_BEGIN("embedding Backward")
+  TEST_BEGIN("Embedding Backward")
 
   // size
   int IN = 10; // vocabulary size
@@ -3557,6 +3557,120 @@ void test_gaussian_sampler()
   auto x_m_2_sum = x_m_2.rowwise().sum();
   auto sd = (x_m_2_sum / (M - 1)).sqrt().matrix();
   ASSERT(sd.isApprox(sabs(), 0.1))
+
+  TEST_END()
+}
+
+void test_sine_forward()
+{
+  TEST_BEGIN("Sine Forward")
+
+  // size
+  int ROWS = 2;
+  int COLS = 3;
+  Graph g;
+
+  auto& x = *g.new_variable(ROWS, COLS);
+  x.value() <<
+    -1, 2, 3,
+    -4, 5, 6;
+
+  auto&y = *g.new_sin(x);
+
+  Tensor y_hot(ROWS, COLS);
+  y_hot <<
+    -0.8414709848, 0.90929742682, 0.14112000806,
+    0.7568024953, -0.95892427466, -0.27941549819;
+
+  ASSERT(y().isApprox(y_hot, 0.0001));
+
+  TEST_END()
+}
+
+void test_sine_backward()
+{
+  TEST_BEGIN("Sine Backward")
+
+  // size
+  int ROWS = 2;
+  int COLS = 3;
+  Graph g;
+
+  auto& x = *g.new_variable(ROWS, COLS);
+  x.value() <<
+    -1, 2, 3,
+    -4, 5, 6;
+
+  auto&y = *g.new_sin(x);
+
+  y.forward();
+  y.gradient() = Tensor::Ones(ROWS, COLS);
+  Tensor dFdx = x.backward();
+
+  // dFdx = cos(x)
+  Tensor dFdx_hot(ROWS, COLS);
+  dFdx_hot <<
+    0.54030230586, -0.41614683654, -0.9899924966,
+    -0.65364362086, 0.28366218546, 0.96017028665;
+
+  Tensor dFdx_num = g.dFdX(y, x);
+
+  ASSERT(dFdx.isApprox(dFdx_num, 0.0001));
+  ASSERT(dFdx.isApprox(dFdx_hot, 0.0001));
+
+  TEST_END()
+}
+
+void test_cosine_forward()
+{
+  TEST_BEGIN("Cosine Forward")
+
+  // size
+  int ROWS = 2;
+  int COLS = 3;
+  Graph g;
+
+  auto& x = *g.new_variable(ROWS, COLS);
+  x.value() <<
+    -1, 2, 3,
+    -4, 5, 6;
+
+  auto&y = *g.new_cos(x);
+
+  Tensor y_hot = x.value().array().cos();
+
+  ASSERT(y().isApprox(y_hot, 0.0001));
+
+  TEST_END()
+}
+
+void test_cosine_backward()
+{
+  TEST_BEGIN("Cosine Backward")
+
+  // size
+  int ROWS = 2;
+  int COLS = 3;
+  Graph g;
+
+  auto& x = *g.new_variable(ROWS, COLS);
+  x.value() <<
+    -1, 2, 3,
+    -4, 5, 6;
+
+  auto&y = *g.new_cos(x);
+
+  y.forward();
+  y.gradient() = Tensor::Ones(ROWS, COLS);
+  Tensor dFdx = x.backward();
+
+  // dFdx = -sin(x)
+  Tensor dFdx_hot = -x.value().array().sin();
+
+  Tensor dFdx_num = g.dFdX(y, x);
+
+  ASSERT(dFdx.isApprox(dFdx_num, 0.0001));
+  ASSERT(dFdx.isApprox(dFdx_hot, 0.0001));
 
   TEST_END()
 }
@@ -4137,6 +4251,12 @@ int main(int argc, char* argv[]) {
 
   test_conv2d_forward();
   test_conv2d_backward();
+
+  test_sine_forward();
+  test_sine_backward();
+
+  test_cosine_forward();
+  test_cosine_backward();
 
   test_gaussian_sampler();
   test_linear_regression();

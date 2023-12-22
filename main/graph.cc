@@ -3156,7 +3156,7 @@ Function(graph), _x(x)
       // update gradient value
       _value = g.array() * dFdx.array();
 
-     return _value;
+      return _value;
     }
 
   private:
@@ -3183,6 +3183,114 @@ const Tensor& GeLU::forward()
 }
 
 #endif
+
+///////////////////////////////////////////
+// Function Sin
+///////////////////////////////////////////
+
+Sin::Sin(Graph& graph, Function& x) :
+Function(graph), _x(x)
+{
+  // Derivative with respect to x
+  class Derivative_x : public Function
+  {
+  public:
+    Derivative_x(Graph& graph, Sin& base) :
+    Function(graph), _base(base) { graph.keep(this); }
+
+    // dFdx = cos(x)
+    virtual const Tensor& forward()
+    {
+      // return cached gradient
+      if (_value.size()) return _value;
+
+      auto& g = _base.backward();
+      auto& x = _base._x.forward();
+
+      auto dFdx = x.array().cos();
+
+      // update gradient value
+      _value = dFdx.array() * g.array();
+
+      return _value;
+    }
+
+  private:
+    Sin& _base;
+  };
+
+  _x.derivative(new Derivative_x(graph, *this));
+}
+
+// F = sin(x)
+const Tensor& Sin::forward()
+{
+  // return cached value
+  if (_value.size()) return _value;
+
+  // get input
+  auto& x = _x.forward();
+
+  // update value
+  _value = x.array().sin();
+
+  // return value
+  return _value;
+}
+
+///////////////////////////////////////////
+// Function Cos
+///////////////////////////////////////////
+
+Cos::Cos(Graph& graph, Function& x) :
+Function(graph), _x(x)
+{
+  // Derivative with respect to x
+  class Derivative_x : public Function
+  {
+  public:
+    Derivative_x(Graph& graph, Cos& base) :
+    Function(graph), _base(base) { graph.keep(this); }
+
+    // dFdx = -sin(x)
+    virtual const Tensor& forward()
+    {
+      // return cached gradient
+      if (_value.size()) return _value;
+
+      auto& g = _base.backward();
+      auto& x = _base._x.forward();
+
+      auto dFdx = -x.array().sin();
+
+      // update gradient value
+      _value = dFdx.array() * g.array();
+
+     return _value;
+    }
+
+  private:
+    Cos& _base;
+  };
+
+  _x.derivative(new Derivative_x(graph, *this));
+}
+
+// F = cos(x)
+const Tensor& Cos::forward()
+{
+  // return cached value
+  if (_value.size()) return _value;
+
+  // get input
+  auto& x = _x.forward();
+
+  // update value
+  _value = x.array().cos();
+
+  // return value
+  return _value;
+}
 
 ///////////////////////////////////////////
 // Graph
