@@ -216,9 +216,7 @@ const Tensor& Function::backward()
   {
     _gradient = Tensor::Zero(_value.rows(), _value.cols());
 
-    auto& aggregator = _graph.aggregator();
-
-    if (_backprop) aggregator.aggregate(_gradient, _derivative);
+    if (_backprop) _graph.aggregate(_gradient, _derivative);
   }
 
   return _gradient;
@@ -358,9 +356,7 @@ const Tensor& Variable::backward()
     _gradient = Tensor::Zero(_value.rows(), _value.cols());
   }
 
-  auto& aggregator = _graph.aggregator();
-
-  if (_backprop) aggregator.aggregate(_gradient, _derivative);
+  if (_backprop) _graph.aggregate(_gradient, _derivative);
 
   return _gradient;
 }

@@ -851,12 +851,6 @@ public:
   // compute gradients
   void backward(Function& f, const Tensor& g);
 
-  // get gradient aggregotar
-  Aggregator& aggregator() const { return *_aggregator; }
-
-  // set gradient aggregotar
-  void aggregator(Aggregator& a) { _aggregator = &a; }
-
   // aggreagor implementation
   virtual void aggregate(
   Tensor& g, const std::vector<Function*>& derivative) const;
