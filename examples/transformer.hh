@@ -237,12 +237,12 @@ private:
 
 
 ///////////////////////////////////
-// PositionwiseFeedForward
+// PositionWiseFeedForward
 ///////////////////////////////////
-class PositionwiseFeedForward : public Function
+class PositionWiseFeedForward : public Function
 {
 public:
-  PositionwiseFeedForward(
+  PositionWiseFeedForward(
     Graph& g, Function& x, int emb_size, int ff_size, DTYPE dropout = 0.0) :
     Function(g)
   {
@@ -340,12 +340,12 @@ public:
       seq_size, seq_size, emb_size, num_heads, true, dropout);
     g.keep(_y);
 
-    _y = g.new_norm(x + *g.new_dropout(*_y, dropout));
+    auto n = g.new_norm(x + *g.new_dropout(*_y, dropout));
 
-    _y = new PositionwiseFeedForward(g, *_y, emb_size, ff_size, dropout);
+    _y = new PositionWiseFeedForward(g, *n, emb_size, ff_size, dropout);
     g.keep(_y);
 
-    _y = g.new_norm(x + *g.new_dropout(*_y, dropout));
+    _y = g.new_norm(*n + *g.new_dropout(*_y, dropout));
 
     _y->derivative(g.new_iderivative(*this));
   }

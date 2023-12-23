@@ -542,7 +542,7 @@ void test_position_wise_ff_forward()
       0.0878, 0.0416, 0.6166, 0.1477,
       0.5300, 0.2800, 0.5306, 0.4950;
 
-    PositionwiseFeedForward ff(
+    PositionWiseFeedForward ff(
       g, x, EMB_SIZE, HID_SIZE, dropout
     );
     
@@ -603,7 +603,7 @@ void test_position_wise_ff_backward()
       0.0878, 0.0416, 0.6166, 0.1477,
       0.5300, 0.2800, 0.5306, 0.4950;
 
-    auto& ff = *(new PositionwiseFeedForward(
+    auto& ff = *(new PositionWiseFeedForward(
       g, x, EMB_SIZE, HID_SIZE, dropout
     ));
     g.keep(&ff);    
