@@ -334,19 +334,19 @@ void test_multihead_attention_forward()
     Graph g;
 
     int TRG_SIZE = 3;
-    int seq_size = 3;
+    int SEQ_SIZE = 3;
     int EMB_SIZE = 4;
-    int num_heads = 2;
+    int NUM_HEADS = 2;
     bool bias = true;
     DTYPE dropout = 0.0;
 
     auto q = g.new_variable(TRG_SIZE, EMB_SIZE);
-    auto k = g.new_variable(seq_size, EMB_SIZE);
+    auto k = g.new_variable(SEQ_SIZE, EMB_SIZE);
     auto v = g.new_variable(TRG_SIZE, EMB_SIZE);
 
     MultiHeadAttention mha(
-      g, *q, *k, *v,
-      TRG_SIZE, seq_size, EMB_SIZE, num_heads,
+      g, *q, *k, *v, nullptr,
+      TRG_SIZE, SEQ_SIZE, EMB_SIZE, NUM_HEADS,
       bias, dropout
     );
 
@@ -416,19 +416,19 @@ void test_multihead_attention_backward()
     Graph g;
 
     int TRG_SIZE = 3;
-    int seq_size = 3;
+    int SEQ_SIZE = 3;
     int EMB_SIZE = 4;
-    int num_heads = 2;
+    int NUM_HEADS = 2;
     bool bias = true;
     DTYPE dropout = 0.0;
 
     auto q = g.new_variable(TRG_SIZE, EMB_SIZE);
-    auto k = g.new_variable(seq_size, EMB_SIZE);
+    auto k = g.new_variable(SEQ_SIZE, EMB_SIZE);
     auto v = g.new_variable(TRG_SIZE, EMB_SIZE);
 
     auto mhaptr = new MultiHeadAttention(
-      g, *q, *k, *v,
-      TRG_SIZE, seq_size, EMB_SIZE, num_heads,
+      g, *q, *k, *v, nullptr,
+      TRG_SIZE, SEQ_SIZE, EMB_SIZE, NUM_HEADS,
       bias, dropout
     );
     g.keep(mhaptr); // for auto-grad

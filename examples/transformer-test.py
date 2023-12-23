@@ -506,12 +506,12 @@ def test_linear():
     print("y", y)
 
 if __name__ == "__main__":
-    #test_softmax()
+    test_softmax()
     #test_scaled_dot_product_attention()
     #test_multihead_attention()
     #test_my_multihead_attention()
     #test_position_wise_feed_forward()
-    test_positional_encoding()
+    #test_positional_encoding()
     #test_layernorm()
     #test_grad()
     #test_linear()

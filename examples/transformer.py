@@ -51,17 +51,16 @@ class MultiHeadAttention(nn.Module):
         return output
 
 # source: https://nlp.seas.harvard.edu/2018/04/03/attention.html
-class PositionwiseFeedForward(nn.Module):
+class PositionWiseFeedForward(nn.Module):
     "Implements FFN equation."
     def __init__(self, d_model, d_ff, dropout=0.1):
-        super(PositionwiseFeedForward, self).__init__()
+        super(PositionWiseFeedForward, self).__init__()
         self.w_1 = nn.Linear(d_model, d_ff)
         self.w_2 = nn.Linear(d_ff, d_model)
         self.dropout = nn.Dropout(dropout)
 
     def forward(self, x):
         l1 = self.w_1(x)
-        print("l1", l1)
         return self.w_2(self.dropout(torch.nn.functional.relu(l1)))
 
 #class PositionWiseFeedForward(nn.Module):
@@ -83,14 +82,6 @@ class PositionalEncoding(nn.Module):
         pe = torch.zeros(max_seq_length, d_model)
         position = torch.arange(0, max_seq_length, dtype=torch.float).unsqueeze(1)
         div_term = torch.exp(torch.arange(0, d_model, 2).float() * term)
-        print("PositionalEncoding")
-        print("d_model", d_model)
-        print("term", term)
-        print("max_seq_length", max_seq_length)
-        print("torch.arange(0, d_model, 2).float()", torch.arange(0, d_model, 2).float())
-        print("position", position)
-        print("div_term", div_term)
-        print("position * div_term", position * div_term)
         
         pe[:, 0::2] = torch.sin(position * div_term)
         pe[:, 1::2] = torch.cos(position * div_term)
@@ -161,9 +152,14 @@ class Transformer(nn.Module):
         return src_mask, tgt_mask
 
     def forward(self, src, tgt):
+        print("=== Transformer.forward()")
         print("=== src", src.shape)
         print(src)
         src_mask, tgt_mask = self.generate_mask(src, tgt)
+        print("=== src_mask", src_mask.shape, (src_mask == True).all())
+        print(src_mask)
+        print("=== tgt_mask", tgt_mask.shape, (tgt_mask == True).all())
+        print(tgt_mask)
         src_embedded = self.dropout(self.positional_encoding(self.encoder_embedding(src)))
         tgt_embedded = self.dropout(self.positional_encoding(self.decoder_embedding(tgt)))
         print("=== src_embedded", src_embedded.shape)
@@ -230,9 +226,11 @@ def main():
     src_data = torch.randint(1, src_vocab_size, (batch_size, max_seq_length))  # (batch_size, seq_length)
     tgt_data = torch.randint(1, tgt_vocab_size, (batch_size, max_seq_length))  # (batch_size, seq_length)
     print("New training data generated")
+  print("src_data")
+  print(src_data)
+  #os.exit
 
   print_model(torch.load(model_path))
-  #os.exit
 
   # Model training
   criterion = nn.CrossEntropyLoss(ignore_index=0)

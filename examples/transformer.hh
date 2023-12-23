@@ -6,7 +6,6 @@
 #define _TRANSFORMER_MODEL_H_
 
 #include "main/graph.hh"
-#include "main/storage.hh"
 
 
 using namespace seegnify;
@@ -107,7 +106,7 @@ class MultiHeadAttention : public Function
 {
 public:
   MultiHeadAttention(
-    Graph& g, Function& q, Function& k, Function& v,
+    Graph& g, Function& q, Function& k, Function& v, Function* mask,
     int trg_size, int seq_size, int emb_size, int num_heads,
     bool bias = true, DTYPE dropout = 0.0) :
     Function(g)
@@ -139,7 +138,7 @@ public:
     for (int i=0; i<num_heads; i++)
     {
       heads[i] = new ScaledDotProductAttention(
-        _graph, *q_heads[i], *k_heads[i], *v_heads[i], nullptr, L, S, H, dropout
+        _graph, *q_heads[i], *k_heads[i], *v_heads[i], mask, L, S, H, dropout
       );
       _graph.keep(heads[i]);
     }
@@ -244,16 +243,16 @@ class PositionwiseFeedForward : public Function
 {
 public:
   PositionwiseFeedForward(
-    Graph& g, Function& x, int emb_size, int hid_size, DTYPE dropout = 0.0) :
+    Graph& g, Function& x, int emb_size, int ff_size, DTYPE dropout = 0.0) :
     Function(g)
   {
-    _l1 = g.new_linear(x, emb_size, hid_size);
+    _l1 = g.new_linear(x, emb_size, ff_size);
     _y = g.new_relu(*_l1);
     if (dropout > 0)
     {
       _y = g.new_dropout(*_y, dropout);
     }
-    _l2 = g.new_linear(*_y, hid_size, emb_size);
+    _l2 = g.new_linear(*_y, ff_size, emb_size);
     _y = _l2;
 
     _y->derivative(g.new_iderivative(*this));
@@ -323,6 +322,46 @@ public:
 private:
   Tensor _pe;
   Function& _x;
+};
+
+
+///////////////////////////////////
+// EncoderLayer
+///////////////////////////////////
+class EncoderLayer : public Function
+{
+public:
+  EncoderLayer(
+    Graph& g, Function& x, Function* mask,
+    int seq_size, int emb_size, int num_heads, int ff_size, DTYPE dropout) :
+    Function(g)
+  {
+    _y = new MultiHeadAttention(g, x, x, x, mask,
+      seq_size, seq_size, emb_size, num_heads, true, dropout);
+    g.keep(_y);
+
+    _y = g.new_norm(x + *g.new_dropout(*_y, dropout));
+
+    _y = new PositionwiseFeedForward(g, *_y, emb_size, ff_size, dropout);
+    g.keep(_y);
+
+    _y = g.new_norm(x + *g.new_dropout(*_y, dropout));
+
+    _y->derivative(g.new_iderivative(*this));
+  }
+
+  virtual const Tensor& forward()
+  {
+    if (_value.size() > 0) return _value;
+
+    // update value
+    _value = _y->forward();
+
+    return _value;
+  }
+
+private:
+  Function* _y;
 };
 
 
