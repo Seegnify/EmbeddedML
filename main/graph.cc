@@ -843,13 +843,13 @@ Linear::Linear(Graph& graph, Function& x, int in, int out, bool bias) :
 Function(graph)
 {
   // construct new variables
-  _W = graph.new_variable(out, in, "W");
+  _W = graph.new_variable(out, in, "Linear.W");
 
   // col major
   // _b = (bias) ? graph.new_variable(out, 1) : nullptr;
 
   // row major
-  _b = (bias) ? graph.new_variable(1, out, "b") : nullptr;
+  _b = (bias) ? graph.new_variable(1, out, "Linear.b") : nullptr;
 
   init(x);
 }
@@ -2293,13 +2293,13 @@ Function(graph), _x(x), _epsilon(eps)
 {
   if (rows * cols > 1)
   {
-    _g = graph.new_variable(rows, cols);
-    _b = graph.new_variable(rows, cols);
+    _g = graph.new_variable(rows, cols, "Norm.G");
+    _b = graph.new_variable(rows, cols, "Norm.B");
   }
   else
   {
-    _g = graph.new_variable(1, 1);
-    _b = graph.new_variable(1, 1);
+    _g = graph.new_variable(1, 1, "Norm.g");
+    _b = graph.new_variable(1, 1, "Norm.s");
   }
 
   _g->value() = Tensor::Ones(_g->value().rows(), _g->value().cols());
@@ -3240,7 +3240,7 @@ void Graph::keep(Variable* v, const char* name)
 {
   _nodes.push_back(v);
   _vars.push_back(v);
-  _names.push_back((name) ? name : "");
+  _names.push_back((name) ? name : "Variable");
 }
 
 // reset cache

@@ -11,7 +11,7 @@
 #include "examples/transformer.hh"
 #include "main/unittest.hh"
 
-void print(const char* name, const Tensor& tensor)
+void print(const std::string& name, const Tensor& tensor)
 {
   std::cout << name
   << " [" << tensor.rows() << " x " << tensor.cols() << "]"
@@ -19,7 +19,7 @@ void print(const char* name, const Tensor& tensor)
   std::cout << tensor << std::endl;
 }
 
-void print(const char* name, const SparseTensor& tensor)
+void print(const std::string& name, const SparseTensor& tensor)
 {
   std::cout << name
   << " [" << tensor.rows() << " x " << tensor.cols() << "]"
@@ -27,9 +27,24 @@ void print(const char* name, const SparseTensor& tensor)
   std::cout << tensor << std::endl;
 }
 
-void print(const char* name, Function& f)
+void print(const std::string& name, Function& f)
 {
   print(name, f.forward());
+}
+
+void print(const Graph& g)
+{
+  for (int i=0; i<g.names().size(); i++)
+  {
+    auto& name = g.names()[i];
+    if (name.size() > 0)
+    {
+      auto& tensor = g.nodes()[i]->forward();
+      std::cout << "node[" << i << "] " << name
+      << " [" << tensor.rows() << " x " << tensor.cols() << "]"
+      << std::endl;
+    }
+  }
 }
 
 void compute_result(
@@ -353,7 +368,7 @@ void test_multihead_attention_forward()
     q->value() <<
       0.0878, 0.0416, 0.6166, 0.1477,
       0.9752, 0.8866, 0.5407, 0.1911,
-      0.5300, 0.2800, 0.5306, 0.4950;   
+      0.5300, 0.2800, 0.5306, 0.4950;
     k->value() <<
       0.2248, 0.4832, 0.5916, 0.0345,
       0.4916, 0.0881, 0.3768, 0.3048,
@@ -363,22 +378,32 @@ void test_multihead_attention_forward()
       0.6842, 0.1161, 0.8033, 0.6450,
       0.4097, 0.3034, 0.8000, 0.7103;
 
-    mha.Wq().value() <<
+    // print(g);
+    auto& Wq = *(Variable*)g.nodes()[3];
+    auto& Wk = *(Variable*)g.nodes()[4];
+    auto& Wv = *(Variable*)g.nodes()[5];
+    auto& Wo = *(Variable*)g.nodes()[6];
+    auto& bq = *(Variable*)g.nodes()[7];
+    auto& bk = *(Variable*)g.nodes()[8];
+    auto& bv = *(Variable*)g.nodes()[9];
+    auto& bo = *(Variable*)g.nodes()[10];
+
+    Wq.value() <<
       0.4271,  0.3013, -0.4279, -0.2122,
       0.2983,  0.3350, -0.4619,  0.5432,
       -0.1488,  0.1778, -0.4288, -0.5003,
       0.1173,  0.3713, -0.2347, -0.2251;   
-    mha.Wk().value() <<
+    Wk.value() <<
       0.1557,  0.4673,  0.0920,  0.3889,
       0.5867,  0.0088,  0.4371,  0.0371,
       0.4897, -0.0109, -0.0646,  0.5190,
       -0.5768,  0.1376, -0.5507,  0.5315;
-    mha.Wv().value() <<
+    Wv.value() <<
       -0.3599, -0.4841,  0.0526, -0.5235,
       -0.1576,  0.4844, -0.3817,  0.2549,
       -0.1432,  0.5141, -0.5741, -0.0179,
       -0.0103, -0.4235, -0.5195, -0.1589;
-    mha.Wo().value() <<
+    Wo.value() <<
       -0.2588,  0.4873,  0.0642,  0.4206,
       0.3272,  0.3202,  0.4458, -0.3825,
       -0.4631, -0.2740, -0.2628, -0.4749,
@@ -386,13 +411,13 @@ void test_multihead_attention_forward()
 
     if (bias)
     {
-      mha.bq().value() <<
+      bq.value() <<
         0.4755, 0.1042, 0.6459, 0.2230;      
-      mha.bk().value() <<
+      bk.value() <<
         0.0739, 0.6705, 0.8532, 0.7830;
-      mha.bv().value() <<
+      bv.value() <<
         0.1097, 0.8451, 0.7208, 0.2440;
-      mha.bo().value() <<
+      bo.value() <<
         0.0307, 0.1667, 0.4442, 0.1971;
     }
 
@@ -447,22 +472,32 @@ void test_multihead_attention_backward()
       0.6842, 0.1161, 0.8033, 0.6450,
       0.4097, 0.3034, 0.8000, 0.7103;
 
-    mha.Wq().value() <<
+    // print(g);
+    auto& Wq = *(Variable*)g.nodes()[3];
+    auto& Wk = *(Variable*)g.nodes()[4];
+    auto& Wv = *(Variable*)g.nodes()[5];
+    auto& Wo = *(Variable*)g.nodes()[6];
+    auto& bq = *(Variable*)g.nodes()[7];
+    auto& bk = *(Variable*)g.nodes()[8];
+    auto& bv = *(Variable*)g.nodes()[9];
+    auto& bo = *(Variable*)g.nodes()[10];
+
+    Wq.value() <<
       0.4271,  0.3013, -0.4279, -0.2122,
       0.2983,  0.3350, -0.4619,  0.5432,
       -0.1488,  0.1778, -0.4288, -0.5003,
       0.1173,  0.3713, -0.2347, -0.2251;
-    mha.Wk().value() <<
+    Wk.value() <<
       0.1557,  0.4673,  0.0920,  0.3889,
       0.5867,  0.0088,  0.4371,  0.0371,
       0.4897, -0.0109, -0.0646,  0.5190,
       -0.5768,  0.1376, -0.5507,  0.5315;
-    mha.Wv().value() <<
+    Wv.value() <<
       -0.3599, -0.4841,  0.0526, -0.5235,
       -0.1576,  0.4844, -0.3817,  0.2549,
       -0.1432,  0.5141, -0.5741, -0.0179,
       -0.0103, -0.4235, -0.5195, -0.1589;
-    mha.Wo().value() <<
+    Wo.value() <<
       -0.2588,  0.4873,  0.0642,  0.4206,
       0.3272,  0.3202,  0.4458, -0.3825,
       -0.4631, -0.2740, -0.2628, -0.4749,
@@ -470,13 +505,13 @@ void test_multihead_attention_backward()
 
     if (bias)
     {
-      mha.bq().value() <<
+      bq.value() <<
         0.4755, 0.1042, 0.6459, 0.2230;
-      mha.bk().value() <<
+      bk.value() <<
         0.0739, 0.6705, 0.8532, 0.7830;
-      mha.bv().value() <<
+      bv.value() <<
         0.1097, 0.8451, 0.7208, 0.2440; 
-      mha.bo().value() <<
+      bo.value() <<
         0.0307, 0.1667, 0.4442, 0.1971;
     }
 
@@ -530,7 +565,7 @@ void test_position_wise_ff_forward()
     Graph g;
 
     int EMB_SIZE = 4;
-    int HID_SIZE = 3;
+    int FF_SIZE = 3;
     int TRG_SIZE = 2;
     DTYPE dropout = 0.0;
 
@@ -543,32 +578,38 @@ void test_position_wise_ff_forward()
       0.5300, 0.2800, 0.5306, 0.4950;
 
     PositionWiseFeedForward ff(
-      g, x, EMB_SIZE, HID_SIZE, dropout
+      g, x, EMB_SIZE, FF_SIZE, dropout
     );
     
-    ASSERT(ff.L1().W().value().rows() == HID_SIZE);
-    ASSERT(ff.L1().W().value().cols() == EMB_SIZE);
-    ASSERT(ff.L1().b().value().rows() == 1);
-    ASSERT(ff.L1().b().value().cols() == HID_SIZE);
+    // print(g);
+    auto& L1W = *(Variable*)g.nodes()[1];
+    auto& L1b = *(Variable*)g.nodes()[2];
+    auto& L2W = *(Variable*)g.nodes()[23];
+    auto& L2b = *(Variable*)g.nodes()[24];    
+    
+    ASSERT(L1W.value().rows() == FF_SIZE);
+    ASSERT(L1W.value().cols() == EMB_SIZE);
+    ASSERT(L1b.value().rows() == 1);
+    ASSERT(L1b.value().cols() == FF_SIZE);
 
-    ASSERT(ff.L2().W().value().rows() == EMB_SIZE);
-    ASSERT(ff.L2().W().value().cols() == HID_SIZE);
-    ASSERT(ff.L2().b().value().rows() == 1);
-    ASSERT(ff.L2().b().value().cols() == EMB_SIZE);
+    ASSERT(L2W.value().rows() == EMB_SIZE);
+    ASSERT(L2W.value().cols() == FF_SIZE);
+    ASSERT(L2b.value().rows() == 1);
+    ASSERT(L2b.value().cols() == EMB_SIZE);
 
-    ff.L1().W().value() <<
+    L1W.value() <<
       -0.3883,  0.2742, -0.4652, -0.1417,
       -0.0996, -0.4170, -0.0302,  0.1254,
       -0.2065,  0.0107,  0.3998,  0.3775;
-    ff.L2().W().value() <<
+    L2W.value() <<
        0.0348,  0.3779, -0.5751,
       -0.0708, -0.4522, -0.4000,
        0.3196,  0.2163,  0.5397,
       -0.1805,  0.0472, -0.4630;
 
-    ff.L1().b().value() <<
+    L1b.value() <<
       0.4282,  0.2099, -0.2209;
-    ff.L2().b().value() <<
+    L2b.value() <<
       -0.4660, -0.4707,  0.4046, -0.4392;
 
     Tensor ff_hat(TRG_SIZE, EMB_SIZE);
@@ -591,7 +632,7 @@ void test_position_wise_ff_backward()
     Graph g;
 
     int EMB_SIZE = 4;
-    int HID_SIZE = 3;
+    int FF_SIZE = 3;
     int TRG_SIZE = 2;
     DTYPE dropout = 0.0;
 
@@ -604,33 +645,39 @@ void test_position_wise_ff_backward()
       0.5300, 0.2800, 0.5306, 0.4950;
 
     auto& ff = *(new PositionWiseFeedForward(
-      g, x, EMB_SIZE, HID_SIZE, dropout
+      g, x, EMB_SIZE, FF_SIZE, dropout
     ));
-    g.keep(&ff);    
+    g.keep(&ff);
+
+    // print(g);
+    auto& L1W = *(Variable*)g.nodes()[1];
+    auto& L1b = *(Variable*)g.nodes()[2];
+    auto& L2W = *(Variable*)g.nodes()[23];
+    auto& L2b = *(Variable*)g.nodes()[24];    
     
-    ASSERT(ff.L1().W().value().rows() == HID_SIZE);
-    ASSERT(ff.L1().W().value().cols() == EMB_SIZE);
-    ASSERT(ff.L1().b().value().rows() == 1);
-    ASSERT(ff.L1().b().value().cols() == HID_SIZE);
+    ASSERT(L1W.value().rows() == FF_SIZE);
+    ASSERT(L1W.value().cols() == EMB_SIZE);
+    ASSERT(L1b.value().rows() == 1);
+    ASSERT(L1b.value().cols() == FF_SIZE);
 
-    ASSERT(ff.L2().W().value().rows() == EMB_SIZE);
-    ASSERT(ff.L2().W().value().cols() == HID_SIZE);
-    ASSERT(ff.L2().b().value().rows() == 1);
-    ASSERT(ff.L2().b().value().cols() == EMB_SIZE);
+    ASSERT(L2W.value().rows() == EMB_SIZE);
+    ASSERT(L2W.value().cols() == FF_SIZE);
+    ASSERT(L2b.value().rows() == 1);
+    ASSERT(L2b.value().cols() == EMB_SIZE);
 
-    ff.L1().W().value() <<
+    L1W.value() <<
       -0.3883,  0.2742, -0.4652, -0.1417,
       -0.0996, -0.4170, -0.0302,  0.1254,
       -0.2065,  0.0107,  0.3998,  0.3775;
-    ff.L2().W().value() <<
+    L2W.value() <<
        0.0348,  0.3779, -0.5751,
       -0.0708, -0.4522, -0.4000,
        0.3196,  0.2163,  0.5397,
       -0.1805,  0.0472, -0.4630;
 
-    ff.L1().b().value() <<
+    L1b.value() <<
       0.4282,  0.2099, -0.2209;
-    ff.L2().b().value() <<
+    L2b.value() <<
       -0.4660, -0.4707,  0.4046, -0.4392;
 
     Tensor ff_hat(TRG_SIZE, EMB_SIZE);
@@ -648,29 +695,29 @@ void test_position_wise_ff_backward()
       1., 1., 1., 1.;      
     ff.gradient() = dF;
     
-    Tensor dFdW1 = ff.L1().W().backward();
-    Tensor dFdW2 = ff.L2().W().backward();
-    Tensor dFdb1 = ff.L1().b().backward();
-    Tensor dFdb2 = ff.L2().b().backward();
+    Tensor dFdW1 = L1W.backward();
+    Tensor dFdW2 = L2W.backward();
+    Tensor dFdb1 = L1b.backward();
+    Tensor dFdb2 = L2b.backward();
     Tensor dFdx = x.backward();
 
-    Tensor dFdW1_num = g.dFdX(ff, ff.L1().W());
-    Tensor dFdW2_num = g.dFdX(ff, ff.L2().W());
-    Tensor dFdb1_num = g.dFdX(ff, ff.L1().b());
-    Tensor dFdb2_num = g.dFdX(ff, ff.L2().b());
+    Tensor dFdW1_num = g.dFdX(ff, L1W);
+    Tensor dFdW2_num = g.dFdX(ff, L2W);
+    Tensor dFdb1_num = g.dFdX(ff, L1b);
+    Tensor dFdb2_num = g.dFdX(ff, L2b);
     Tensor dFdx_num = g.dFdX(ff, x);
         
-    Tensor dFdW1_hat(HID_SIZE, EMB_SIZE);
+    Tensor dFdW1_hat(FF_SIZE, EMB_SIZE);
     dFdW1_hat <<
       0.0213,  0.0101,  0.1494,  0.0358,
       0.2496,  0.1237,  1.1491,  0.3449,
       -0.7570, -0.3846, -2.4491, -0.9172;    
 
-    Tensor dFdb1_hat(1, HID_SIZE);
+    Tensor dFdb1_hat(1, FF_SIZE);
     dFdb1_hat <<
       0.2423,  1.8900, -4.0972;
 
-    Tensor dFdW2_hat(EMB_SIZE, HID_SIZE);
+    Tensor dFdW2_hat(EMB_SIZE, FF_SIZE);
     dFdW2_hat <<
       0.4887, 1.0049, 0.3901,
       0.0977, 0.2701, 0.1353,
@@ -772,6 +819,46 @@ void test_positional_encoding_backward()
     TEST_END()
 }
 
+void test_encoder_layer_forward()
+{
+    TEST_BEGIN("EncoderLayer Forward")
+
+    int EMB_SIZE = 4;
+    int SEQ_SIZE = 5;
+    int NUM_HEADS = 2;
+    int FF_SIZE = 3;
+    DTYPE dropout = 0.0;
+
+    Graph g;
+
+    auto& x = *g.new_variable(SEQ_SIZE, EMB_SIZE, "x");
+    x.value() <<
+      1,2,3,4,
+      5,6,7,8,
+      0.0878, 0.0416, 0.6166, 0.1477,
+      -0.3883,  0.2742, -0.4652, -0.1417,
+      0.5300, 0.2800, 0.5306, 0.4950;
+
+    EncoderLayer el(g, x, nullptr,
+      SEQ_SIZE, EMB_SIZE, NUM_HEADS, FF_SIZE, dropout);
+
+    print(g);
+
+    auto y = el();
+
+    Tensor y_hat(SEQ_SIZE, EMB_SIZE);
+    y_hat <<
+      1.0000,  3.0000,  3.0000,  5.0000,
+      5.8415,  6.5403,  7.0100,  9.0000,
+      0.9971, -0.3745,  0.6366,  1.1475,
+      -0.2472, -0.7158, -0.4352,  0.8579,
+      -0.2268, -0.3736,  0.5706,  1.4942;
+
+    ASSERT(y.isApprox(y_hat, 0.0001))
+
+    TEST_END()
+}
+
 int main(int argc, char* argv[]) {
 
     //test_cnpy();
@@ -785,6 +872,7 @@ int main(int argc, char* argv[]) {
     test_position_wise_ff_backward();
     test_positional_encoding_forward();
     test_positional_encoding_backward();
+    test_encoder_layer_forward();
 
     return 0;
 }

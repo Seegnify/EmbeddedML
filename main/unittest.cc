@@ -25,7 +25,7 @@ using namespace seegnify;
 // Helper functions
 /////////////////////////////////////////
 
-void print(const char* name, const Tensor& tensor)
+void print(const std::string& name, const Tensor& tensor)
 {
   std::cout << name
   << " [" << tensor.rows() << " x " << tensor.cols() << "]"
@@ -33,7 +33,7 @@ void print(const char* name, const Tensor& tensor)
   std::cout << tensor << std::endl;
 }
 
-void print(const char* name, const SparseTensor& tensor)
+void print(const std::string& name, const SparseTensor& tensor)
 {
   std::cout << name
   << " [" << tensor.rows() << " x " << tensor.cols() << "]"
@@ -41,12 +41,12 @@ void print(const char* name, const SparseTensor& tensor)
   std::cout << tensor << std::endl;
 }
 
-void print(const char* name, Function& f)
+void print(const std::string& name, Function& f)
 {
   print(name, f.forward());
 }
 
-void print(const char* name, const Image& image)
+void print(const std::string& name, const Image& image)
 {
   std::cout << name
   << " [" << image.rows() << " x " << image.cols() << "]"

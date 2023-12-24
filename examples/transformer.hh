@@ -118,20 +118,20 @@ public:
     const int D = emb_size / num_heads;
 
     // projection matrices
-    _Wq = g.new_variable(E, E);
-    _Wk = g.new_variable(E, E);
-    _Wv = g.new_variable(E, E);
-    _Wo = g.new_variable(E, E);
+    auto Wq = g.new_variable(E, E, "MHA.Wq");
+    auto Wk = g.new_variable(E, E, "MHA.Wk");
+    auto Wv = g.new_variable(E, E, "MHA.Wv");
+    auto Wo = g.new_variable(E, E, "MHA.Wo");
 
     // projection bias
-    _bq = (bias) ? g.new_variable(1, E) : nullptr;
-    _bk = (bias) ? g.new_variable(1, E) : nullptr;
-    _bv = (bias) ? g.new_variable(1, E) : nullptr;
-    _bo = (bias) ? g.new_variable(1, E) : nullptr;
+    auto bq = (bias) ? g.new_variable(1, E, "MHA.bq") : nullptr;
+    auto bk = (bias) ? g.new_variable(1, E, "MHA.bk") : nullptr;
+    auto bv = (bias) ? g.new_variable(1, E, "MHA.bv") : nullptr;
+    auto bo = (bias) ? g.new_variable(1, E, "MHA.bo") : nullptr;
 
-    auto q_heads = split_heads(linear(q, _Wq, _bq), H, S, D);
-    auto k_heads = split_heads(linear(k, _Wk, _bk), H, S, D);
-    auto v_heads = split_heads(linear(v, _Wv, _bv), H, S, D);
+    auto q_heads = split_heads(linear(q, Wq, bq), H, S, D);
+    auto k_heads = split_heads(linear(k, Wk, bk), H, S, D);
+    auto v_heads = split_heads(linear(v, Wv, bv), H, S, D);
 
     std::vector<Function*> heads(num_heads, nullptr);
 
@@ -144,7 +144,7 @@ public:
     }
 
     auto& joined = join_heads(heads, S, H);
-    _attention = &linear(joined, _Wo, _bo);
+    _attention = &linear(joined, Wo, bo);
 
     _attention->derivative(_graph.new_iderivative(*this));
   }
@@ -160,17 +160,6 @@ public:
     return _value;
   }
   
-  // variable access
-  Variable& Wq() { return *_Wq; }
-  Variable& Wk() { return *_Wk; }
-  Variable& Wv() { return *_Wv; }
-  Variable& Wo() { return *_Wo; }
-  
-  Variable& bq() { return *_bq; }
-  Variable& bk() { return *_bk; }
-  Variable& bv() { return *_bv; }
-  Variable& bo() { return *_bo; }
-
 private:
   Function& linear(Function& x, Function* W, Function* b)
   {
@@ -230,8 +219,6 @@ private:
   }
 
 private:
-  Variable *_Wq, *_Wk, *_Wv, *_Wo;
-  Variable *_bq, *_bk, *_bv, *_bo;
   Function *_attention;
 };
 
@@ -246,14 +233,13 @@ public:
     Graph& g, Function& x, int emb_size, int ff_size, DTYPE dropout = 0.0) :
     Function(g)
   {
-    _l1 = g.new_linear(x, emb_size, ff_size);
-    _y = g.new_relu(*_l1);
+    _y = g.new_linear(x, emb_size, ff_size, true, "ff_l1");
+    _y = g.new_relu(*_y);
     if (dropout > 0)
     {
       _y = g.new_dropout(*_y, dropout);
     }
-    _l2 = g.new_linear(*_y, ff_size, emb_size);
-    _y = _l2;
+    _y = g.new_linear(*_y, ff_size, emb_size, true, "ff_l2");
 
     _y->derivative(g.new_iderivative(*this));
   }
@@ -268,13 +254,7 @@ public:
     return _value;
   }
 
-  // variable access
-  Linear& L1() { return *_l1; }
-  Linear& L2() { return *_l2; }
-
 private:
-  Linear *_l1;
-  Linear* _l2;
   Function* _y;
 };
 
@@ -338,14 +318,16 @@ public:
   {
     _y = new MultiHeadAttention(g, x, x, x, mask,
       seq_size, seq_size, emb_size, num_heads, true, dropout);
-    g.keep(_y);
+    g.keep(_y, "EL.MHA");
 
-    auto n = g.new_norm(x + *g.new_dropout(*_y, dropout));
+    auto n = g.new_norm(x + *g.new_dropout(*_y, dropout),
+      seq_size, emb_size, EPSILON, "EL.Norm1");
 
     _y = new PositionWiseFeedForward(g, *n, emb_size, ff_size, dropout);
-    g.keep(_y);
+    g.keep(_y, "EL.FF");
 
-    _y = g.new_norm(*n + *g.new_dropout(*_y, dropout));
+    _y = g.new_norm(*n + *g.new_dropout(*_y, dropout),
+      seq_size, emb_size, EPSILON, "EL.Norm2");
 
     _y->derivative(g.new_iderivative(*this));
   }

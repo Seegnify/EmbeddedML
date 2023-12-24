@@ -824,6 +824,9 @@ public:
   // get function by name
   Function* function(const char* name) const;
 
+  // graph nodes
+  const std::vector<Function*>& nodes() const { return _nodes; }
+
   // graph variables
   const std::vector<Variable*>& variables() const { return _vars; }
 
@@ -1139,17 +1142,19 @@ public:
     return node;
   }
 
-  Norm* new_norm(Function& x, int rows = -1, int cols = -1, DTYPE eps = EPSILON)
+  Norm* new_norm(Function& x, int rows = -1, int cols = -1, DTYPE eps = EPSILON,
+  const char* name = nullptr)
   {
     auto node = new Norm(*this, x, rows, cols, eps);
-    keep(node);
+    keep(node, name);
     return node;
   }
 
-  Norm* new_norm(Function& x, const Norm& other)
+  Norm* new_norm(Function& x, const Norm& other,
+  const char* name = nullptr)
   {
     auto node = new Norm(*this, x, other);
-    keep(node);
+    keep(node, name);
     return node;
   }
 
