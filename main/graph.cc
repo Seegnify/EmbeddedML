@@ -15,6 +15,7 @@
  */
 
 #include <iostream>
+#include <iterator>
 
 // Array.erf
 #include <unsupported/Eigen/SpecialFunctions>
@@ -842,13 +843,13 @@ Linear::Linear(Graph& graph, Function& x, int in, int out, bool bias) :
 Function(graph)
 {
   // construct new variables
-  _W = graph.new_variable(out, in);
+  _W = graph.new_variable(out, in, "W");
 
   // col major
   // _b = (bias) ? graph.new_variable(out, 1) : nullptr;
 
   // row major
-  _b = (bias) ? graph.new_variable(1, out) : nullptr;
+  _b = (bias) ? graph.new_variable(1, out, "b") : nullptr;
 
   init(x);
 }
@@ -3195,10 +3196,14 @@ void Graph::clear()
 // set function name
 Function* Graph::name(Function* f, const char* name)
 {
-  auto fit = std::find(_nodes.begin(), _nodes.end(), f);
-  if (fit != _nodes.end())
+  if (f == nullptr || name == nullptr)
+    return nullptr;
+
+  auto it = std::find(_nodes.begin(), _nodes.end(), f);
+  if (it != _nodes.end())
   {
-    return _names[name] = f;
+    _names[it - _nodes.begin()] = name;
+    return *it;
   }
   else
   {
@@ -3212,19 +3217,22 @@ Function* Graph::function(const char* name) const
   if (name == nullptr)
     return nullptr;
 
-  auto it = _names.find(name);
-  if (it == _names.end())
-    return nullptr;
+  auto it = std::find(_names.begin(), _names.end(), name);
+  if (it != _names.end())
+  {
+    return _nodes[it - _names.begin()];
+  }
   else
-    return it->second;
+  {
+    return nullptr;
+  }
 }
 
 // track function
 void Graph::keep(Function* f, const char* name)
 {
   _nodes.push_back(f);
-  if (name != nullptr)
-    _names[name] = f;
+  _names.push_back((name) ? name : "");
 }
 
 // track variable
@@ -3232,8 +3240,7 @@ void Graph::keep(Variable* v, const char* name)
 {
   _nodes.push_back(v);
   _vars.push_back(v);
-  if (name != nullptr)
-    _names[name] = v;
+  _names.push_back((name) ? name : "");
 }
 
 // reset cache

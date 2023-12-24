@@ -800,21 +800,12 @@ public:
   NoValueException() : std::runtime_error("NoValueException") {}
 };
 
-// Gradient Aggregator
-class Aggregator
-{
-public:
-  virtual void aggregate(
-  Tensor& g, const std::vector<Function*>& derivative) const = 0;
-};
-
 // Function Graph
-class Graph : public Aggregator
+class Graph
 {
 public:
   Graph()
   {
-    _aggregator = this;
   }
 
   virtual ~Graph()
@@ -835,6 +826,9 @@ public:
 
   // graph variables
   const std::vector<Variable*>& variables() const { return _vars; }
+
+  // node names
+  const std::vector<std::string>& names() const { return _names; }
 
   // track function
   void keep(Function* f, const char* name = nullptr);
@@ -890,27 +884,20 @@ public:
     return node;
   }
 
-  Constant* new_constant(int rows = 0, int cols = 0)
+  Constant* new_constant(int rows = 0, int cols = 0,
+  const char* name = nullptr)
   {
     auto node = new Constant(*this, rows, cols);
-    keep(node);
+    keep(node, name);
     return node;
   }
 
   Variable* new_variable(int rows = 0, int cols = 0,
   const char* name = nullptr)
   {
-    auto other = function(name);
-    if (other)
-    {
-      return (Variable*)other;
-    }
-    else
-    {
-      auto node = new Variable(*this, rows, cols);
-      keep(node, name);
-      return node;
-    }
+    auto node = new Variable(*this, rows, cols);
+    keep(node, name);
+    return node;
   }
 
   Broadcast* new_broadcast(Function& x, Function& target)
@@ -958,23 +945,16 @@ public:
   Linear* new_linear(Function& x, int in = 0, int out = 0, bool bias = true,
   const char* name = nullptr)
   {
-    auto other = function(name);
-    if (other)
-    {
-      return new_linear(x, (Linear&)*other);
-    }
-    else
-    {
-      auto node = new Linear(*this, x, in, out, bias);
-      keep(node, name);
-      return node;
-    }
+    auto node = new Linear(*this, x, in, out, bias);
+    keep(node, name);
+    return node;
   }
 
-  Linear* new_linear(Function& x, const Linear& other)
+  Linear* new_linear(Function& x, const Linear& other,
+  const char* name = nullptr)
   {
     auto node = new Linear(*this, x, other);
-    keep(node);
+    keep(node, name);
     return node;
   }
 
@@ -1107,69 +1087,48 @@ public:
   GRU* new_gru(Function& x, Function& h, int in = 0, int out = 0,
   const char* name = nullptr)
   {
-    auto other = function(name);
-    if (other)
-    {
-      return new_gru(x, h, (GRU&)*other);
-    }
-    else
-    {
-      auto node = new GRU(*this, x, h, in, out);
-      keep(node, name);
-      return node;
-    }
+    auto node = new GRU(*this, x, h, in, out);
+    keep(node, name);
+    return node;
   }
 
-  GRU* new_gru(Function& x, Function& h, const GRU& other)
+  GRU* new_gru(Function& x, Function& h, const GRU& other,
+  const char* name = nullptr)
   {
     auto node = new GRU(*this, x, h, other);
-    keep(node);
+    keep(node, name);
     return node;
   }
 
   AGRU* new_agru(Function& x, Function& h, int in = 0, int out = 0,
   const char* name = nullptr)
   {
-    auto other = function(name);
-    if (other)
-    {
-      return new_agru(x, h, (AGRU&)*other);
-    }
-    else
-    {
-      auto node = new AGRU(*this, x, h, in, out);
-      keep(node, name);
-      return node;
-    }
+    auto node = new AGRU(*this, x, h, in, out);
+    keep(node, name);
+    return node;
   }
 
-  AGRU* new_agru(Function& x, Function& h, const AGRU& other)
+  AGRU* new_agru(Function& x, Function& h, const AGRU& other,
+  const char* name = nullptr)
   {
     auto node = new AGRU(*this, x, h, other);
-    keep(node);
+    keep(node, name);
     return node;
   }
 
   LSTM* new_lstm(Function& x, Function& h, Function& c, int in = 0, int out = 0,
   const char* name = nullptr)
   {
-    auto other = function(name);
-    if (other)
-    {
-      return new_lstm(x, h, c, (LSTM&)*other);
-    }
-    else
-    {
-      auto node = new LSTM(*this, x, h, c, in, out);
-      keep(node, name);
-      return node;
-    }
+    auto node = new LSTM(*this, x, h, c, in, out);
+    keep(node, name);
+    return node;
   }
 
-  LSTM* new_lstm(Function& x, Function& h, Function& c, const LSTM& other)
+  LSTM* new_lstm(Function& x, Function& h, Function& c, const LSTM& other,
+  const char* name = nullptr)
   {
     auto node = new LSTM(*this, x, h, c, other);
-    keep(node);
+    keep(node, name);
     return node;
   }
 
@@ -1180,20 +1139,11 @@ public:
     return node;
   }
 
-  Norm* new_norm(Function& x, int rows = -1, int cols = -1, DTYPE eps = EPSILON,
-  const char* name = nullptr)
+  Norm* new_norm(Function& x, int rows = -1, int cols = -1, DTYPE eps = EPSILON)
   {
-    auto other = function(name);
-    if (other)
-    {
-      return new_norm(x, (Norm&)*other);
-    }
-    else
-    {
-      auto node = new Norm(*this, x, rows, cols, eps);
-      keep(node);
-      return node;
-    }
+    auto node = new Norm(*this, x, rows, cols, eps);
+    keep(node);
+    return node;
   }
 
   Norm* new_norm(Function& x, const Norm& other)
@@ -1217,20 +1167,11 @@ public:
     return node;
   }
 
-  Embedding* new_embedding(Constant& i, int in = 0, int out = 0,
-  const char* name = nullptr)
+  Embedding* new_embedding(Constant& i, int in = 0, int out = 0)
   {
-    auto other = function(name);
-    if (other)
-    {
-      return new_embedding(i, (Embedding&)*other);
-    }
-    else
-    {
-      auto node = new Embedding(*this, i, in, out);
-      keep(node, name);
-      return node;
-    }
+    auto node = new Embedding(*this, i, in, out);
+    keep(node);
+    return node;
   }
 
   Embedding* new_embedding(Constant& i, const Embedding& other)
@@ -1247,27 +1188,18 @@ public:
     const char* name = nullptr
   )
   {
-    auto other = function(name);
-    if (other)
-    {
-      return new_conv2d(x, (Conv2D&)*other);
-    }
-    else
-    {
-      auto node = new Conv2D(
-        *this, x, i_rows, i_cols,
-        i_channels, o_channels, k_rows, k_cols,
-        stride, padding, dilation
-      );
-      keep(node, name);
-      return node;
-    }
+    auto node = new Conv2D(*this, x, i_rows, i_cols,
+      i_channels, o_channels, k_rows, k_cols,
+      stride, padding, dilation);
+    keep(node, name);
+    return node;
   }
 
-  Conv2D* new_conv2d(Function& x, const Conv2D& other)
+  Conv2D* new_conv2d(Function& x, const Conv2D& other,
+  const char* name = nullptr)
   {
     auto node = new Conv2D(*this, x, other);
-    keep(node);
+    keep(node, name);
     return node;
   }
 
@@ -1287,10 +1219,9 @@ public:
 
 protected:
   RNG _rng;
-  Aggregator* _aggregator;
   std::vector<Function*> _nodes;
   std::vector<Variable*> _vars;
-  std::unordered_map<std::string, Function*> _names;
+  std::vector<std::string> _names;
 };
 
 } /* namespace */
