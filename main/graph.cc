@@ -2299,7 +2299,7 @@ Function(graph), _x(x), _epsilon(eps)
   else
   {
     _g = graph.new_variable(1, 1, "Norm.g");
-    _b = graph.new_variable(1, 1, "Norm.s");
+    _b = graph.new_variable(1, 1, "Norm.b");
   }
 
   _g->value() = Tensor::Ones(_g->value().rows(), _g->value().cols());

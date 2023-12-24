@@ -639,8 +639,8 @@ public:
   virtual const Tensor& forward();
 
   // variable access
-  Variable& g() { return *_g; }
-  Variable& b() { return *_b; }
+  Variable& G() { return *_g; }
+  Variable& B() { return *_b; }
 
 private:
   void init();
@@ -945,19 +945,17 @@ public:
     return node;
   }
 
-  Linear* new_linear(Function& x, int in = 0, int out = 0, bool bias = true,
-  const char* name = nullptr)
+  Linear* new_linear(Function& x, int in = 0, int out = 0, bool bias = true)
   {
     auto node = new Linear(*this, x, in, out, bias);
-    keep(node, name);
+    keep(node);
     return node;
   }
 
-  Linear* new_linear(Function& x, const Linear& other,
-  const char* name = nullptr)
+  Linear* new_linear(Function& x, const Linear& other)
   {
     auto node = new Linear(*this, x, other);
-    keep(node, name);
+    keep(node);
     return node;
   }
 
@@ -1087,51 +1085,45 @@ public:
     return node;
   }
 
-  GRU* new_gru(Function& x, Function& h, int in = 0, int out = 0,
-  const char* name = nullptr)
+  GRU* new_gru(Function& x, Function& h, int in = 0, int out = 0)
   {
     auto node = new GRU(*this, x, h, in, out);
-    keep(node, name);
+    keep(node);
     return node;
   }
 
-  GRU* new_gru(Function& x, Function& h, const GRU& other,
-  const char* name = nullptr)
+  GRU* new_gru(Function& x, Function& h, const GRU& other)
   {
     auto node = new GRU(*this, x, h, other);
-    keep(node, name);
+    keep(node);
     return node;
   }
 
-  AGRU* new_agru(Function& x, Function& h, int in = 0, int out = 0,
-  const char* name = nullptr)
+  AGRU* new_agru(Function& x, Function& h, int in = 0, int out = 0)
   {
     auto node = new AGRU(*this, x, h, in, out);
-    keep(node, name);
+    keep(node);
     return node;
   }
 
-  AGRU* new_agru(Function& x, Function& h, const AGRU& other,
-  const char* name = nullptr)
+  AGRU* new_agru(Function& x, Function& h, const AGRU& other)
   {
     auto node = new AGRU(*this, x, h, other);
-    keep(node, name);
+    keep(node);
     return node;
   }
 
-  LSTM* new_lstm(Function& x, Function& h, Function& c, int in = 0, int out = 0,
-  const char* name = nullptr)
+  LSTM* new_lstm(Function& x, Function& h, Function& c, int in = 0, int out = 0)
   {
     auto node = new LSTM(*this, x, h, c, in, out);
-    keep(node, name);
+    keep(node);
     return node;
   }
 
-  LSTM* new_lstm(Function& x, Function& h, Function& c, const LSTM& other,
-  const char* name = nullptr)
+  LSTM* new_lstm(Function& x, Function& h, Function& c, const LSTM& other)
   {
     auto node = new LSTM(*this, x, h, c, other);
-    keep(node, name);
+    keep(node);
     return node;
   }
 
@@ -1142,19 +1134,17 @@ public:
     return node;
   }
 
-  Norm* new_norm(Function& x, int rows = -1, int cols = -1, DTYPE eps = EPSILON,
-  const char* name = nullptr)
+  Norm* new_norm(Function& x, int rows = -1, int cols = -1, DTYPE eps = EPSILON)
   {
     auto node = new Norm(*this, x, rows, cols, eps);
-    keep(node, name);
+    keep(node);
     return node;
   }
 
-  Norm* new_norm(Function& x, const Norm& other,
-  const char* name = nullptr)
+  Norm* new_norm(Function& x, const Norm& other)
   {
     auto node = new Norm(*this, x, other);
-    keep(node, name);
+    keep(node);
     return node;
   }
 
@@ -1189,22 +1179,20 @@ public:
   Conv2D* new_conv2d(
     Function& x, int i_rows, int i_cols,
     int i_channels = 1, int o_channels = 1, int k_rows = 3, int k_cols = 3,
-    int stride = 1, int padding = 0, int dilation = 1,
-    const char* name = nullptr
+    int stride = 1, int padding = 0, int dilation = 1
   )
   {
     auto node = new Conv2D(*this, x, i_rows, i_cols,
       i_channels, o_channels, k_rows, k_cols,
       stride, padding, dilation);
-    keep(node, name);
+    keep(node);
     return node;
   }
 
-  Conv2D* new_conv2d(Function& x, const Conv2D& other,
-  const char* name = nullptr)
+  Conv2D* new_conv2d(Function& x, const Conv2D& other)
   {
     auto node = new Conv2D(*this, x, other);
-    keep(node, name);
+    keep(node);
     return node;
   }
 

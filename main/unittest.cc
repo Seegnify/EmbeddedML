@@ -46,6 +46,21 @@ void print(const std::string& name, Function& f)
   print(name, f.forward());
 }
 
+void print(const Graph& g)
+{
+  for (int i=0; i<g.names().size(); i++)
+  {
+    auto& name = g.names()[i];
+    if (name.size() > 0)
+    {
+      auto& tensor = g.nodes()[i]->forward();
+      std::cout << "node[" << i << "] " << name
+      << " [" << tensor.rows() << " x " << tensor.cols() << "]"
+      << std::endl;
+    }
+  }
+}
+
 void print(const std::string& name, const Image& image)
 {
   std::cout << name
@@ -2986,8 +3001,8 @@ void test_norm_backward()
   int COLS = x.value().cols();
 
   auto& N = *g.new_norm(x, ROWS, COLS);
-  auto& G = N.g();
-  auto& B = N.b();
+  auto& G = N.G();
+  auto& B = N.B();
 
   N.forward();
   N.gradient() = Tensor::Zero(ROWS, COLS);
