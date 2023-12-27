@@ -2293,16 +2293,16 @@ Function(graph), _x(x), _epsilon(eps)
 {
   if (rows * cols > 1)
   {
-    _g = graph.new_variable(rows, cols, "Norm.G");
+    _a = graph.new_variable(rows, cols, "Norm.A");
     _b = graph.new_variable(rows, cols, "Norm.B");
   }
   else
   {
-    _g = graph.new_variable(1, 1, "Norm.g");
+    _a = graph.new_variable(1, 1, "Norm.a");
     _b = graph.new_variable(1, 1, "Norm.b");
   }
 
-  _g->value() = Tensor::Ones(_g->value().rows(), _g->value().cols());
+  _a->value() = Tensor::Ones(_a->value().rows(), _a->value().cols());
   _b->value() = Tensor::Zero(_b->value().rows(), _b->value().cols());
 
   init();
@@ -2311,7 +2311,7 @@ Function(graph), _x(x), _epsilon(eps)
 Norm::Norm(Graph& graph, Function& x, const Norm& other) :
 Function(graph), _x(x), _epsilon(other._epsilon)
 {
-  _g = other._g;
+  _a = other._a;
   _b = other._b;
 
   init();
@@ -2329,22 +2329,22 @@ void Norm::init()
 
   _N = &(x_mean / *_graph.new_broadcast(std, x_mean));
 
-  if (_g->value().size() > 1 && _b->value().size() > 1)
+  if (_a->value().size() > 1 && _b->value().size() > 1)
   {
-    _N = &(*_N * *_g + *_b);
+    _N = &(*_N * *_a + *_b);
   }
   else
   {
-    auto g = _graph.new_broadcast(*_g, *_N);
+    auto a = _graph.new_broadcast(*_a, *_N);
     auto b = _graph.new_broadcast(*_b, *_N);
 
-    _N = &(*_N * *g + *b);
+    _N = &(*_N * *a + *b);
   }
 
   _N->derivative(_graph.new_iderivative(*this));
 }
 
-// F = g * (x - m) / s - b
+// F = a * (x - m) / s - b
 const Tensor& Norm::forward()
 {
   // return cached value

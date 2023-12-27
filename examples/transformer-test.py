@@ -71,18 +71,18 @@ def test_scaled_dot_product_attention():
     #print("\nMask Matrix (V):\n", M, M.dtype)
 
     # Apply multihead attention
-    attention = scaled_dot_product_attention(Q, K, V, M, dropout)
+    attn = scaled_dot_product_attention(Q, K, V, M, dropout)
 
-    print("\nSinglehead Attention Output:\n", attention)
+    print("Output:\n", attn)
 
-    attn_grad = torch.ones_like(attention);
+    attn_grad = torch.ones_like(attn);
     attn_grad[0,0] = 5
     print("attn_grad", attn_grad)
-    attention.backward(attn_grad)
+    attn.backward(attn_grad)
 
-    print("\Qient:\n", Q.grad)
-    print("\K gradient:\n", K.grad)
-    print("\V gradient:\n", V.grad)
+    print("Q gradient:\n", Q.grad)
+    print("K gradient:\n", K.grad)
+    print("V gradient:\n", V.grad)
 
 
 def test_multihead_attention():
@@ -168,8 +168,9 @@ def test_my_multihead_attention():
     print("=== test_my_multihead_attention")
     embed_size = 4
     num_heads = 2
+    dropout = 0.0
         
-    attention = transformer.MultiHeadAttention(embed_size, num_heads)
+    attention = transformer.MultiHeadAttention(embed_size, num_heads, dropout)
 
     q = torch.tensor(
         [[[0.0878, 0.0416, 0.6166, 0.1477],
@@ -269,7 +270,7 @@ def test_position_wise_feed_forward():
     hidden_size = 3
     dropout = 0.0
 
-    model = transformer.PositionwiseFeedForward(embed_size, hidden_size, dropout)
+    model = transformer.PositionWiseFeedForward(embed_size, hidden_size, dropout)
 
     x = torch.tensor(
         [[[0.0878, 0.0416, 0.6166, 0.1477],
@@ -375,6 +376,7 @@ def test_positional_encoding():
     for name, grad in gradients.items():
         print(f'Gradient for {name}:\n{grad}')
 
+
 def test_grad():
   import torch
   import torch.nn as nn
@@ -459,22 +461,43 @@ def test_softmax():
 
 def test_layernorm():
     print("=== test_layernorm")
-    Q = torch.tensor([
+    x = torch.tensor([
         [1.0,2,3],
         [4,5,6],
     ], requires_grad=True)
-    print("Q", Q)
+    print("x", x)
 
-    N = torch.nn.LayerNorm(Q.shape)
-    NQ = N(Q)
-    print("N", NQ)
+    model = torch.nn.LayerNorm(x.shape)
 
-    NQ_grad = torch.zeros_like(NQ);
-    NQ_grad[0][0] = 1
-    print("N(Q).grad", NQ_grad)
+    print("Start Params")
+    params = model.state_dict()    
+    for name in params:
+        print("name:", name)
+        param = params[name]
+        print("shape:", param.shape)
+        print(param)
+    print("End Params")
 
-    NQ.backward(NQ_grad)
-    print("dNdQ.grad", Q.grad)
+    A = model(x)
+    print("output")
+    print(A)
+
+    dA = torch.ones_like(A)
+    dA[0,0] = 5
+    print("dA", dA)
+
+    A.backward(dA)
+    print("dAdx", x.grad)
+    print("x.grad", x.grad)
+
+    # Collect gradients
+    gradients = {}
+    for name, param in model.named_parameters():
+        gradients[name] = param.grad.clone()
+
+    # Print or use the gradients as needed
+    for name, grad in gradients.items():
+        print(f'Gradient for {name}:\n{grad}')
 
 def test_linear():
     print("=== test_linear")
@@ -505,13 +528,121 @@ def test_linear():
     y = model(x)
     print("y", y)
 
+
+def test_encoder_layer():
+    print("=== test_encoder_layer")
+    emb_size = 4
+    num_heads = 2
+    ff_size = 3
+    dropout = 0.0
+    
+    model = transformer.EncoderLayer(emb_size, num_heads, ff_size, dropout)
+    params = model.state_dict()
+
+    x = torch.tensor(
+        [[[1,2,3,4],
+          [5,6,7,8],
+          [0.0878, 0.0416, 0.6166, 0.1477],
+          [-0.3883,  0.2742, -0.4652, -0.1417],
+          [0.5300, 0.2800, 0.5306, 0.4950]]],
+         requires_grad=True
+    )
+    print("x", x.shape, x)
+    
+    # attention mask on q,k.T product
+    mask = torch.ones((x.shape[0],x.shape[1],x.shape[1])).bool()
+    print("mask", mask.shape, mask)
+
+    params = model.state_dict()
+    params["self_attn.W_q.weight"][:,:] = torch.tensor(
+            [[-0.2321, -0.4785, -0.4598, -0.1860],
+            [ 0.4576,  0.4961, -0.0903, -0.4833],
+            [-0.1442,  0.3495,  0.4236, -0.0846],
+            [-0.3082,  0.0956, -0.2470,  0.3061]])
+    params["self_attn.W_q.bias"][:] = torch.tensor(
+            [-0.3717, -0.1179, -0.0096, -0.4240])
+    params["self_attn.W_k.weight"][:,:] = torch.tensor(
+           [[-0.2321, -0.4785, -0.4598, -0.1860],
+            [ 0.4576,  0.4961, -0.0903, -0.4833],
+            [-0.1442,  0.3495,  0.4236, -0.0846],
+            [-0.3082,  0.0956, -0.2470,  0.3061]])
+    params["self_attn.W_k.bias"][:] = torch.tensor(
+           [-0.3717, -0.1179, -0.0096, -0.4240])
+    params["self_attn.W_v.weight"][:,:] = torch.tensor(
+           [[-0.2321, -0.4785, -0.4598, -0.1860],
+            [ 0.4576,  0.4961, -0.0903, -0.4833],
+            [-0.1442,  0.3495,  0.4236, -0.0846],
+            [-0.3082,  0.0956, -0.2470,  0.3061]])
+    params["self_attn.W_v.bias"][:] = torch.tensor(
+           [-0.3717, -0.1179, -0.0096, -0.4240])
+    params["self_attn.W_o.weight"][:,:] = torch.tensor(
+           [[-0.2321, -0.4785, -0.4598, -0.1860],
+            [ 0.4576,  0.4961, -0.0903, -0.4833],
+            [-0.1442,  0.3495,  0.4236, -0.0846],
+            [-0.3082,  0.0956, -0.2470,  0.3061]])
+    params["self_attn.W_o.bias"][:] = torch.tensor(
+           [-0.3717, -0.1179, -0.0096, -0.4240])
+    params["feed_forward.w_1.weight"][:,:] = torch.tensor(
+           [[-0.4208,  0.2836, -0.1770,  0.3684],
+            [ 0.3448,  0.4124, -0.2545,  0.2874],
+            [-0.4372,  0.4165, -0.2362,  0.1144]])
+    params["feed_forward.w_1.bias"][:] = torch.tensor(
+            [ 0.2621, -0.3262,  0.4815])
+    params["feed_forward.w_2.weight"][:,:] = torch.tensor(
+            [[-0.3926, -0.1717,  0.2300],
+            [ 0.0701,  0.3166, -0.2458],
+            [ 0.1431, -0.3391,  0.5407],
+            [ 0.4126, -0.3719,  0.5352]])
+    params["feed_forward.w_2.bias"][:] = torch.tensor(
+          [-0.5333, -0.0515, -0.1337,  0.0297])
+    """
+    params["norm1.weight"][:] = torch.tensor(
+          [1., 1., 1., 1.])
+    params["norm1.bias"][:] = torch.tensor(
+          [0., 0., 0., 0.])
+    params["norm2.weight"][:] = torch.tensor(
+          [1., 1., 1., 1.])
+    params["norm2.bias"][:] = torch.tensor(
+          [0., 0., 0., 0.])
+    """
+
+    print("Start Params")
+    for name in params:
+        print("name:", name)
+        param = params[name]
+        print("shape:", param.shape)
+        print(param)
+    print("End Params")
+
+    A = model(x, mask)
+    print("output")
+    print(A)
+
+    dA = torch.ones_like(A)
+    dA[0,0,0] = 5
+    print("dA", dA)
+
+    A.backward(dA)
+    print("dAdx", x.grad)
+
+    # Collect gradients
+    gradients = {}
+    for name, param in model.named_parameters():
+        gradients[name] = param.grad.clone()
+
+    # Print or use the gradients as needed
+    for name, grad in gradients.items():
+        print(f'Gradient for {name}:\n{grad}')
+
+
 if __name__ == "__main__":
-    test_softmax()
+    #test_softmax()
     #test_scaled_dot_product_attention()
     #test_multihead_attention()
     #test_my_multihead_attention()
     #test_position_wise_feed_forward()
     #test_positional_encoding()
+    test_encoder_layer()
     #test_layernorm()
     #test_grad()
     #test_linear()

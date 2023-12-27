@@ -7,8 +7,26 @@ import math
 import copy
 import numpy as np
 
+def scaled_dot_product_attention(query, key, value, attn_mask=None, dropout=0.0, scale=None) -> torch.Tensor:
+    # Efficient implementation equivalent to the following:
+    L, S = query.size(-2), key.size(-2)
+    print("L=", L, "S=", S, "D=", query.size(-1))
+    scale_factor = 1 / math.sqrt(query.size(-1)) if scale is None else scale
+
+    attn_weight = query @ key.transpose(-2, -1) * scale_factor
+    if attn_mask is not None:
+        print("\nattn_weight:\n", attn_weight.shape)
+        print("\nattn_mask:\n", attn_mask.shape)
+        attn_weight.masked_fill(attn_mask.logical_not(), float("-inf"))
+    print("\nattention (A before softmax):\n", attn_weight.shape)
+    attn_weight = torch.softmax(attn_weight, dim=-1)
+    print("\nattention (A after softmax):\n", attn_weight.shape)
+    print(attn_weight)
+    attn_weight = torch.dropout(attn_weight, dropout, train=True)
+    return attn_weight @ value
+
 class MultiHeadAttention(nn.Module):
-    def __init__(self, d_model, num_heads):
+    def __init__(self, d_model, num_heads, dropout=0.1):
         super(MultiHeadAttention, self).__init__()
         assert d_model % num_heads == 0, "d_model must be divisible by num_heads"
         
@@ -20,13 +38,20 @@ class MultiHeadAttention(nn.Module):
         self.W_k = nn.Linear(d_model, d_model)
         self.W_v = nn.Linear(d_model, d_model)
         self.W_o = nn.Linear(d_model, d_model)
+        self.dropout = nn.Dropout(p=dropout)
+        print("=== dropout", dropout)
         
     def scaled_dot_product_attention(self, Q, K, V, mask=None):
         attn_scores = torch.matmul(Q, K.transpose(-2, -1)) / math.sqrt(self.d_k)
         if mask is not None:
-            attn_scores = attn_scores.masked_fill(mask == 0, -1e9)
+            print("\aattn_scores:\n", attn_scores.shape)
+            print("\nmask:\n", mask.shape)
+            attn_scores = attn_scores.masked_fill(mask == 0, float("-inf"))
+        print("\nattention (A before softmax):\n", attn_scores.shape)
         attn_probs = torch.softmax(attn_scores, dim=-1)
-        output = torch.matmul(attn_probs, V)
+        print("\nattention (A after softmax):\n", attn_probs.shape)
+        print(attn_probs)
+        output = torch.matmul(self.dropout(attn_probs), V)
         return output
         
     def split_heads(self, x):
@@ -45,7 +70,8 @@ class MultiHeadAttention(nn.Module):
         K = self.split_heads(self.W_k(K))
         V = self.split_heads(self.W_v(V))
         
-        attn_output = self.scaled_dot_product_attention(Q, K, V, mask)
+        #attn_output = self.scaled_dot_product_attention(Q, K, V, mask)
+        attn_output = scaled_dot_product_attention(Q, K, V, mask)
         cobined_heads = self.combine_heads(attn_output)
         output = self.W_o(cobined_heads)
         return output
@@ -95,8 +121,8 @@ class PositionalEncoding(nn.Module):
 class EncoderLayer(nn.Module):
     def __init__(self, d_model, num_heads, d_ff, dropout):
         super(EncoderLayer, self).__init__()
-        self.self_attn = MultiHeadAttention(d_model, num_heads)
-        self.feed_forward = PositionWiseFeedForward(d_model, d_ff)
+        self.self_attn = MultiHeadAttention(d_model, num_heads, dropout)
+        self.feed_forward = PositionWiseFeedForward(d_model, d_ff, dropout)
         self.norm1 = nn.LayerNorm(d_model)
         self.norm2 = nn.LayerNorm(d_model)
         self.dropout = nn.Dropout(dropout)
@@ -144,7 +170,13 @@ class Transformer(nn.Module):
         self.dropout = nn.Dropout(dropout)
 
     def generate_mask(self, src, tgt):
+        print("generate_mask src", src.shape)
+        print("generate_mask (src != 0).shape", (src != 0).shape)
+        print("generate_mask (src != 0).unsqueeze(1).shape", (src != 0).unsqueeze(1).shape)
+        print("generate_mask src != 0).unsqueeze(1).unsqueeze(2)", (src != 0).unsqueeze(1).unsqueeze(2).shape)
+        #src_mask = (src != 0).unsqueeze(1).unsqueeze(2)
         src_mask = (src != 0).unsqueeze(1).unsqueeze(2)
+        print("generate_mask src", src_mask.shape)
         tgt_mask = (tgt != 0).unsqueeze(1).unsqueeze(3)
         seq_length = tgt.size(1)
         nopeak_mask = (1 - torch.triu(torch.ones(1, seq_length, seq_length), diagonal=1)).bool()
@@ -154,12 +186,9 @@ class Transformer(nn.Module):
     def forward(self, src, tgt):
         print("=== Transformer.forward()")
         print("=== src", src.shape)
-        print(src)
         src_mask, tgt_mask = self.generate_mask(src, tgt)
         print("=== src_mask", src_mask.shape, (src_mask == True).all())
-        print(src_mask)
         print("=== tgt_mask", tgt_mask.shape, (tgt_mask == True).all())
-        print(tgt_mask)
         src_embedded = self.dropout(self.positional_encoding(self.encoder_embedding(src)))
         tgt_embedded = self.dropout(self.positional_encoding(self.decoder_embedding(tgt)))
         print("=== src_embedded", src_embedded.shape)

@@ -69,13 +69,15 @@ public:
     auto& q = _q();
     auto& k = _k();
 
-    int L = q.rows(); // actual target length
+    // get input/output dimensions
+    int L = q.rows();
     int S = k.rows();
 
-    // init mask attention based on input size
+    // initialize default attention mask
     auto& b = _bias->value();
     b = Tensor::Zero(L, S);
 
+    // set custom attention mask
     if (_mask)
     {
       auto& m = _mask->forward();
@@ -233,13 +235,13 @@ public:
     Graph& g, Function& x, int emb_size, int ff_size, DTYPE dropout = 0.0) :
     Function(g)
   {
-    _y = g.new_linear(x, emb_size, ff_size, true, "ff_l1");
+    _y = g.new_linear(x, emb_size, ff_size, true);
     _y = g.new_relu(*_y);
     if (dropout > 0)
     {
       _y = g.new_dropout(*_y, dropout);
     }
-    _y = g.new_linear(*_y, ff_size, emb_size, true, "ff_l2");
+    _y = g.new_linear(*_y, ff_size, emb_size, true);
 
     _y->derivative(g.new_iderivative(*this));
   }
@@ -318,16 +320,14 @@ public:
   {
     _y = new MultiHeadAttention(g, x, x, x, mask,
       seq_size, seq_size, emb_size, num_heads, true, dropout);
-    g.keep(_y, "EL.MHA");
+    g.keep(_y);
 
-    auto n = g.new_norm(x + *g.new_dropout(*_y, dropout),
-      seq_size, emb_size, EPSILON, "EL.Norm1");
+    auto n = g.new_norm(x + *g.new_dropout(*_y, dropout), seq_size, emb_size);
 
     _y = new PositionWiseFeedForward(g, *n, emb_size, ff_size, dropout);
-    g.keep(_y, "EL.FF");
+    g.keep(_y);
 
-    _y = g.new_norm(*n + *g.new_dropout(*_y, dropout),
-      seq_size, emb_size, EPSILON, "EL.Norm2");
+    _y = g.new_norm(*n + *g.new_dropout(*_y, dropout), seq_size, emb_size);
 
     _y->derivative(g.new_iderivative(*this));
   }

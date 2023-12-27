@@ -46,7 +46,7 @@ void print(const std::string& name, Function& f)
   print(name, f.forward());
 }
 
-void print(const Graph& g)
+void print(const Graph& g, bool values = false)
 {
   for (int i=0; i<g.names().size(); i++)
   {
@@ -57,6 +57,10 @@ void print(const Graph& g)
       std::cout << "node[" << i << "] " << name
       << " [" << tensor.rows() << " x " << tensor.cols() << "]"
       << std::endl;
+      if (values)
+      {
+        std::cout << tensor << std::endl;  
+      }
     }
   }
 }
@@ -3001,7 +3005,7 @@ void test_norm_backward()
   int COLS = x.value().cols();
 
   auto& N = *g.new_norm(x, ROWS, COLS);
-  auto& G = N.G();
+  auto& A = N.A();
   auto& B = N.B();
 
   N.forward();
@@ -3009,7 +3013,7 @@ void test_norm_backward()
   N.gradient()(0) = 1;
 
   auto& dNdx = x.backward();
-  auto& dNdG = G.backward();
+  auto& dNdG = A.backward();
   auto& dNdB = B.backward();
 
   // partial torch derivative of N(0) wrt x
@@ -3022,9 +3026,9 @@ void test_norm_backward()
   auto dNdx_num = g.dFdX(N, x);
   ASSERT(dNdx.isApprox(dNdx_num, 0.1))
 
-  // partial numerical derivative of N(0) wrt G
-  auto dNdG_num = g.dFdX(N, G);
-  ASSERT(dNdG.isApprox(dNdG_num, 0.1))
+  // partial numerical derivative of N(0) wrt A
+  auto dNdA_num = g.dFdX(N, A);
+  ASSERT(dNdG.isApprox(dNdA_num, 0.1))
 
   // partial numerical derivative of N(0) wrt B
   auto dNdB_num = g.dFdX(N, B);

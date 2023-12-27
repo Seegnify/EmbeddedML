@@ -639,7 +639,7 @@ public:
   virtual const Tensor& forward();
 
   // variable access
-  Variable& G() { return *_g; }
+  Variable& A() { return *_a; }
   Variable& B() { return *_b; }
 
 private:
@@ -648,7 +648,7 @@ private:
 protected:
   const DTYPE _epsilon;
   Function &_x;
-  Variable *_g;
+  Variable *_a;
   Variable *_b;
   Function *_N;
   Constant *_H;

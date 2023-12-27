@@ -32,7 +32,7 @@ void print(const std::string& name, Function& f)
   print(name, f.forward());
 }
 
-void print(const Graph& g)
+void print(const Graph& g, bool values = false)
 {
   for (int i=0; i<g.names().size(); i++)
   {
@@ -43,6 +43,10 @@ void print(const Graph& g)
       std::cout << "node[" << i << "] " << name
       << " [" << tensor.rows() << " x " << tensor.cols() << "]"
       << std::endl;
+      if (values)
+      {
+        std::cout << tensor << std::endl;  
+      }
     }
   }
 }
@@ -839,11 +843,37 @@ void test_encoder_layer_forward()
       -0.3883,  0.2742, -0.4652, -0.1417,
       0.5300, 0.2800, 0.5306, 0.4950;
 
+    auto& mask = *g.new_constant(SEQ_SIZE, SEQ_SIZE, "mask");
+    mask.value() = Tensor::Ones(SEQ_SIZE, SEQ_SIZE);
+    
+    print("x", x);
+    print("mask", mask);
+
     EncoderLayer el(g, x, nullptr,
       SEQ_SIZE, EMB_SIZE, NUM_HEADS, FF_SIZE, dropout);
 
-    print(g);
+    //print(g);
+    auto& Wq = *(Variable*)g.function("MHA.Wq");
+    auto& Wk = *(Variable*)g.function("MHA.Wk");
+    auto& Wv = *(Variable*)g.function("MHA.Wv");
+    auto& Wo = *(Variable*)g.function("MHA.Wo");
 
+    auto& bq = *(Variable*)g.function("MHA.bq");
+    auto& bk = *(Variable*)g.function("MHA.bk");
+    auto& bv = *(Variable*)g.function("MHA.bv");
+    auto& bo = *(Variable*)g.function("MHA.bo");
+
+    auto& ffL1w = *(Variable*)g.nodes()[250];
+    auto& ffL1b = *(Variable*)g.nodes()[251];
+    auto& ffL2w = *(Variable*)g.nodes()[272];
+    auto& ffL2b = *(Variable*)g.nodes()[273];
+
+    auto& N1a = *(Variable*)g.nodes()[186];
+    auto& N1b = *(Variable*)g.nodes()[187];
+    auto& N2a = *(Variable*)g.nodes()[293];
+    auto& N2b = *(Variable*)g.nodes()[294];
+
+    
     auto y = el();
 
     Tensor y_hat(SEQ_SIZE, EMB_SIZE);
@@ -872,7 +902,7 @@ int main(int argc, char* argv[]) {
     test_position_wise_ff_backward();
     test_positional_encoding_forward();
     test_positional_encoding_backward();
-    test_encoder_layer_forward();
+    test_encoder_layer_forward();    
 
     return 0;
 }
