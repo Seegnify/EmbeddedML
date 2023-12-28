@@ -123,6 +123,10 @@ public:
   Rowwise(Graph& graph, Function& x, int rows, int cols,
   std::function<Function*(Function& block)> ctor);
 
+  Rowwise(Graph& graph, Function& x, int rows, int cols,
+  std::function<Function*(Function& block)> shared_ctor,
+  std::function<Function*(Function& block, Function& shared)> ctor);
+
   virtual const Tensor& forward();
 
 protected:
@@ -135,6 +139,10 @@ class Colwise : public Function
 public:
   Colwise(Graph& graph, Function& x, int rows, int cols,
   std::function<Function*(Function& block)> ctor);
+
+  Colwise(Graph& graph, Function& x, int rows, int cols,
+  std::function<Function*(Function& block)> shared_ctor,
+  std::function<Function*(Function& block, Function& shared)> ctor);
 
   virtual const Tensor& forward();
 
@@ -879,10 +887,28 @@ public:
     return node;
   }
 
+  Function* new_rowwise(Function& x, int rows, int cols,
+  std::function<Function*(Function& block)> shared_ctor,
+  std::function<Function*(Function& block, Function& shared)> ctor)
+  {
+    auto node = new Rowwise(*this, x, rows, cols, shared_ctor, ctor);
+    keep(node);
+    return node;
+  }
+
   Function* new_colwise(Function& x, int rows, int cols,
   std::function<Function*(Function& block)> ctor)
   {
     auto node = new Colwise(*this, x, rows, cols, ctor);
+    keep(node);
+    return node;
+  }
+
+  Function* new_colwise(Function& x, int rows, int cols,
+  std::function<Function*(Function& block)> shared_ctor,
+  std::function<Function*(Function& block, Function& shared)> ctor)
+  {
+    auto node = new Colwise(*this, x, rows, cols, shared_ctor, ctor);
     keep(node);
     return node;
   }

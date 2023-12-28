@@ -278,6 +278,33 @@ std::function<Function*(Function& block)> ctor) : Function(graph)
   _y->derivative(graph.new_iderivative(*this));
 }
 
+Rowwise::Rowwise(Graph& graph, Function& x, int rows, int cols,
+std::function<Function*(Function& block)> shared_ctor,
+std::function<Function*(Function& block, Function& shared)> ctor) :
+Function(graph)
+{
+  // row-wise function with shared weights
+  Function* shared = nullptr;
+
+  // split x by row and join rows
+  for (int r=0; r<rows; r++)
+  {
+    if (shared)
+    {
+      auto row = ctor(*graph.new_split(x, r,0, 1,cols), *shared);
+      _y = graph.new_join(*_y, *row, r+1,cols); // row major
+    }
+    else
+    {
+      shared = shared_ctor(*graph.new_split(x, r,0, 1,cols));
+      _y = shared;
+    }
+  }
+
+  _y->derivative(graph.new_iderivative(*this));
+}
+
+
 // F = f(x rowwise)
 const Tensor& Rowwise::forward()
 {
@@ -302,6 +329,21 @@ std::function<Function*(Function& block)> ctor) : Function(graph)
   _y = graph.new_transpose(
     *graph.new_rowwise(
       *graph.new_transpose(x), rows, cols, ctor
+    )
+  );
+
+  _y->derivative(graph.new_iderivative(*this));
+}
+
+Colwise::Colwise(Graph& graph, Function& x, int rows, int cols,
+std::function<Function*(Function& block)> shared_ctor,
+std::function<Function*(Function& block, Function& shared)> ctor) :
+Function(graph)
+{
+  // transpose and apply row-wise ctor, then transpose again
+  _y = graph.new_transpose(
+    *graph.new_rowwise(
+      *graph.new_transpose(x), rows, cols, shared_ctor, ctor
     )
   );
 
