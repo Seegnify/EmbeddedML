@@ -306,6 +306,43 @@ private:
   Function& _x;
 };
 
+///////////////////////////////////
+// RowwiseNorm
+///////////////////////////////////
+class RowwiseNorm : public Function
+{
+public:
+  RowwiseNorm(Graph& g, Function& x, int rows, int cols, DTYPE eps = EPSILON) :
+  Function(g)
+  {
+    // apply row-wise Norm with shared weights
+    _y = _graph.new_rowwise(x, rows, cols, 
+      [&](Function& row)
+      {
+        return _graph.new_norm(row, 1, cols, eps);
+      },
+      [&](Function& row, Function& shared)
+      {
+        return _graph.new_norm(row, (Norm&)shared);
+      }
+    );
+
+    _y->derivative(g.new_iderivative(*this));
+  }
+
+  virtual const Tensor& forward()
+  {
+    if (_value.size() > 0) return _value;
+
+    // update value
+    _value = _y->forward();
+
+    return _value;
+  }
+
+private:
+  Function* _y;
+};
 
 ///////////////////////////////////
 // EncoderLayer
@@ -322,12 +359,14 @@ public:
       seq_size, seq_size, emb_size, num_heads, true, dropout);
     g.keep(_y);
 
-    auto n = g.new_norm(x + *g.new_dropout(*_y, dropout), seq_size, emb_size);
+    auto n = new RowwiseNorm(g, x + *g.new_dropout(*_y, dropout), seq_size, emb_size);
+    g.keep(n);
 
     _y = new PositionWiseFeedForward(g, *n, emb_size, ff_size, dropout);
     g.keep(_y);
 
-    _y = g.new_norm(*n + *g.new_dropout(*_y, dropout), seq_size, emb_size);
+    _y = new RowwiseNorm(g, *n + *g.new_dropout(*_y, dropout), seq_size, emb_size);
+    g.keep(_y);
 
     _y->derivative(g.new_iderivative(*this));
   }

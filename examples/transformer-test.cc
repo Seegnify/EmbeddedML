@@ -849,10 +849,10 @@ void test_encoder_layer_forward()
     print("x", x);
     print("mask", mask);
 
-    EncoderLayer el(g, x, nullptr,
+    EncoderLayer el(g, x, &mask,
       SEQ_SIZE, EMB_SIZE, NUM_HEADS, FF_SIZE, dropout);
 
-    //print(g);
+    print(g);
     auto& Wq = *(Variable*)g.function("MHA.Wq");
     auto& Wk = *(Variable*)g.function("MHA.Wk");
     auto& Wv = *(Variable*)g.function("MHA.Wv");
@@ -863,27 +863,73 @@ void test_encoder_layer_forward()
     auto& bv = *(Variable*)g.function("MHA.bv");
     auto& bo = *(Variable*)g.function("MHA.bo");
 
-    auto& ffL1w = *(Variable*)g.nodes()[250];
-    auto& ffL1b = *(Variable*)g.nodes()[251];
-    auto& ffL2w = *(Variable*)g.nodes()[272];
-    auto& ffL2b = *(Variable*)g.nodes()[273];
+    // element-wise feed forward
+    auto& ffL1w = *(Variable*)g.nodes()[524];
+    auto& ffL1b = *(Variable*)g.nodes()[525];
+    auto& ffL2w = *(Variable*)g.nodes()[546];
+    auto& ffL2b = *(Variable*)g.nodes()[547];
 
-    auto& N1a = *(Variable*)g.nodes()[186];
-    auto& N1b = *(Variable*)g.nodes()[187];
-    auto& N2a = *(Variable*)g.nodes()[293];
-    auto& N2b = *(Variable*)g.nodes()[294];
+    // norms (default to A=1 and B=0)
+    auto& N1a = *(Variable*)g.nodes()[188];
+    auto& N1b = *(Variable*)g.nodes()[189];
+    auto& N2a = *(Variable*)g.nodes()[569];
+    auto& N2b = *(Variable*)g.nodes()[570];
 
-    
+    Wq.value() <<
+      -1.2321, -0.4785, -0.4598, -0.1860,
+       0.4576,  0.4961, -0.0903, -0.4833,
+      -0.1442,  0.3495,  0.4236, -0.0846,
+      -0.3082,  0.0956, -0.2470,  0.3061;
+    bq.value() <<
+      -1.3717, -0.1179, -0.0096, -0.4240;
+    Wk.value() <<
+      -2.2321, -0.4785, -0.4598, -0.1860,
+       0.4576,  0.4961, -0.0903, -0.4833,
+      -0.1442,  0.3495,  0.4236, -0.0846,
+      -0.3082,  0.0956, -0.2470,  0.3061;
+    bk.value() <<
+      -2.3717, -0.1179, -0.0096, -0.4240;
+    Wv.value() <<
+      -3.2321, -0.4785, -0.4598, -0.1860,
+       0.4576,  0.4961, -0.0903, -0.4833,
+      -0.1442,  0.3495,  0.4236, -0.0846,
+      -0.3082,  0.0956, -0.2470,  0.3061;
+    bv.value() <<
+      -3.3717, -0.1179, -0.0096, -0.4240;
+    Wo.value() <<
+      -4.2321, -0.4785, -0.4598, -0.1860,
+       0.4576,  0.4961, -0.0903, -0.4833,
+      -0.1442,  0.3495,  0.4236, -0.0846,
+      -0.3082,  0.0956, -0.2470,  0.3061;
+    bo.value() <<
+      -4.3717, -0.1179, -0.0096, -0.4240;
+    ffL1w.value() <<
+      -5.4208,  0.2836, -0.1770,  0.3684,
+       0.3448,  0.4124, -0.2545,  0.2874,
+      -0.4372,  0.4165, -0.2362,  0.1144;
+    ffL1b.value() <<
+       5.2621, -0.3262,  0.4815;
+    ffL2w.value() <<
+      -6.3926, -0.1717,  0.2300,
+       0.0701,  0.3166, -0.2458,
+       0.1431, -0.3391,  0.5407,
+       0.4126, -0.3719,  0.5352;
+    ffL2b.value() <<
+      -6.5333, -0.0515, -0.1337,  0.0297;
+
+    g.recache();
     auto y = el();
 
     Tensor y_hat(SEQ_SIZE, EMB_SIZE);
     y_hat <<
-      1.0000,  3.0000,  3.0000,  5.0000,
-      5.8415,  6.5403,  7.0100,  9.0000,
-      0.9971, -0.3745,  0.6366,  1.1475,
-      -0.2472, -0.7158, -0.4352,  0.8579,
-      -0.2268, -0.3736,  0.5706,  1.4942;
-
+      -1.7227,  0.4192,  0.5928,  0.7106,
+      -1.7228,  0.4187,  0.5948,  0.7092,
+      -1.7241,  0.4332,  0.5882,  0.7027,
+      -1.7244,  0.4406,  0.5782,  0.7056,
+      -1.7241,  0.4344,  0.5848,  0.7048;
+    print("y_hat", y_hat);
+    print("y", y);
+         
     ASSERT(y.isApprox(y_hat, 0.0001))
 
     TEST_END()

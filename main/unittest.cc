@@ -2975,6 +2975,7 @@ void test_norm_forward()
   Graph g;
 
   auto& x = *g.new_variable(2, 3);
+
   x.value() <<  1, 2, 3,
                 4, 5, 6;
 
@@ -2982,10 +2983,10 @@ void test_norm_forward()
   y_hat << -1.4638, -0.8783, -0.2928,
             0.2928,  0.8783,  1.4638;
 
-  auto& N = *g.new_norm(x);
+  auto& N = *g.new_norm(x, 2, 3);
   auto& y = N.forward();
 
-  ASSERT(y.isApprox(y_hat, 0.001))
+  ASSERT(y.isApprox(y_hat, 0.0001))
 
   TEST_END()
 }
