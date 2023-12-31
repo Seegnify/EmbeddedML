@@ -841,6 +841,9 @@ public:
   // node names
   const std::vector<std::string>& names() const { return _names; }
 
+  // graph named variables
+  std::map<std::string, Variable*> named_variables() const;
+
   // track function
   void keep(Function* f, const char* name = nullptr);
 

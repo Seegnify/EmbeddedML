@@ -48,19 +48,21 @@ void print(const std::string& name, Function& f)
 
 void print(const Graph& g, bool values = false)
 {
-  for (int i=0; i<g.names().size(); i++)
+  auto vars = g.named_variables();
+
+  for (const auto& it: vars)
   {
-    auto& name = g.names()[i];
-    if (name.size() > 0)
+    auto name = it.first;
+    auto var = it.second;
+
+    // print name and varaible value
+    auto& tensor = var->forward();
+    std::cout << "node[" << name << "] "
+    << " [" << tensor.rows() << " x " << tensor.cols() << "]"
+    << std::endl;
+    if (values)
     {
-      auto& tensor = g.nodes()[i]->forward();
-      std::cout << "node[" << i << "] " << name
-      << " [" << tensor.rows() << " x " << tensor.cols() << "]"
-      << std::endl;
-      if (values)
-      {
-        std::cout << tensor << std::endl;  
-      }
+      std::cout << tensor << std::endl;
     }
   }
 }

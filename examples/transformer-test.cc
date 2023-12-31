@@ -34,19 +34,21 @@ void print(const std::string& name, Function& f)
 
 void print(const Graph& g, bool values = false)
 {
-  for (int i=0; i<g.names().size(); i++)
+  auto vars = g.named_variables();
+
+  for (const auto& it: vars)
   {
-    auto& name = g.names()[i];
-    if (name.size() > 0)
+    auto name = it.first;
+    auto var = it.second;
+
+    // print name and varaible value
+    auto& tensor = var->forward();
+    std::cout << "node[" << name << "] "
+    << " [" << tensor.rows() << " x " << tensor.cols() << "]"
+    << std::endl;
+    if (values)
     {
-      auto& tensor = g.nodes()[i]->forward();
-      std::cout << "node[" << i << "] " << name
-      << " [" << tensor.rows() << " x " << tensor.cols() << "]"
-      << std::endl;
-      if (values)
-      {
-        std::cout << tensor << std::endl;  
-      }
+      std::cout << tensor << std::endl;
     }
   }
 }
@@ -383,14 +385,15 @@ void test_multihead_attention_forward()
       0.4097, 0.3034, 0.8000, 0.7103;
 
     // print(g);
-    auto& Wq = *(Variable*)g.nodes()[3];
-    auto& Wk = *(Variable*)g.nodes()[4];
-    auto& Wv = *(Variable*)g.nodes()[5];
-    auto& Wo = *(Variable*)g.nodes()[6];
-    auto& bq = *(Variable*)g.nodes()[7];
-    auto& bk = *(Variable*)g.nodes()[8];
-    auto& bv = *(Variable*)g.nodes()[9];
-    auto& bo = *(Variable*)g.nodes()[10];
+    auto vars = g.named_variables();
+    auto& Wq = *vars["MHA.Wq"];
+    auto& Wk = *vars["MHA.Wk"];
+    auto& Wv = *vars["MHA.Wv"];
+    auto& Wo = *vars["MHA.Wo"];
+    auto& bq = *vars["MHA.bq"];
+    auto& bk = *vars["MHA.bk"];
+    auto& bv = *vars["MHA.bv"];
+    auto& bo = *vars["MHA.bo"];
 
     Wq.value() <<
       0.4271,  0.3013, -0.4279, -0.2122,
@@ -477,14 +480,15 @@ void test_multihead_attention_backward()
       0.4097, 0.3034, 0.8000, 0.7103;
 
     // print(g);
-    auto& Wq = *(Variable*)g.nodes()[3];
-    auto& Wk = *(Variable*)g.nodes()[4];
-    auto& Wv = *(Variable*)g.nodes()[5];
-    auto& Wo = *(Variable*)g.nodes()[6];
-    auto& bq = *(Variable*)g.nodes()[7];
-    auto& bk = *(Variable*)g.nodes()[8];
-    auto& bv = *(Variable*)g.nodes()[9];
-    auto& bo = *(Variable*)g.nodes()[10];
+    auto vars = g.named_variables();
+    auto& Wq = *vars["MHA.Wq"];
+    auto& Wk = *vars["MHA.Wk"];
+    auto& Wv = *vars["MHA.Wv"];
+    auto& Wo = *vars["MHA.Wo"];
+    auto& bq = *vars["MHA.bq"];
+    auto& bk = *vars["MHA.bk"];
+    auto& bv = *vars["MHA.bv"];
+    auto& bo = *vars["MHA.bo"];
 
     Wq.value() <<
       0.4271,  0.3013, -0.4279, -0.2122,
@@ -586,10 +590,11 @@ void test_position_wise_ff_forward()
     );
     
     // print(g);
-    auto& L1W = *(Variable*)g.nodes()[1];
-    auto& L1b = *(Variable*)g.nodes()[2];
-    auto& L2W = *(Variable*)g.nodes()[23];
-    auto& L2b = *(Variable*)g.nodes()[24];    
+    auto vars = g.named_variables();
+    auto& L1W = *vars["Linear.W"];
+    auto& L1b = *vars["Linear.b"];
+    auto& L2W = *vars["Linear.W.1"];
+    auto& L2b = *vars["Linear.b.1"];
     
     ASSERT(L1W.value().rows() == FF_SIZE);
     ASSERT(L1W.value().cols() == EMB_SIZE);
@@ -654,10 +659,11 @@ void test_position_wise_ff_backward()
     g.keep(&ff);
 
     // print(g);
-    auto& L1W = *(Variable*)g.nodes()[1];
-    auto& L1b = *(Variable*)g.nodes()[2];
-    auto& L2W = *(Variable*)g.nodes()[23];
-    auto& L2b = *(Variable*)g.nodes()[24];    
+    auto vars = g.named_variables();
+    auto& L1W = *vars["Linear.W"];
+    auto& L1b = *vars["Linear.b"];
+    auto& L2W = *vars["Linear.W.1"];
+    auto& L2b = *vars["Linear.b.1"];
     
     ASSERT(L1W.value().rows() == FF_SIZE);
     ASSERT(L1W.value().cols() == EMB_SIZE);
@@ -864,16 +870,13 @@ void test_encoder_layer_forward()
     auto& bo = *(Variable*)g.function("MHA.bo");
 
     // element-wise feed forward
-    auto& ffL1w = *(Variable*)g.nodes()[524];
-    auto& ffL1b = *(Variable*)g.nodes()[525];
-    auto& ffL2w = *(Variable*)g.nodes()[546];
-    auto& ffL2b = *(Variable*)g.nodes()[547];
+    auto vars = g.named_variables();
+    auto& ffL1w = *vars["Linear.W"];
+    auto& ffL1b = *vars["Linear.b"];
+    auto& ffL2w = *vars["Linear.W.1"];
+    auto& ffL2b = *vars["Linear.b.1"];
 
     // norms (default to A=1 and B=0)
-    auto& N1a = *(Variable*)g.nodes()[188];
-    auto& N1b = *(Variable*)g.nodes()[189];
-    auto& N2a = *(Variable*)g.nodes()[569];
-    auto& N2b = *(Variable*)g.nodes()[570];
 
     Wq.value() <<
       -1.2321, -0.4785, -0.4598, -0.1860,

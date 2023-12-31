@@ -3270,6 +3270,47 @@ Function* Graph::function(const char* name) const
   }
 }
 
+// get graph variables with unique names
+std::map<std::string, Variable*> Graph::named_variables() const
+{
+  // get variable positions in node list
+  std::vector<uint32_t> inode;
+  for (int i=0; i<_nodes.size() && inode.size() != _vars.size(); i++)
+  {
+    if (_nodes[i] == _vars[inode.size()])
+    {
+      inode.push_back(i);
+    }
+  }
+
+  // keep track of name counts
+  std::map<std::string, int> counts;
+  std::map<std::string, Variable*> dict;
+
+  for (int i=0; i<_vars.size(); i++)
+  {
+    // get variable name
+    auto name = _names[inode[i]];
+
+    // index duplicate names
+    auto itc = counts.find(name);
+    if (itc == counts.end())
+    {
+      counts[name] = 0;
+    }
+    else
+    {
+      counts[name] = itc->second + 1;
+      name = name + "." + std::to_string(counts[name]);
+    }
+
+    // add name:variable to dictionary
+    dict[name] = _vars[i];
+  }
+
+  return dict;
+}
+
 // track function
 void Graph::keep(Function* f, const char* name)
 {
