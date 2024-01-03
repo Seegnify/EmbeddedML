@@ -622,7 +622,7 @@ def test_encoder_layer():
     print(A)
 
     dA = torch.ones_like(A)
-    dA[0,0,0] = 5
+    dA[0,0,0] = 1250
     print("dA", dA)
 
     A.backward(dA)
@@ -631,7 +631,8 @@ def test_encoder_layer():
     # Collect gradients
     gradients = {}
     for name, param in model.named_parameters():
-        gradients[name] = param.grad.clone()
+        if param.grad is not None:
+          gradients[name] = param.grad.clone()
 
     # Print or use the gradients as needed
     for name, grad in gradients.items():

@@ -11,6 +11,11 @@
 #include "examples/transformer.hh"
 #include "main/unittest.hh"
 
+bool isApprox(const Tensor& A, const Tensor& B, DTYPE eps)
+{
+  return (A-B).norm() < eps;
+}
+
 void print(const std::string& name, const Tensor& tensor)
 {
   std::cout << name
@@ -43,7 +48,7 @@ void print(const Graph& g, bool values = false)
 
     // print name and varaible value
     auto& tensor = var->forward();
-    std::cout << "node[" << name << "] "
+    std::cout << "node[" << name << "]"
     << " [" << tensor.rows() << " x " << tensor.cols() << "]"
     << std::endl;
     if (values)
@@ -183,35 +188,6 @@ void test_scaled_dot_product_attention_forward()
 {
     TEST_BEGIN("Scaled Dot-Product Attention Forward")
 
-    /*
-    Q = torch.Tensor([
-        [1,2,3],
-        [4,5,6],
-    ])
-    K = torch.Tensor([
-        [0.1,0.2,0.3],
-        [0.4,0.5,0.6],
-        [1.4,1.5,1.6],
-        [2.4,2.5,2.6],
-    ])
-    V = torch.Tensor([
-        [-2,7,8],
-        [4,1,-9],
-        [1,2,3],
-        [4,5,6],
-    ])
-    M = torch.tensor([
-        [1,1,1,1],
-        [0,0,0,0],
-    ], dtype=torch.bool)
-
-    // attention
-    A = torch.Tensor([
-        [ 3.9070,  4.9059,  5.8955,  4.9668,  4.9668],
-        [ 3.5844,  1.4156, -7.8225,  2.9307,  2.9307],
-    ])
-    */
-
     Graph g;
     DTYPE dropout = 0.0;
 
@@ -219,7 +195,6 @@ void test_scaled_dot_product_attention_forward()
     auto Q = g.new_constant(2, 3);
     Q->value() << 1,2,3,
                   4,5,6;
-    //print("Q", *Q);
 
     // [4x3]
     auto K = g.new_constant(4, 3);
@@ -227,7 +202,6 @@ void test_scaled_dot_product_attention_forward()
                   0.4,0.5,0.6,
                   1.4,1.5,1.6,
                   2.4,2.5,2.6;
-    //print("K", *K);
 
     // QK_T -> [2x4]
 
@@ -235,7 +209,6 @@ void test_scaled_dot_product_attention_forward()
     auto M = g.new_constant(2, 4);
     M->value() << 1,1,1,1,
                   1,1,0,0;
-    //print("M", *M);
 
     // [4x5]
     auto V = g.new_constant(4, 5);
@@ -243,7 +216,6 @@ void test_scaled_dot_product_attention_forward()
                   4,1,-9,3,3,
                   1,2,3,4,4,
                   4,5,6,5,5;
-    //print("V", *V);
 
     // QK_TV -> [2x5]
 
@@ -254,8 +226,6 @@ void test_scaled_dot_product_attention_forward()
     ScaledDotProductAttention attn(g, *Q,*K,*V, M, T, S, D, dropout);
 
     auto& A = attn();
-    //print("A", A);
-
 
     Tensor A_torch(2,5);
     A_torch <<  3.9070,  4.9059,  5.8955,  4.9668,  4.9668,
@@ -395,6 +365,11 @@ void test_multihead_attention_forward()
     auto& bv = *vars["MHA.bv"];
     auto& bo = *vars["MHA.bo"];
 
+    // Norm.A == 1
+    // Norm.B == 0
+    // Norm.A.1 == 1
+    // Norm.B.1 == 0
+
     Wq.value() <<
       0.4271,  0.3013, -0.4279, -0.2122,
       0.2983,  0.3350, -0.4619,  0.5432,
@@ -490,6 +465,11 @@ void test_multihead_attention_backward()
     auto& bv = *vars["MHA.bv"];
     auto& bo = *vars["MHA.bo"];
 
+    // Norm.A == 1
+    // Norm.B == 0
+    // Norm.A.1 == 1
+    // Norm.B.1 == 0
+
     Wq.value() <<
       0.4271,  0.3013, -0.4279, -0.2122,
       0.2983,  0.3350, -0.4619,  0.5432,
@@ -511,17 +491,14 @@ void test_multihead_attention_backward()
       -0.4631, -0.2740, -0.2628, -0.4749,
       -0.3654,  0.4841,  0.4618, -0.1188;
 
-    if (bias)
-    {
-      bq.value() <<
-        0.4755, 0.1042, 0.6459, 0.2230;
-      bk.value() <<
-        0.0739, 0.6705, 0.8532, 0.7830;
-      bv.value() <<
-        0.1097, 0.8451, 0.7208, 0.2440; 
-      bo.value() <<
-        0.0307, 0.1667, 0.4442, 0.1971;
-    }
+    bq.value() <<
+      0.4755, 0.1042, 0.6459, 0.2230;
+    bk.value() <<
+      0.0739, 0.6705, 0.8532, 0.7830;
+    bv.value() <<
+      0.1097, 0.8451, 0.7208, 0.2440;
+    bo.value() <<
+      0.0307, 0.1667, 0.4442, 0.1971;
 
     auto& F = mha();
 
@@ -531,6 +508,16 @@ void test_multihead_attention_backward()
     const Tensor dFdq = q->backward();
     const Tensor dFdk = k->backward();
     const Tensor dFdv = v->backward();
+
+    const Tensor dFdWq = Wq.backward();
+    const Tensor dFdWk = Wk.backward();
+    const Tensor dFdWv = Wv.backward();
+    const Tensor dFdWo = Wo.backward();
+
+    const Tensor dFdbq = bq.backward();
+    const Tensor dFdbk = bk.backward();
+    const Tensor dFdbv = bv.backward();
+    const Tensor dFdbo = bo.backward();
 
     Tensor dFdq_hat(TRG_SIZE, EMB_SIZE);
     dFdq_hat <<
@@ -561,6 +548,60 @@ void test_multihead_attention_backward()
     ASSERT(dFdq.isApprox(dFdq_num, 0.01));
     ASSERT(dFdk.isApprox(dFdk_num, 0.01));
     ASSERT(dFdv.isApprox(dFdv_num, 0.01));
+
+    Tensor dFdWq_hat(EMB_SIZE, EMB_SIZE);
+    dFdWq_hat <<
+       0.0061,  0.0045,  0.0097,  0.0038,
+      -0.0148, -0.0109, -0.0233, -0.0092,
+      -0.0005,  0.0005, -0.0178, -0.0036,
+       0.0172,  0.0145, -0.0096,  0.0035;
+
+    Tensor dFdWk_hat(EMB_SIZE, EMB_SIZE);
+    dFdWk_hat <<
+      -0.0162,  0.0084, -0.0182,  0.0185,
+      -0.0059,  0.0026, -0.0076,  0.0079,
+      -0.0058,  0.0105,  0.0085, -0.0102,
+      -0.0052,  0.0043, -0.0026,  0.0023;
+
+    Tensor dFdWv_hat(EMB_SIZE, EMB_SIZE);
+    dFdWv_hat <<
+      -1.4292e+00, -4.6630e-01, -2.0257e+00, -2.1247e+00,
+       2.1559e+00,  7.0466e-01,  3.0573e+00,  3.2059e+00,
+       1.0382e+00,  3.5606e-01,  1.4924e+00,  1.5373e+00,
+       8.4130e-03, -4.8284e-03,  2.0528e-03,  7.0446e-03;
+
+    Tensor dFdWo_hat(EMB_SIZE, EMB_SIZE);
+    dFdWo_hat <<
+      -2.9211,  5.4293,  2.5510, -1.7456,
+      -1.2491,  2.3256,  1.0927, -0.7558,
+      -1.2491,  2.3256,  1.0927, -0.7558,
+      -1.2491,  2.3256,  1.0927, -0.7558;
+
+    ASSERT(dFdWq.isApprox(dFdWq_hat, 0.01))
+    ASSERT(dFdWk.isApprox(dFdWk_hat, 0.01))
+    ASSERT(dFdWv.isApprox(dFdWv_hat, 0.01))
+    ASSERT(dFdWo.isApprox(dFdWo_hat, 0.01))
+
+    Tensor dFdbq_hat(1, EMB_SIZE);
+    dFdbq_hat <<
+       0.0167, -0.0400, -0.0285, -0.0119;
+
+    Tensor dFdbk_hat(1, EMB_SIZE);
+    dFdbk_hat <<
+       5.9605e-08, 2.2352e-08, 1.1176e-08, 1.5832e-08;
+
+    Tensor dFdbv_hat(1, EMB_SIZE);
+    dFdbv_hat <<
+       -3.3155,  5.0020,  2.3838,  0.0156;
+
+    Tensor dFdbo_hat(1, EMB_SIZE);
+    dFdbo_hat <<
+       7., 3., 3., 3.;
+
+    ASSERT(isApprox(dFdbq, dFdbq_hat, 0.0001))
+    ASSERT(isApprox(dFdbk, dFdbk_hat, 0.0001))
+    ASSERT(isApprox(dFdbv, dFdbv_hat, 0.0001))
+    ASSERT(isApprox(dFdbo, dFdbo_hat, 0.0001))
 
     TEST_END()
 }
@@ -851,14 +892,11 @@ void test_encoder_layer_forward()
 
     auto& mask = *g.new_constant(SEQ_SIZE, SEQ_SIZE, "mask");
     mask.value() = Tensor::Ones(SEQ_SIZE, SEQ_SIZE);
-    
-    print("x", x);
-    print("mask", mask);
 
     EncoderLayer el(g, x, &mask,
       SEQ_SIZE, EMB_SIZE, NUM_HEADS, FF_SIZE, dropout);
 
-    print(g);
+    // print(g);
     auto& Wq = *(Variable*)g.function("MHA.Wq");
     auto& Wk = *(Variable*)g.function("MHA.Wk");
     auto& Wv = *(Variable*)g.function("MHA.Wv");
@@ -930,10 +968,117 @@ void test_encoder_layer_forward()
       -1.7241,  0.4332,  0.5882,  0.7027,
       -1.7244,  0.4406,  0.5782,  0.7056,
       -1.7241,  0.4344,  0.5848,  0.7048;
-    print("y_hat", y_hat);
-    print("y", y);
          
     ASSERT(y.isApprox(y_hat, 0.0001))
+
+    TEST_END()
+}
+
+void test_encoder_layer_backward()
+{
+    TEST_BEGIN("EncoderLayer Backward")
+
+    int EMB_SIZE = 4;
+    int SEQ_SIZE = 5;
+    int NUM_HEADS = 2;
+    int FF_SIZE = 3;
+    DTYPE dropout = 0.0;
+
+    Graph g;
+
+    auto& x = *g.new_variable(SEQ_SIZE, EMB_SIZE, "x");
+    x.value() <<
+      1,2,3,4,
+      5,6,7,8,
+      0.0878, 0.0416, 0.6166, 0.1477,
+      -0.3883,  0.2742, -0.4652, -0.1417,
+      0.5300, 0.2800, 0.5306, 0.4950;
+
+    auto& mask = *g.new_constant(SEQ_SIZE, SEQ_SIZE, "mask");
+    mask.value() = Tensor::Ones(SEQ_SIZE, SEQ_SIZE);
+
+    auto& F = *(new EncoderLayer(g, x, &mask,
+      SEQ_SIZE, EMB_SIZE, NUM_HEADS, FF_SIZE, dropout));
+    g.keep(&F);
+
+    //print(g);
+    auto& Wq = *(Variable*)g.function("MHA.Wq");
+    auto& Wk = *(Variable*)g.function("MHA.Wk");
+    auto& Wv = *(Variable*)g.function("MHA.Wv");
+    auto& Wo = *(Variable*)g.function("MHA.Wo");
+
+    auto& bq = *(Variable*)g.function("MHA.bq");
+    auto& bk = *(Variable*)g.function("MHA.bk");
+    auto& bv = *(Variable*)g.function("MHA.bv");
+    auto& bo = *(Variable*)g.function("MHA.bo");
+
+    // element-wise feed forward
+    auto vars = g.named_variables();
+    auto& ffL1w = *vars["Linear.W"];
+    auto& ffL1b = *vars["Linear.b"];
+    auto& ffL2w = *vars["Linear.W.1"];
+    auto& ffL2b = *vars["Linear.b.1"];
+
+    // norms (default to A=1 and B=0)
+
+    Wq.value() <<
+      -1.2321, -0.4785, -0.4598, -0.1860,
+       0.4576,  0.4961, -0.0903, -0.4833,
+      -0.1442,  0.3495,  0.4236, -0.0846,
+      -0.3082,  0.0956, -0.2470,  0.3061;
+    bq.value() <<
+      -1.3717, -0.1179, -0.0096, -0.4240;
+    Wk.value() <<
+      -2.2321, -0.4785, -0.4598, -0.1860,
+       0.4576,  0.4961, -0.0903, -0.4833,
+      -0.1442,  0.3495,  0.4236, -0.0846,
+      -0.3082,  0.0956, -0.2470,  0.3061;
+    bk.value() <<
+      -2.3717, -0.1179, -0.0096, -0.4240;
+    Wv.value() <<
+      -3.2321, -0.4785, -0.4598, -0.1860,
+       0.4576,  0.4961, -0.0903, -0.4833,
+      -0.1442,  0.3495,  0.4236, -0.0846,
+      -0.3082,  0.0956, -0.2470,  0.3061;
+    bv.value() <<
+      -3.3717, -0.1179, -0.0096, -0.4240;
+    Wo.value() <<
+      -4.2321, -0.4785, -0.4598, -0.1860,
+       0.4576,  0.4961, -0.0903, -0.4833,
+      -0.1442,  0.3495,  0.4236, -0.0846,
+      -0.3082,  0.0956, -0.2470,  0.3061;
+    bo.value() <<
+      -4.3717, -0.1179, -0.0096, -0.4240;
+    ffL1w.value() <<
+      -5.4208,  0.2836, -0.1770,  0.3684,
+       0.3448,  0.4124, -0.2545,  0.2874,
+      -0.4372,  0.4165, -0.2362,  0.1144;
+    ffL1b.value() <<
+       5.2621, -0.3262,  0.4815;
+    ffL2w.value() <<
+      -6.3926, -0.1717,  0.2300,
+       0.0701,  0.3166, -0.2458,
+       0.1431, -0.3391,  0.5407,
+       0.4126, -0.3719,  0.5352;
+    ffL2b.value() <<
+      -6.5333, -0.0515, -0.1337,  0.0297;
+
+    F();
+
+    F.gradient() = Tensor::Ones(SEQ_SIZE, EMB_SIZE);
+    F.gradient()(0) = 1250;
+
+    const Tensor dFdx = x.backward();
+
+    Tensor dFdx_hat = Tensor::Zero(SEQ_SIZE, EMB_SIZE);
+    dFdx_hat << // torch output
+      -0.2000, -0.8638,  0.1263,  0.9108,
+      -0.5233, -0.0899, -0.1796,  0.2701,
+      -0.0053,  0.0018, -0.0040,  0.0051,
+      -0.0045,  0.0028, -0.0010,  0.0033,
+      -0.0051,  0.0018, -0.0037,  0.0049;
+
+    ASSERT(isApprox(dFdx, dFdx_hat, 0.001))
 
     TEST_END()
 }
@@ -951,7 +1096,8 @@ int main(int argc, char* argv[]) {
     test_position_wise_ff_backward();
     test_positional_encoding_forward();
     test_positional_encoding_backward();
-    test_encoder_layer_forward();    
+    test_encoder_layer_forward();
+    test_encoder_layer_backward();
 
     return 0;
 }

@@ -134,10 +134,12 @@ class EncoderLayer(nn.Module):
         x_d = x + self.dropout(attn_output)
         print("x_d\n", x_d)
         x = self.norm1(x_d)
+        #x = x_d
         print("norm1\n", x)
         ff_output = self.feed_forward(x)
         print("ff\n", ff_output)
         x = self.norm2(x + self.dropout(ff_output))
+        #x = x + self.dropout(ff_output)
         print("norm2\n", x)
         return x
 
