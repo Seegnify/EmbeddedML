@@ -12,6 +12,41 @@ using namespace seegnify;
 
 
 ///////////////////////////////////
+// SequenceMask
+///////////////////////////////////
+class SequenceMask : public Constant
+{
+public:
+  SequenceMask(Graph& g, int max_seq_size) :
+  Constant(g), _max_seq_size(max_seq_size)
+  {
+  }
+
+  void source(int seq_size)
+  {
+    _value = Tensor::Zero(_max_seq_size, _max_seq_size);
+    _value.leftCols(seq_size) = Tensor::Ones(_max_seq_size, seq_size);
+  }
+
+  void target(int seq_size)
+  {
+    _value = Tensor::Zero(_max_seq_size, _max_seq_size);
+    _value.triangularView<Eigen::Lower>().setConstant(1);
+
+    auto padding = std::max(_max_seq_size - seq_size, 0);
+
+    if (padding)
+    {
+      _value.rightCols(padding) = Tensor::Zero(_max_seq_size, padding);
+    }
+  }
+
+private:
+  const int _max_seq_size;
+};
+
+
+///////////////////////////////////
 // Scaled Dot-Product Attention
 ///////////////////////////////////
 class ScaledDotProductAttention : public Function
@@ -355,17 +390,19 @@ public:
     int seq_size, int emb_size, int num_heads, int ff_size, DTYPE dropout) :
     Function(g)
   {
-    _y = new MultiHeadAttention(g, x, x, x, mask,
+    auto attn = new MultiHeadAttention(g, x, x, x, mask,
       seq_size, seq_size, emb_size, num_heads, true, dropout);
+    g.keep(attn);
+
+    _y = new RowwiseNorm(
+      g, x + *g.new_dropout(*attn, dropout), seq_size, emb_size);
     g.keep(_y);
 
-    auto n = new RowwiseNorm(g, x + *g.new_dropout(*_y, dropout), seq_size, emb_size);
-    g.keep(n);
+    auto ff = new PositionWiseFeedForward(g, *_y, emb_size, ff_size, dropout);
+    g.keep(ff);
 
-    _y = new PositionWiseFeedForward(g, *n, emb_size, ff_size, dropout);
-    g.keep(_y);
-
-    _y = new RowwiseNorm(g, *n + *g.new_dropout(*_y, dropout), seq_size, emb_size);
+    _y = new RowwiseNorm(
+      g, *_y + *g.new_dropout(*ff, dropout), seq_size, emb_size);
     g.keep(_y);
 
     _y->derivative(g.new_iderivative(*this));
@@ -377,6 +414,71 @@ public:
 
     // update value
     _value = _y->forward();
+
+    return _value;
+  }
+
+private:
+  Function* _y;
+};
+
+///////////////////////////////////
+// DecoderLayer
+///////////////////////////////////
+class DecoderLayer : public Function
+{
+public:
+  DecoderLayer(
+    Graph& g, Function& x, Function& e, Function* src_mask, Function* tgt_mask,
+    int seq_size, int emb_size, int num_heads, int ff_size, DTYPE dropout) :
+    Function(g)
+  {
+    auto self_attn = new MultiHeadAttention(g, x, x, x, tgt_mask,
+      seq_size, seq_size, emb_size, num_heads, true, dropout);
+    g.keep(self_attn, "dec.self_attn");
+
+    _y = new RowwiseNorm(
+      g, x + *g.new_dropout(*self_attn, dropout), seq_size, emb_size);
+    g.keep(_y, "dec.norm1");
+
+    auto cross_attn = new MultiHeadAttention(g, *_y, e, e, src_mask,
+      seq_size, seq_size, emb_size, num_heads, true, dropout);
+    g.keep(cross_attn, "dec.cross_attn");
+
+    _y = new RowwiseNorm(
+      g, *_y + *g.new_dropout(*cross_attn, dropout), seq_size, emb_size);
+    g.keep(_y, "dec.norm2");
+
+    auto ff = new PositionWiseFeedForward(g, *_y, emb_size, ff_size, dropout);
+    g.keep(ff, "dec.ff");
+
+    _y = new RowwiseNorm(
+      g, *_y + *g.new_dropout(*ff, dropout), seq_size, emb_size);
+    g.keep(_y);
+
+    _y->derivative(g.new_iderivative(*this));
+  }
+
+  virtual const Tensor& forward()
+  {
+    if (_value.size() > 0) return _value;
+
+    // update value
+    _value = _y->forward();
+    std::cout << "dec.self_attn" << std::endl;
+    std::cout << _graph.function("dec.self_attn")->forward() << std::endl;
+
+    std::cout << "dec.norm1" << std::endl;
+    std::cout << _graph.function("dec.norm1")->forward() << std::endl;
+
+    std::cout << "dec.cross_attn" << std::endl;
+    std::cout << _graph.function("dec.cross_attn")->forward() << std::endl;
+
+    std::cout << "dec.norm2" << std::endl;
+    std::cout << _graph.function("dec.norm2")->forward() << std::endl;
+
+    std::cout << "dec.ff" << std::endl;
+    std::cout << _graph.function("dec.ff")->forward() << std::endl;
 
     return _value;
   }

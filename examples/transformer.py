@@ -8,6 +8,7 @@ import copy
 import numpy as np
 
 def scaled_dot_product_attention(query, key, value, attn_mask=None, dropout=0.0, scale=None) -> torch.Tensor:
+    print("=== external self scaled_dot_product_attention")
     # Efficient implementation equivalent to the following:
     L, S = query.size(-2), key.size(-2)
     print("L=", L, "S=", S, "D=", query.size(-1))
@@ -23,7 +24,9 @@ def scaled_dot_product_attention(query, key, value, attn_mask=None, dropout=0.0,
     print("\nattention (A after softmax):\n", attn_weight.shape)
     print(attn_weight)
     attn_weight = torch.dropout(attn_weight, dropout, train=True)
-    return attn_weight @ value
+    output = attn_weight @ value
+    print("external scaled_dot_product_attention output:\n", output)
+    return output
 
 class MultiHeadAttention(nn.Module):
     def __init__(self, d_model, num_heads, dropout=0.1):
@@ -42,16 +45,22 @@ class MultiHeadAttention(nn.Module):
         print("=== dropout", dropout)
         
     def scaled_dot_product_attention(self, Q, K, V, mask=None):
+        print("=== self scaled_dot_product_attention")
+        print("q\n", Q)
+        print("k\n", K)
+        print("v\n", V)
+        print("mask\n", mask)
         attn_scores = torch.matmul(Q, K.transpose(-2, -1)) / math.sqrt(self.d_k)
         if mask is not None:
-            print("\aattn_scores:\n", attn_scores.shape)
-            print("\nmask:\n", mask.shape)
+            print("attn_scores:\n", attn_scores.shape)
+            print("mask:\n", mask.shape)
             attn_scores = attn_scores.masked_fill(mask == 0, float("-inf"))
-        print("\nattention (A before softmax):\n", attn_scores.shape)
+        print("attention (A before softmax):\n", attn_scores.shape)
         attn_probs = torch.softmax(attn_scores, dim=-1)
-        print("\nattention (A after softmax):\n", attn_probs.shape)
+        print("attention (A after softmax):\n", attn_probs.shape)
         print(attn_probs)
         output = torch.matmul(self.dropout(attn_probs), V)
+        print("self scaled_dot_product_attention output:\n", output)
         return output
         
     def split_heads(self, x):
@@ -70,9 +79,10 @@ class MultiHeadAttention(nn.Module):
         K = self.split_heads(self.W_k(K))
         V = self.split_heads(self.W_v(V))
         
-        #attn_output = self.scaled_dot_product_attention(Q, K, V, mask)
-        attn_output = scaled_dot_product_attention(Q, K, V, mask)
-        cobined_heads = self.combine_heads(attn_output)
+        attn_output_1 = self.scaled_dot_product_attention(Q, K, V, mask)
+        attn_output_2 = scaled_dot_product_attention(Q, K, V, mask)
+        print("attn diff\n", torch.abs(attn_output_1-attn_output_2))
+        cobined_heads = self.combine_heads(attn_output_1)
         output = self.W_o(cobined_heads)
         return output
 
@@ -147,9 +157,9 @@ class EncoderLayer(nn.Module):
 class DecoderLayer(nn.Module):
     def __init__(self, d_model, num_heads, d_ff, dropout):
         super(DecoderLayer, self).__init__()
-        self.self_attn = MultiHeadAttention(d_model, num_heads)
-        self.cross_attn = MultiHeadAttention(d_model, num_heads)
-        self.feed_forward = PositionWiseFeedForward(d_model, d_ff)
+        self.self_attn = MultiHeadAttention(d_model, num_heads, dropout)
+        self.cross_attn = MultiHeadAttention(d_model, num_heads, dropout)
+        self.feed_forward = PositionWiseFeedForward(d_model, d_ff, dropout)
         self.norm1 = nn.LayerNorm(d_model)
         self.norm2 = nn.LayerNorm(d_model)
         self.norm3 = nn.LayerNorm(d_model)
