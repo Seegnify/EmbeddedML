@@ -2594,16 +2594,16 @@ const Tensor& LogGaussian::forward()
 // Function Embedding
 ///////////////////////////////////////////
 
-Embedding::Embedding(Graph& graph, Constant& i, int in, int out) :
+Embedding::Embedding(Graph& graph, Function& i, int in, int out) :
 Function(graph), _i(i)
 {
-  // construct new variables
-  _E = graph.new_variable(out, in);
+  // construct new variables with row-wise embedding vectors
+  _E = graph.new_variable(in, out);
 
   init();
 }
 
-Embedding::Embedding(Graph& graph, Constant& i, const Embedding& other) :
+Embedding::Embedding(Graph& graph, Function& i, const Embedding& other) :
 Function(graph), _i(i)
 {
   // share variables with the "other"
@@ -2636,7 +2636,7 @@ void Embedding::init()
 
       for (int i=0; i<index.size(); i++)
       {
-        _value.col((int)index(i)) = g;
+        _value.row((int)index(i)) = g.row(i);
       }
 
       return _value;
@@ -2658,13 +2658,13 @@ const Tensor& Embedding::forward()
   // get variables
   auto& E = _E->forward();
 
-  // create cached value
-  _value = Tensor::Zero(E.rows(), 1);
+  // create initial value
   auto& index = _i();
+  _value = Tensor::Zero(index.size(), E.cols());
 
   for (int i=0; i<index.size(); i++)
   {
-    _value += E.col((int)index(i));
+    _value.row(i) = E.row((int)index(i));
   }
 
   // return value

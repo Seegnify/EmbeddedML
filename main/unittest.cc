@@ -3178,17 +3178,19 @@ void test_embedding_forward()
 
   // size
   int IN = 10; // vocabulary size
-  int OUT = 5;  // embedding size
-  int HOT = 4; // word index
+  int OUT = 5; // embedding size
   Graph g;
 
-  Constant one_hot(g, 1, 1);
-  one_hot.value() << HOT;
+  Constant two_hot(g, 2, 1);
+  two_hot.value() << 1, 3;
 
-  Embedding E(g, one_hot, IN, OUT);
+  Embedding E(g, two_hot, IN, OUT);
+  auto& W = E.E().value();
 
-  Tensor hot = E.E().value().col(HOT);
-  ASSERT(E() == hot);
+  Tensor y_hat(2, OUT);
+  y_hat.row(0) = W.row(1);
+  y_hat.row(1) = W.row(3);
+  ASSERT(E() == y_hat);
 
   TEST_END()
 }
@@ -3199,22 +3201,26 @@ void test_embedding_backward()
 
   // size
   int IN = 10; // vocabulary size
-  int OUT = 5;  // embedding size
+  int OUT = 5; // embedding size
   Graph g;
 
-  Constant& one_hot = *g.new_constant( 2, 1);
-  one_hot.value() << 2, 3;
+  Constant& two_hot = *g.new_constant( 2, 1);
+  two_hot.value() << 2, 3;
 
-  Embedding& E = *g.new_embedding(one_hot, IN, OUT);
+  Embedding& E = *g.new_embedding(two_hot, IN, OUT);
   auto& W = E.E();
 
   E.forward();
-  E.gradient() = Tensor::Ones(OUT, 1);
+  E.gradient() = Tensor::Ones(2, OUT);
 
   auto& dEdW = W.backward();
   auto dEdW_num = g.dFdX(E, W);
+  Tensor dEdW_hat = Tensor::Zero(IN, OUT);
+  dEdW_hat.row(2) = Tensor::Ones(1, OUT);
+  dEdW_hat.row(3) = Tensor::Ones(1, OUT);
 
   ASSERT(dEdW.isApprox(dEdW_num, 0.001));
+  ASSERT(dEdW == dEdW_hat);
 
   TEST_END()
 }

@@ -709,8 +709,8 @@ protected:
 class Embedding : public Function
 {
 public:
-  Embedding(Graph& graph, Constant& i, int in, int out);
-  Embedding(Graph& graph, Constant& i, const Embedding& other);
+  Embedding(Graph& graph, Function& i, int in, int out);
+  Embedding(Graph& graph, Function& i, const Embedding& other);
 
   // variable access
   Variable& E() { return *_E; }
@@ -721,7 +721,7 @@ private:
   void init();
 
 protected:
-  Constant& _i;
+  Function& _i;
   Variable* _E;
 };
 
