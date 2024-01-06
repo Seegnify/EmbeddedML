@@ -8,10 +8,8 @@ import copy
 import numpy as np
 
 def scaled_dot_product_attention(query, key, value, attn_mask=None, dropout=0.0, scale=None) -> torch.Tensor:
-    print("=== external self scaled_dot_product_attention")
     # Efficient implementation equivalent to the following:
     L, S = query.size(-2), key.size(-2)
-    print("L=", L, "S=", S, "D=", query.size(-1))
     scale_factor = 1 / math.sqrt(query.size(-1)) if scale is None else scale
 
     attn_weight = query @ key.transpose(-2, -1) * scale_factor
@@ -19,13 +17,9 @@ def scaled_dot_product_attention(query, key, value, attn_mask=None, dropout=0.0,
         print("\nattn_weight:\n", attn_weight.shape)
         print("\nattn_mask:\n", attn_mask.shape)
         attn_weight.masked_fill(attn_mask.logical_not(), float("-inf"))
-    print("\nattention (A before softmax):\n", attn_weight.shape)
     attn_weight = torch.softmax(attn_weight, dim=-1)
-    print("\nattention (A after softmax):\n", attn_weight.shape)
-    print(attn_weight)
     attn_weight = torch.dropout(attn_weight, dropout, train=True)
     output = attn_weight @ value
-    print("external scaled_dot_product_attention output:\n", output)
     return output
 
 class MultiHeadAttention(nn.Module):
@@ -45,22 +39,13 @@ class MultiHeadAttention(nn.Module):
         print("=== dropout", dropout)
         
     def scaled_dot_product_attention(self, Q, K, V, mask=None):
-        print("=== self scaled_dot_product_attention")
-        print("q\n", Q)
-        print("k\n", K)
-        print("v\n", V)
-        print("mask\n", mask)
         attn_scores = torch.matmul(Q, K.transpose(-2, -1)) / math.sqrt(self.d_k)
         if mask is not None:
             print("attn_scores:\n", attn_scores.shape)
             print("mask:\n", mask.shape)
             attn_scores = attn_scores.masked_fill(mask == 0, float("-inf"))
-        print("attention (A before softmax):\n", attn_scores.shape)
         attn_probs = torch.softmax(attn_scores, dim=-1)
-        print("attention (A after softmax):\n", attn_probs.shape)
-        print(attn_probs)
         output = torch.matmul(self.dropout(attn_probs), V)
-        print("self scaled_dot_product_attention output:\n", output)
         return output
         
     def split_heads(self, x):
@@ -80,8 +65,7 @@ class MultiHeadAttention(nn.Module):
         V = self.split_heads(self.W_v(V))
         
         attn_output_1 = self.scaled_dot_product_attention(Q, K, V, mask)
-        attn_output_2 = scaled_dot_product_attention(Q, K, V, mask)
-        print("attn diff\n", torch.abs(attn_output_1-attn_output_2))
+        #attn_output_2 = scaled_dot_product_attention(Q, K, V, mask)
         cobined_heads = self.combine_heads(attn_output_1)
         output = self.W_o(cobined_heads)
         return output
@@ -99,15 +83,18 @@ class PositionWiseFeedForward(nn.Module):
         l1 = self.w_1(x)
         return self.w_2(self.dropout(torch.nn.functional.relu(l1)))
 
-#class PositionWiseFeedForward(nn.Module):
-#    def __init__(self, d_model, d_ff):
-#        super(PositionWiseFeedForward, self).__init__()
-#        self.fc1 = nn.Linear(d_model, d_ff)
-#        self.fc2 = nn.Linear(d_ff, d_model)
-#        self.relu = nn.ReLU()
 
-#    def forward(self, x):
-#        return self.fc2(self.relu(self.fc1(x)))
+"""
+class PositionWiseFeedForward(nn.Module):
+    def __init__(self, d_model, d_ff, dropout=0.0):
+        super(PositionWiseFeedForward, self).__init__()
+        self.w_1 = nn.Linear(d_model, d_ff)
+        self.w_2 = nn.Linear(d_ff, d_model)
+        self.relu = nn.ReLU()
+
+    def forward(self, x):
+        return self.w_2(self.relu(self.w_1(x)))
+"""
 
 
 class PositionalEncoding(nn.Module):

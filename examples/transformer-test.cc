@@ -1159,8 +1159,6 @@ void test_decoder_layer_forward()
 
     src_mask->source(SEQ_SIZE);
     tgt_mask->target(SEQ_SIZE);
-    print("src_mask", *src_mask);
-    print("tgt_mask", *tgt_mask);
 
     auto vars = g.named_variables();
     //print(g);
@@ -1270,8 +1268,6 @@ void test_decoder_layer_forward()
     g.recache();
     auto y = dl();
 
-    print(g, true);
-
     Tensor y_hat(SEQ_SIZE, EMB_SIZE);
     y_hat <<
       -1.7098,  0.3158,  0.6462,  0.7478,
@@ -1281,6 +1277,182 @@ void test_decoder_layer_forward()
       -1.7080,  0.2995,  0.6785,  0.7299;
 
     ASSERT(isApprox(y, y_hat, 0.0002))
+
+    TEST_END()
+}
+
+void test_decoder_layer_backward()
+{
+    TEST_BEGIN("DecoderLayer Backward")
+
+    int EMB_SIZE = 4;
+    int SEQ_SIZE = 5;
+    int NUM_HEADS = 2;
+    int FF_SIZE = 3;
+    DTYPE dropout = 0.0;
+
+    Graph g;
+
+    auto& x = *g.new_variable(SEQ_SIZE, EMB_SIZE, "x");
+    x.value() <<
+      0.1878, 0.5416, -0.1166, 0.4477,
+      0.2878, -0.6416, 0.2166, -0.9477,
+      0.0878, 0.0416, 0.6166, 0.1477,
+      -0.3883,  0.2742, -0.4652, -0.1417,
+      0.5300, 0.2800, 0.5306, 0.4950;
+
+    auto& e = *g.new_variable(SEQ_SIZE, EMB_SIZE, "e");
+    e.value() <<
+      -1.7227,  0.4192,  0.5928,  0.7106,
+      -1.7228,  0.4187,  0.5948,  0.7092,
+      -1.7241,  0.4332,  0.5882,  0.7027,
+      -1.7244,  0.4406,  0.5782,  0.7056,
+      -1.7241,  0.4344,  0.5848,  0.7048;
+
+    auto src_mask = new SequenceMask(g, SEQ_SIZE);
+    g.keep(src_mask, "src_mask");
+
+    auto tgt_mask = new SequenceMask(g, SEQ_SIZE);
+    g.keep(tgt_mask, "tgt_mask");
+
+    auto& F = *(new DecoderLayer(g, x, e, src_mask, tgt_mask,
+      SEQ_SIZE, EMB_SIZE, NUM_HEADS, FF_SIZE, dropout));
+    g.keep(&F);
+
+    src_mask->source(SEQ_SIZE);
+    tgt_mask->target(SEQ_SIZE);
+
+    auto vars = g.named_variables();
+    //print(g);
+
+    // self-attention
+    auto& Wq = *vars["MHA.Wq"];
+    auto& Wk = *vars["MHA.Wk"];
+    auto& Wv = *vars["MHA.Wv"];
+    auto& Wo = *vars["MHA.Wo"];
+
+    auto& bq = *vars["MHA.bq"];
+    auto& bk = *vars["MHA.bk"];
+    auto& bv = *vars["MHA.bv"];
+    auto& bo = *vars["MHA.bo"];
+
+    // cross-attention
+    auto& cross_attn_Wq = *vars["MHA.Wq.1"];
+    auto& cross_attn_Wk = *vars["MHA.Wk.1"];
+    auto& cross_attn_Wv = *vars["MHA.Wv.1"];
+    auto& cross_attn_Wo = *vars["MHA.Wo.1"];
+
+    auto& cross_attn_bq = *vars["MHA.bq.1"];
+    auto& cross_attn_bk = *vars["MHA.bk.1"];
+    auto& cross_attn_bv = *vars["MHA.bv.1"];
+    auto& cross_attn_bo = *vars["MHA.bo.1"];
+
+    // element-wise feed forward
+    auto& ffL1w = *vars["Linear.W"];
+    auto& ffL1b = *vars["Linear.b"];
+    auto& ffL2w = *vars["Linear.W.1"];
+    auto& ffL2b = *vars["Linear.b.1"];
+
+    // norms (default to A=1 and B=0)
+
+    Wq.value() <<
+      -1.2321, -0.4785, -0.4598, -0.1860,
+       0.4576,  0.4961, -0.0903, -0.4833,
+      -0.1442,  0.3495,  0.4236, -0.0846,
+      -0.3082,  0.0956, -0.2470,  0.3061;
+    bq.value() <<
+      -1.3717, -0.1179, -0.0096, -0.4240;
+    Wk.value() <<
+      -2.2321, -0.4785, -0.4598, -0.1860,
+       0.4576,  0.4961, -0.0903, -0.4833,
+      -0.1442,  0.3495,  0.4236, -0.0846,
+      -0.3082,  0.0956, -0.2470,  0.3061;
+    bk.value() <<
+      -2.3717, -0.1179, -0.0096, -0.4240;
+    Wv.value() <<
+      -3.2321, -0.4785, -0.4598, -0.1860,
+       0.4576,  0.4961, -0.0903, -0.4833,
+      -0.1442,  0.3495,  0.4236, -0.0846,
+      -0.3082,  0.0956, -0.2470,  0.3061;
+    bv.value() <<
+      -3.3717, -0.1179, -0.0096, -0.4240;
+    Wo.value() <<
+      -4.2321, -0.4785, -0.4598, -0.1860,
+       0.4576,  0.4961, -0.0903, -0.4833,
+      -0.1442,  0.3495,  0.4236, -0.0846,
+      -0.3082,  0.0956, -0.2470,  0.3061;
+    bo.value() <<
+      -4.3717, -0.1179, -0.0096, -0.4240;
+
+    cross_attn_Wq.value() <<
+       0.0675,  0.0034,  0.2860, -0.0438,
+       0.3234,  0.4208, -0.0814, -0.0883,
+      -0.3376,  0.2880,  0.0641, -0.4295,
+       0.4480,  0.4328, -0.4657,  0.1207;
+    cross_attn_bq.value() <<
+      -0.3390,  0.0716,  0.4804, -0.4253;
+    cross_attn_Wk.value() <<
+       0.2975,  0.0247,  0.4618, -0.1429,
+      -0.0016, -0.0542, -0.3919,  0.1051,
+       0.4285,  0.0760, -0.3002, -0.2579,
+      -0.1038,  0.4511,  0.4412,  0.2605;
+    cross_attn_bk.value() <<
+      -0.3793,  0.4552,  0.1502,  0.3554;
+    cross_attn_Wv.value() <<
+      -0.4192, -0.4004,  0.0120, -0.4717,
+      -0.3308, -0.4728, -0.1381,  0.3374,
+       0.1521, -0.1548,  0.2885,  0.4352,
+      -0.1196, -0.2579, -0.3167,  0.0128;
+    cross_attn_bv.value() <<
+       0.4992, -0.2558,  0.1871, -0.3701;
+    cross_attn_Wo.value() <<
+       1.5146e-01,  5.0816e-02,  3.9053e-04, -4.6405e-01,
+      -1.2832e-01, -4.3910e-01, -1.8390e-01, -5.1324e-02,
+       4.4734e-01, -3.3816e-01,  1.3738e-01, -1.3041e-01,
+       1.8204e-01, -2.9708e-01,  3.2434e-01, -6.3109e-02;
+    cross_attn_bo.value() <<
+      -0.4427, -0.0959, -0.2821, -0.2209;
+
+    ffL1w.value() <<
+      -5.4208,  0.2836, -0.1770,  0.3684,
+       0.3448,  0.4124, -0.2545,  0.2874,
+      -0.4372,  0.4165, -0.2362,  0.1144;
+    ffL1b.value() <<
+       5.2621, -0.3262,  0.4815;
+    ffL2w.value() <<
+      -6.3926, -0.1717,  0.2300,
+       0.0701,  0.3166, -0.2458,
+       0.1431, -0.3391,  0.5407,
+       0.4126, -0.3719,  0.5352;
+    ffL2b.value() <<
+      -6.5333, -0.0515, -0.1337,  0.0297;
+
+    F();
+
+    F.gradient() = Tensor::Ones(SEQ_SIZE, EMB_SIZE);
+    F.gradient().leftCols(1) = Tensor::Constant(SEQ_SIZE,1, 1250);
+
+    const Tensor dFdx = x.backward();
+    const Tensor dFde = e.backward();
+
+    Tensor dFdx_hat(SEQ_SIZE, EMB_SIZE);
+    dFdx_hat << // torch output
+      -14.5332,  -9.9376,   1.3404,  13.4942,
+       -8.9433,  -8.1209,   5.1974,   8.7049,
+       -5.5773, -10.1252,   5.7661,   9.0569,
+       -2.3403, -10.5440,   4.0029,   9.6241,
+       -5.8445,  -8.6438,   2.9895,   6.3003;
+
+    Tensor dFde_hat(SEQ_SIZE, EMB_SIZE);
+    dFde_hat << // torch output
+       -7.0047, -15.9333,   6.9179,  -0.0261,
+       -7.0010, -15.9295,   6.9130,  -0.0180,
+       -6.9935, -15.9405,   6.9058,  -0.0468,
+       -7.0046, -15.9595,   6.9215,  -0.0879,
+       -6.9993, -15.9472,   6.9133,  -0.0605;
+
+    ASSERT(isApprox(dFdx, dFdx_hat, 0.001))
+    ASSERT(isApprox(dFde, dFde_hat, 0.001))
 
     TEST_END()
 }
@@ -1302,6 +1474,7 @@ int main(int argc, char* argv[]) {
     test_encoder_layer_forward();
     test_encoder_layer_backward();
     test_decoder_layer_forward();
+    test_decoder_layer_backward();
 
     return 0;
 }

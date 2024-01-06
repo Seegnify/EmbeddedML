@@ -435,22 +435,22 @@ public:
   {
     auto self_attn = new MultiHeadAttention(g, x, x, x, tgt_mask,
       seq_size, seq_size, emb_size, num_heads, true, dropout);
-    g.keep(self_attn, "dec.self_attn");
+    g.keep(self_attn);
 
     _y = new RowwiseNorm(
       g, x + *g.new_dropout(*self_attn, dropout), seq_size, emb_size);
-    g.keep(_y, "dec.norm1");
+    g.keep(_y);
 
     auto cross_attn = new MultiHeadAttention(g, *_y, e, e, src_mask,
       seq_size, seq_size, emb_size, num_heads, true, dropout);
-    g.keep(cross_attn, "dec.cross_attn");
+    g.keep(cross_attn);
 
     _y = new RowwiseNorm(
       g, *_y + *g.new_dropout(*cross_attn, dropout), seq_size, emb_size);
-    g.keep(_y, "dec.norm2");
+    g.keep(_y);
 
     auto ff = new PositionWiseFeedForward(g, *_y, emb_size, ff_size, dropout);
-    g.keep(ff, "dec.ff");
+    g.keep(ff);
 
     _y = new RowwiseNorm(
       g, *_y + *g.new_dropout(*ff, dropout), seq_size, emb_size);
@@ -465,20 +465,6 @@ public:
 
     // update value
     _value = _y->forward();
-    std::cout << "dec.self_attn" << std::endl;
-    std::cout << _graph.function("dec.self_attn")->forward() << std::endl;
-
-    std::cout << "dec.norm1" << std::endl;
-    std::cout << _graph.function("dec.norm1")->forward() << std::endl;
-
-    std::cout << "dec.cross_attn" << std::endl;
-    std::cout << _graph.function("dec.cross_attn")->forward() << std::endl;
-
-    std::cout << "dec.norm2" << std::endl;
-    std::cout << _graph.function("dec.norm2")->forward() << std::endl;
-
-    std::cout << "dec.ff" << std::endl;
-    std::cout << _graph.function("dec.ff")->forward() << std::endl;
 
     return _value;
   }

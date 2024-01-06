@@ -843,7 +843,7 @@ def test_decoder_layer():
     print(A)
 
     dA = torch.ones_like(A)
-    dA[0,0,0] = 1250
+    dA[0,:,0] = 1250
     print("dA", dA)
 
     A.backward(dA)
