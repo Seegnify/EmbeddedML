@@ -1191,14 +1191,14 @@ public:
     return node;
   }
 
-  Embedding* new_embedding(Constant& i, int in = 0, int out = 0)
+  Embedding* new_embedding(Function& i, int in = 0, int out = 0)
   {
     auto node = new Embedding(*this, i, in, out);
     keep(node);
     return node;
   }
 
-  Embedding* new_embedding(Constant& i, const Embedding& other)
+  Embedding* new_embedding(Function& i, const Embedding& other)
   {
     auto node = new Embedding(*this, i, other);
     keep(node);
