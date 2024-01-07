@@ -24,7 +24,7 @@ public:
 
     // create graph
     Graph& g = graph();
-    _model = new Transformer(g);
+    _model = nullptr; //new Transformer(g);
 
     // optimizer
     _optimizer = new Adam(g.variables(), 0.0001); // linear reg 0.87 good but slow

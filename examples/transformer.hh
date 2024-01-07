@@ -154,21 +154,9 @@ public:
     const int H = num_heads;
     const int D = emb_size / num_heads;
 
-    // projection matrices
-    auto Wq = g.new_variable(E, E, "MHA.Wq");
-    auto Wk = g.new_variable(E, E, "MHA.Wk");
-    auto Wv = g.new_variable(E, E, "MHA.Wv");
-    auto Wo = g.new_variable(E, E, "MHA.Wo");
-
-    // projection bias
-    auto bq = (bias) ? g.new_variable(1, E, "MHA.bq") : nullptr;
-    auto bk = (bias) ? g.new_variable(1, E, "MHA.bk") : nullptr;
-    auto bv = (bias) ? g.new_variable(1, E, "MHA.bv") : nullptr;
-    auto bo = (bias) ? g.new_variable(1, E, "MHA.bo") : nullptr;
-
-    auto q_heads = split_heads(linear(q, Wq, bq), H, S, D);
-    auto k_heads = split_heads(linear(k, Wk, bk), H, S, D);
-    auto v_heads = split_heads(linear(v, Wv, bv), H, S, D);
+    auto q_heads = split_heads(linear(q, E, E, bias, "Wq", "bq"), H, S, D);
+    auto k_heads = split_heads(linear(k, E, E, bias, "Wk", "bk"), H, S, D);
+    auto v_heads = split_heads(linear(v, E, E, bias, "Wv", "bv"), H, S, D);
 
     std::vector<Function*> heads(num_heads, nullptr);
 
@@ -181,7 +169,7 @@ public:
     }
 
     auto& joined = join_heads(heads, S, H);
-    _attention = &linear(joined, Wo, bo);
+    _attention = &linear(joined, E, E, bias, "Wo", "bo");
 
     _attention->derivative(_graph.new_iderivative(*this));
   }
@@ -198,10 +186,21 @@ public:
   }
   
 private:
-  Function& linear(Function& x, Function* W, Function* b)
+  Function& linear(Function& x, int in, int out, bool bias,
+  const std::string& w_name, const std::string& b_name)
   {
+    auto W = _graph.new_variable(out, in, ("MHA." + w_name).c_str());
     auto y = _graph.new_product(x, *_graph.new_transpose(*W));
-    return (b) ? (*y + *_graph.new_broadcast(*b, *y)) : (*y);
+
+    if (bias)
+    {
+      auto b = _graph.new_variable(1, out, ("MHA." + b_name).c_str());
+      return *y + *_graph.new_broadcast(*b, *y);
+    }
+    else
+    {
+      return *y;
+    }
   }
 
   std::vector<Function*> split_heads(
@@ -480,18 +479,76 @@ private:
 class Transformer : public Function
 {
 public:
-  Transformer(Graph& g) : Function(g)
+  Transformer(
+  Graph& g, Function& src_x, Function& tgt_x,
+  int src_vocab_size, int tgt_vocab_size, int emb_size, int num_heads,
+  int num_layers, int ff_size, int max_seq_size, DTYPE dropout) :
+  Function(g), _src_x(src_x), _tgt_x(tgt_x)
   {
+    auto src_emb = g.new_embedding(src_x, src_vocab_size, emb_size);
+    auto tgt_emb = g.new_embedding(tgt_x, tgt_vocab_size, emb_size);
+
+    auto src_pos = new PositionalEncoding(g, *src_emb, max_seq_size, emb_size);
+    auto tgt_pos = new PositionalEncoding(g, *tgt_emb, max_seq_size, emb_size);
+    g.keep(src_pos);
+    g.keep(tgt_pos);
+
+    _src_mask = new SequenceMask(g, max_seq_size);
+    _tgt_mask = new SequenceMask(g, max_seq_size);
+    g.keep(_src_mask);
+    g.keep(_tgt_mask);
+
+    Function* enc = g.new_dropout(*src_pos, dropout);
+    Function* dec = g.new_dropout(*tgt_pos, dropout);
+
+    // encoder layers
+    for (int i=0; i<num_layers; i++)
+    {
+      enc = new EncoderLayer(g, *enc, _src_mask,
+        max_seq_size, emb_size, num_heads, ff_size, dropout);
+      g.keep(enc);
+    }
+
+    _encoder = enc;
+
+    // decoder layers
+    for (int i=0; i<num_layers; i++)
+    {
+      dec = new DecoderLayer(g, *dec, *enc, _src_mask, _tgt_mask,
+        max_seq_size, emb_size, num_heads, ff_size, dropout);
+      g.keep(dec);
+    }
+
+    _y = g.new_linear(*dec, emb_size, tgt_vocab_size);
+
+    _y->derivative(g.new_iderivative(*this));
   }
 
   virtual const Tensor& forward()
   {
     if (_value.size() > 0) return _value;
 
+    auto& src_x = _src_x();
+    auto& tgt_x = _tgt_x();
+
+    _src_mask->source(src_x.size());
+    _tgt_mask->target(tgt_x.size());
+
+    _value = _y->forward();
+
     return _value;
   }
 
+  // access to encoder cached output for inferrence
+  Function& encoder() { return *_encoder; }
+
 protected:
+  Function& _src_x;
+  Function& _tgt_x;
+  SequenceMask* _src_mask;
+  SequenceMask* _tgt_mask;
+  Function* _encoder;
+  Function* _y;
 };
 
 
