@@ -872,6 +872,16 @@ public:
   Tensor dFdX(Function& f, Variable& x);
 
   ///////////////////////////////////////////
+  // node name scope
+  ///////////////////////////////////////////
+
+  void scope_push(const char* name) { _scope.push_back(name); }
+
+  void scope_pop() { _scope.pop_back(); }
+
+  std::string scope_name() const;
+
+  ///////////////////////////////////////////
   // node constructors
   ///////////////////////////////////////////
 
@@ -1244,6 +1254,7 @@ protected:
   std::vector<Function*> _nodes;
   std::vector<Variable*> _vars;
   std::vector<std::string> _names;
+  std::vector<std::string> _scope;
 };
 
 } /* namespace */

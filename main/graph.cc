@@ -2598,7 +2598,7 @@ Embedding::Embedding(Graph& graph, Function& i, int in, int out) :
 Function(graph), _i(i)
 {
   // construct new variables with row-wise embedding vectors
-  _E = graph.new_variable(in, out);
+  _E = graph.new_variable(in, out, "Embedding.E");
 
   init();
 }
@@ -3323,7 +3323,7 @@ void Graph::keep(Variable* v, const char* name)
 {
   _nodes.push_back(v);
   _vars.push_back(v);
-  _names.push_back((name) ? name : "Variable");
+  _names.push_back((name) ? scope_name() + name : scope_name() + "Variable");
 }
 
 // reset cache
@@ -3404,6 +3404,27 @@ Tensor Graph::dFdX(Function& f, Variable& x)
   }
 
   return dfdx;
+}
+
+///////////////////////////////////////////
+// node name scope
+///////////////////////////////////////////
+
+std::string Graph::scope_name() const
+{
+  int size = _scope.size();
+  for (const auto& e: _scope) size += e.size();
+
+  std::string name;
+  name.reserve(size);
+
+  for (const auto& e: _scope)
+  {
+    name += e;
+    name += ':';
+  }
+
+  return name;
 }
 
 ///////////////////////////////////////////
