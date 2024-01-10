@@ -1470,9 +1470,9 @@ void test_transformer_forward()
 
     int SRC_TOKENS = 10;
     int TGT_TOKENS = 10;
-    int SOS_TOKEN = 8;  // start of sequence token
+    int SOS_TOKEN = 8; // start of sequence token
     int EOS_TOKEN = 9; // end of sequence token
-    int PAD_TOKEN = 0;  // padding token (marks positions to ignore)
+    int PAD_TOKEN = 0; // padding token (marks positions to ignore)
 
     Graph g;
 
@@ -1490,9 +1490,9 @@ void test_transformer_forward()
     
     Transformer T(
       g, src_x, tgt_x,
-      SRC_TOKENS, TGT_TOKENS,
+      SRC_TOKENS, TGT_TOKENS, PAD_TOKEN,
       NUM_LAYERS, NUM_HEADS, EMB_SIZE, FF_SIZE, SEQ_SIZE, DROPOUT);
-      
+
     print(g);
     
     ASSERT(false)

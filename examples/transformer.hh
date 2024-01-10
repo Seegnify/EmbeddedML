@@ -22,18 +22,18 @@ public:
   {
   }
 
-  void source(int seq_size)
+  void source(int src_size)
   {
     _value = Tensor::Zero(_max_seq_size, _max_seq_size);
-    _value.leftCols(seq_size) = Tensor::Ones(_max_seq_size, seq_size);
+    _value.leftCols(src_size) = Tensor::Ones(_max_seq_size, src_size);
   }
 
-  void target(int seq_size)
+  void target(int src_size)
   {
     _value = Tensor::Zero(_max_seq_size, _max_seq_size);
     _value.triangularView<Eigen::Lower>().setConstant(1);
 
-    auto padding = std::max(_max_seq_size - seq_size, 0);
+    auto padding = std::max(_max_seq_size - src_size, 0);
 
     if (padding)
     {
@@ -481,9 +481,9 @@ class Transformer : public Function
 public:
   Transformer(
   Graph& g, Function& src_x, Function& tgt_x,
-  int src_tokens, int tgt_tokens, int num_layers, int num_heads,
+  int src_tokens, int tgt_tokens, int pad_token, int num_layers, int num_heads,
   int emb_size, int ff_size, int max_seq_size, DTYPE dropout) :
-  Function(g), _src_x(src_x), _tgt_x(tgt_x)
+  Function(g), _src_x(src_x), _tgt_x(tgt_x), _pad_token(pad_token)
   {
     auto src_emb = g.new_embedding(src_x, src_tokens, emb_size);
     auto tgt_emb = g.new_embedding(tgt_x, tgt_tokens, emb_size);
@@ -528,11 +528,29 @@ public:
     _y->derivative(g.new_iderivative(*this));
   }
 
-  // requires src sequence, tgt sequence, src mask and tgt mask set
+  // requires src sequence and tgt sequence
   virtual const Tensor& forward()
   {
     if (_value.size() > 0) return _value;
 
+    auto& src = _src_x();
+    int src_size = src.cols();
+
+    // determine size of the source sequence
+    for (int i=0; i<src.cols(); i++)
+    {
+      if (src(i) == _pad_token)
+      {
+        src_size = i;
+        break;
+      }
+    }
+
+    // set mask according to source seqeunce size
+    _src_mask->source(src_size);
+    _tgt_mask->target(src_size);
+
+    // run transformer
     _value = _y->forward();
 
     return _value;
@@ -541,15 +559,10 @@ public:
   // access to encoder cached output for inferrence
   Function& encoder() { return *_encoder; }
 
-  // access to source mask
-  SequenceMask& source_mask() { return *_src_mask; }
-
-  // access to target mask
-  SequenceMask& target_mask() { return *_tgt_mask; }
-
 protected:
   Function& _src_x;
   Function& _tgt_x;
+  const int _pad_token;
   SequenceMask* _src_mask;
   SequenceMask* _tgt_mask;
   Function* _encoder;
