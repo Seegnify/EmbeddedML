@@ -58,7 +58,7 @@ public:
   // trg_size - target and query size
   // seq_size - max sequence size
   // head_size - head size
-  // mask - attention mask
+  // mask - attention mask [trg_size x seq_size]
   // dropout - dropout probability
   ScaledDotProductAttention(
     Graph& g, Function& q, Function& k, Function& v, Function* mask, 
@@ -481,12 +481,12 @@ class Transformer : public Function
 public:
   Transformer(
   Graph& g, Function& src_x, Function& tgt_x,
-  int src_vocab_size, int tgt_vocab_size, int emb_size, int num_heads,
-  int num_layers, int ff_size, int max_seq_size, DTYPE dropout) :
+  int src_tokens, int tgt_tokens, int num_layers, int num_heads,
+  int emb_size, int ff_size, int max_seq_size, DTYPE dropout) :
   Function(g), _src_x(src_x), _tgt_x(tgt_x)
   {
-    auto src_emb = g.new_embedding(src_x, src_vocab_size, emb_size);
-    auto tgt_emb = g.new_embedding(tgt_x, tgt_vocab_size, emb_size);
+    auto src_emb = g.new_embedding(src_x, src_tokens, emb_size);
+    auto tgt_emb = g.new_embedding(tgt_x, tgt_tokens, emb_size);
 
     auto src_pos = new PositionalEncoding(g, *src_emb, max_seq_size, emb_size);
     auto tgt_pos = new PositionalEncoding(g, *tgt_emb, max_seq_size, emb_size);
@@ -502,37 +502,36 @@ public:
     Function* dec = g.new_dropout(*tgt_pos, dropout);
 
     // encoder layers
+    g.scope_push("encoder");
     for (int i=0; i<num_layers; i++)
     {
       enc = new EncoderLayer(g, *enc, _src_mask,
         max_seq_size, emb_size, num_heads, ff_size, dropout);
       g.keep(enc);
     }
+    g.scope_pop();
 
     _encoder = enc;
 
     // decoder layers
+    g.scope_push("decoder");
     for (int i=0; i<num_layers; i++)
     {
       dec = new DecoderLayer(g, *dec, *enc, _src_mask, _tgt_mask,
         max_seq_size, emb_size, num_heads, ff_size, dropout);
       g.keep(dec);
     }
+    g.scope_pop();
 
-    _y = g.new_linear(*dec, emb_size, tgt_vocab_size);
+    _y = g.new_linear(*dec, emb_size, tgt_tokens);
 
     _y->derivative(g.new_iderivative(*this));
   }
 
+  // requires src sequence, tgt sequence, src mask and tgt mask set
   virtual const Tensor& forward()
   {
     if (_value.size() > 0) return _value;
-
-    auto& src_x = _src_x();
-    auto& tgt_x = _tgt_x();
-
-    _src_mask->source(src_x.size());
-    _tgt_mask->target(tgt_x.size());
 
     _value = _y->forward();
 
@@ -541,6 +540,12 @@ public:
 
   // access to encoder cached output for inferrence
   Function& encoder() { return *_encoder; }
+
+  // access to source mask
+  SequenceMask& source_mask() { return *_src_mask; }
+
+  // access to target mask
+  SequenceMask& target_mask() { return *_tgt_mask; }
 
 protected:
   Function& _src_x;

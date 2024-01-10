@@ -23,7 +23,7 @@ def scaled_dot_product_attention(query, key, value, attn_mask=None, dropout=0.0,
     return output
 
 class MultiHeadAttention(nn.Module):
-    def __init__(self, d_model, num_heads, dropout=0.1):
+    def __init__(self, d_model, num_heads, dropout=0.1, name="MHA"):
         super(MultiHeadAttention, self).__init__()
         assert d_model % num_heads == 0, "d_model must be divisible by num_heads"
         
@@ -36,14 +36,16 @@ class MultiHeadAttention(nn.Module):
         self.W_v = nn.Linear(d_model, d_model)
         self.W_o = nn.Linear(d_model, d_model)
         self.dropout = nn.Dropout(p=dropout)
-        print("=== dropout", dropout)
+        self.name = name
         
     def scaled_dot_product_attention(self, Q, K, V, mask=None):
         attn_scores = torch.matmul(Q, K.transpose(-2, -1)) / math.sqrt(self.d_k)
         if mask is not None:
-            print("attn_scores:\n", attn_scores.shape)
-            print("mask:\n", mask.shape)
+            #print("attn_scores:\n", attn_scores.shape)
+            #print("mask:\n", mask.shape)
+            #print(self.name, "dot prod mask", mask)
             attn_scores = attn_scores.masked_fill(mask == 0, float("-inf"))
+            #print(self.name, "dot prod mask attn_scores", attn_scores)
         attn_probs = torch.softmax(attn_scores, dim=-1)
         output = torch.matmul(self.dropout(attn_probs), V)
         return output
@@ -60,9 +62,9 @@ class MultiHeadAttention(nn.Module):
         WQ = self.W_q(Q)
         WK = self.W_k(K)
         WV = self.W_v(V)
-        Q = self.split_heads(self.W_q(Q))
-        K = self.split_heads(self.W_k(K))
-        V = self.split_heads(self.W_v(V))
+        Q = self.split_heads(WQ)
+        K = self.split_heads(WK)
+        V = self.split_heads(WV)
         
         attn_output_1 = self.scaled_dot_product_attention(Q, K, V, mask)
         #attn_output_2 = scaled_dot_product_attention(Q, K, V, mask)
@@ -127,25 +129,18 @@ class EncoderLayer(nn.Module):
         
     def forward(self, x, mask):
         attn_output = self.self_attn(x, x, x, mask)
-        print("mha\n", attn_output)
         x_d = x + self.dropout(attn_output)
-        print("x_d\n", x_d)
         x = self.norm1(x_d)
-        #x = x_d
-        print("norm1\n", x)
         ff_output = self.feed_forward(x)
-        print("ff\n", ff_output)
         x = self.norm2(x + self.dropout(ff_output))
-        #x = x + self.dropout(ff_output)
-        print("norm2\n", x)
         return x
 
 
 class DecoderLayer(nn.Module):
     def __init__(self, d_model, num_heads, d_ff, dropout):
         super(DecoderLayer, self).__init__()
-        self.self_attn = MultiHeadAttention(d_model, num_heads, dropout)
-        self.cross_attn = MultiHeadAttention(d_model, num_heads, dropout)
+        self.self_attn = MultiHeadAttention(d_model, num_heads, dropout, name="self_attn")
+        self.cross_attn = MultiHeadAttention(d_model, num_heads, dropout, name="cross_attn")
         self.feed_forward = PositionWiseFeedForward(d_model, d_ff, dropout)
         self.norm1 = nn.LayerNorm(d_model)
         self.norm2 = nn.LayerNorm(d_model)
@@ -176,13 +171,7 @@ class Transformer(nn.Module):
         self.dropout = nn.Dropout(dropout)
 
     def generate_mask(self, src, tgt):
-        print("generate_mask src", src.shape)
-        print("generate_mask (src != 0).shape", (src != 0).shape)
-        print("generate_mask (src != 0).unsqueeze(1).shape", (src != 0).unsqueeze(1).shape)
-        print("generate_mask src != 0).unsqueeze(1).unsqueeze(2)", (src != 0).unsqueeze(1).unsqueeze(2).shape)
-        #src_mask = (src != 0).unsqueeze(1).unsqueeze(2)
         src_mask = (src != 0).unsqueeze(1).unsqueeze(2)
-        print("generate_mask src", src_mask.shape)
         tgt_mask = (tgt != 0).unsqueeze(1).unsqueeze(3)
         seq_length = tgt.size(1)
         nopeak_mask = (1 - torch.triu(torch.ones(1, seq_length, seq_length), diagonal=1)).bool()
@@ -192,17 +181,19 @@ class Transformer(nn.Module):
     def forward(self, src, tgt):
         print("=== Transformer.forward()")
         print("=== src", src.shape)
+        print("=== tgt", tgt.shape)
         src_mask, tgt_mask = self.generate_mask(src, tgt)
         print("=== src_mask", src_mask.shape, (src_mask == True).all())
         print("=== tgt_mask", tgt_mask.shape, (tgt_mask == True).all())
         src_embedded = self.dropout(self.positional_encoding(self.encoder_embedding(src)))
         tgt_embedded = self.dropout(self.positional_encoding(self.decoder_embedding(tgt)))
         print("=== src_embedded", src_embedded.shape)
+        print("=== tgt_embedded", tgt_embedded.shape)
 
         enc_output = src_embedded
         for enc_layer in self.encoder_layers:
             enc_output = enc_layer(enc_output, src_mask)
-
+        
         dec_output = tgt_embedded
         for dec_layer in self.decoder_layers:
             dec_output = dec_layer(dec_output, enc_output, src_mask, tgt_mask)
@@ -236,7 +227,7 @@ def main():
   max_seq_length = 100
   dropout = 0.1
   batch_size = 64
-  num_epochs = 2
+  num_epochs = 10
   model_path = "transformer.pt"
   model_np_path = "transformer.npz"
   train_data_path = "dataset.dat"
@@ -261,9 +252,11 @@ def main():
     src_data = torch.randint(1, src_vocab_size, (batch_size, max_seq_length))  # (batch_size, seq_length)
     tgt_data = torch.randint(1, tgt_vocab_size, (batch_size, max_seq_length))  # (batch_size, seq_length)
     print("New training data generated")
-  print("src_data")
+  print("src_data", src_data.shape)
   print(src_data)
-  #os.exit
+  print("tgt_data", tgt_data.shape, tgt_data[:, :-1].shape)
+  print(tgt_data)
+  os.exit
 
   print_model(torch.load(model_path))
 
@@ -276,7 +269,9 @@ def main():
   for epoch in range(num_epochs):
       optimizer.zero_grad()
       output = transformer(src_data, tgt_data[:, :-1])
+      #output = transformer(src_data, tgt_data) # same target lenght
       loss = criterion(output.contiguous().view(-1, tgt_vocab_size), tgt_data[:, 1:].contiguous().view(-1))
+      #loss = criterion(output.contiguous().view(-1, tgt_vocab_size), tgt_data.contiguous().view(-1)) # same target lenght
       loss.backward()
       optimizer.step()
       print(f"Epoch: {epoch+1} / {num_epochs}, Loss: {loss.item()}")

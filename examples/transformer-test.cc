@@ -1457,6 +1457,49 @@ void test_decoder_layer_backward()
     TEST_END()
 }
 
+void test_transformer_forward()
+{
+    TEST_BEGIN("Transformer Forward")
+
+    int NUM_LAYERS = 1;
+    int NUM_HEADS = 2;
+    int EMB_SIZE = 4;
+    int SEQ_SIZE = 5;
+    int FF_SIZE = 3;
+    DTYPE DROPOUT = 0.0;
+
+    int SRC_TOKENS = 10;
+    int TGT_TOKENS = 10;
+    int SOS_TOKEN = 8;  // start of sequence token
+    int EOS_TOKEN = 9; // end of sequence token
+    int PAD_TOKEN = 0;  // padding token (marks positions to ignore)
+
+    Graph g;
+
+    auto& src_x = *g.new_variable(1, SEQ_SIZE, "src_x");
+    src_x.value() <<
+      1, 2, 3, PAD_TOKEN, PAD_TOKEN; // input sequence
+
+    auto& tgt_x = *g.new_variable(1, SEQ_SIZE, "tgt_x");
+    tgt_x.value() <<
+      SOS_TOKEN, 1, 2, 3, PAD_TOKEN; // target sequence
+
+    Tensor y_hat(1, SEQ_SIZE);
+    y_hat <<
+      1, 2, 3, EOS_TOKEN, PAD_TOKEN; // output sequence
+    
+    Transformer T(
+      g, src_x, tgt_x,
+      SRC_TOKENS, TGT_TOKENS,
+      NUM_LAYERS, NUM_HEADS, EMB_SIZE, FF_SIZE, SEQ_SIZE, DROPOUT);
+      
+    print(g);
+    
+    ASSERT(false)
+
+    TEST_END()
+}
+
 int main(int argc, char* argv[]) {
 
     //test_cnpy();
@@ -1475,6 +1518,7 @@ int main(int argc, char* argv[]) {
     test_encoder_layer_backward();
     test_decoder_layer_forward();
     test_decoder_layer_backward();
+    test_transformer_forward();
 
     return 0;
 }
