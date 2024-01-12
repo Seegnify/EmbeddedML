@@ -188,33 +188,32 @@ void test_sequence_mask()
 {
     TEST_BEGIN("Sequence Mask")
 
-    int MAX_SEQ_SIZE = 5;
-    int SEQ_SIZE = 3;
+    int SEQ_SIZE = 5;
+    DTYPE I = std::numeric_limits<DTYPE>::infinity();
 
     Graph g;
-
-    SequenceMask m(g, MAX_SEQ_SIZE);
+    SequenceMask m(g, SEQ_SIZE);
 
     // test source mask
-    m.source(SEQ_SIZE);
-    Tensor source(MAX_SEQ_SIZE, MAX_SEQ_SIZE);
+    m.source(SEQ_SIZE-2);
+    Tensor source(SEQ_SIZE, SEQ_SIZE);
     source <<
-      1,1,1,0,0,
-      1,1,1,0,0,
-      1,1,1,0,0,
-      1,1,1,0,0,
-      1,1,1,0,0;
+      0, 0, 0,-I,-I,
+      0, 0, 0,-I,-I,
+      0, 0, 0,-I,-I,
+      0, 0, 0,-I,-I,
+      0, 0, 0,-I,-I,
     ASSERT(m() == source)
 
     // test target mask
-    m.target(SEQ_SIZE);
-    Tensor target(MAX_SEQ_SIZE, MAX_SEQ_SIZE);
+    m.target(SEQ_SIZE-1);
+    Tensor target(SEQ_SIZE, SEQ_SIZE);
     target <<
-      1,0,0,0,0,
-      1,1,0,0,0,
-      1,1,1,0,0,
-      1,1,1,0,0,
-      1,1,1,0,0;
+      0,-I,-I,-I,-I,
+      0, 0,-I,-I,-I,
+      0, 0, 0,-I,-I,
+      0, 0, 0, 0,-I,
+      0, 0, 0, 0,-I,
     ASSERT(m() == target)
 
     TEST_END()
@@ -226,6 +225,7 @@ void test_scaled_dot_product_attention_forward()
 
     Graph g;
     DTYPE dropout = 0.0;
+    DTYPE I = std::numeric_limits<DTYPE>::infinity();
 
     // [2x3]
     auto Q = g.new_constant(2, 3);
@@ -243,8 +243,8 @@ void test_scaled_dot_product_attention_forward()
 
     // [2x4]
     auto M = g.new_constant(2, 4);
-    M->value() << 1,1,1,1,
-                  1,1,0,0;
+    M->value() << 0, 0, 0, 0,
+                  0, 0,-I,-I;
 
     // [4x5]
     auto V = g.new_constant(4, 5);
@@ -259,7 +259,7 @@ void test_scaled_dot_product_attention_forward()
     int S = K->value().rows();
     int D = K->value().cols();
 
-    ScaledDotProductAttention attn(g, *Q,*K,*V, M, T, S, D, dropout);
+    ScaledDotProductAttention attn(g, *Q,*K,*V,*M, T, S, D, dropout);
 
     auto& A = attn();
 
@@ -278,6 +278,7 @@ void test_scaled_dot_product_attention_backward()
 
     Graph g;
     DTYPE dropout = 0.0;
+    DTYPE I = std::numeric_limits<DTYPE>::infinity();
 
     // [2x3]
     auto Q = g.new_variable(2, 3);
@@ -293,8 +294,8 @@ void test_scaled_dot_product_attention_backward()
 
     // QK_T -> [2x4]
     auto M = g.new_constant(2, 4);
-    M->value() << 1,1,1,1,
-                  1,1,0,0;
+    M->value() << 0, 0, 0, 0,
+                  0, 0,-I,-I;
 
     // [4x5]
     auto V = g.new_variable(4, 5);
@@ -310,7 +311,7 @@ void test_scaled_dot_product_attention_backward()
     int D = K->value().cols();
 
     auto attnptr = new ScaledDotProductAttention(
-      g, *Q,*K,*V, M, T, S, D, dropout
+      g, *Q,*K,*V,*M, T, S, D, dropout
     );
     g.keep(attnptr); // for auto-grad
     auto& attn = *attnptr;
@@ -371,8 +372,11 @@ void test_multihead_attention_forward()
     auto k = g.new_variable(SEQ_SIZE, EMB_SIZE);
     auto v = g.new_variable(TRG_SIZE, EMB_SIZE);
 
+    SequenceMask m(g, SEQ_SIZE);
+    m.source(SEQ_SIZE);
+
     MultiHeadAttention mha(
-      g, *q, *k, *v, nullptr,
+      g, *q, *k, *v, m,
       TRG_SIZE, SEQ_SIZE, EMB_SIZE, NUM_HEADS,
       bias, dropout
     );
@@ -469,8 +473,11 @@ void test_multihead_attention_backward()
     auto k = g.new_variable(SEQ_SIZE, EMB_SIZE);
     auto v = g.new_variable(TRG_SIZE, EMB_SIZE);
 
+    SequenceMask m(g, SEQ_SIZE);
+    m.source(SEQ_SIZE);
+
     auto mhaptr = new MultiHeadAttention(
-      g, *q, *k, *v, nullptr,
+      g, *q, *k, *v, m,
       TRG_SIZE, SEQ_SIZE, EMB_SIZE, NUM_HEADS,
       bias, dropout
     );
@@ -926,10 +933,10 @@ void test_encoder_layer_forward()
       -0.3883,  0.2742, -0.4652, -0.1417,
       0.5300, 0.2800, 0.5306, 0.4950;
 
-    auto& mask = *g.new_constant(SEQ_SIZE, SEQ_SIZE, "mask");
-    mask.value() = Tensor::Ones(SEQ_SIZE, SEQ_SIZE);
+    SequenceMask m(g, SEQ_SIZE);
+    m.source(SEQ_SIZE);
 
-    EncoderLayer el(g, x, &mask,
+    EncoderLayer el(g, x, m,
       SEQ_SIZE, EMB_SIZE, NUM_HEADS, FF_SIZE, dropout);
 
     // print(g);
@@ -1030,10 +1037,10 @@ void test_encoder_layer_backward()
       -0.3883,  0.2742, -0.4652, -0.1417,
       0.5300, 0.2800, 0.5306, 0.4950;
 
-    auto& mask = *g.new_constant(SEQ_SIZE, SEQ_SIZE, "mask");
-    mask.value() = Tensor::Ones(SEQ_SIZE, SEQ_SIZE);
+    SequenceMask m(g, SEQ_SIZE);
+    m.source(SEQ_SIZE);
 
-    auto& F = *(new EncoderLayer(g, x, &mask,
+    auto& F = *(new EncoderLayer(g, x, m,
       SEQ_SIZE, EMB_SIZE, NUM_HEADS, FF_SIZE, dropout));
     g.keep(&F);
 
@@ -1148,17 +1155,14 @@ void test_decoder_layer_forward()
       -1.7244,  0.4406,  0.5782,  0.7056,
       -1.7241,  0.4344,  0.5848,  0.7048;
 
-    auto src_mask = new SequenceMask(g, SEQ_SIZE);
-    g.keep(src_mask, "src_mask");
+    SequenceMask src_mask(g, SEQ_SIZE);
+    SequenceMask tgt_mask(g, SEQ_SIZE);
 
-    auto tgt_mask = new SequenceMask(g, SEQ_SIZE);
-    g.keep(tgt_mask, "tgt_mask");
+    src_mask.source(SEQ_SIZE);
+    tgt_mask.target(SEQ_SIZE);
 
     DecoderLayer dl(g, x, e, src_mask, tgt_mask,
       SEQ_SIZE, EMB_SIZE, NUM_HEADS, FF_SIZE, dropout);
-
-    src_mask->source(SEQ_SIZE);
-    tgt_mask->target(SEQ_SIZE);
 
     auto vars = g.named_variables();
     //print(g);
@@ -1309,18 +1313,15 @@ void test_decoder_layer_backward()
       -1.7244,  0.4406,  0.5782,  0.7056,
       -1.7241,  0.4344,  0.5848,  0.7048;
 
-    auto src_mask = new SequenceMask(g, SEQ_SIZE);
-    g.keep(src_mask, "src_mask");
+    SequenceMask src_mask(g, SEQ_SIZE);
+    SequenceMask tgt_mask(g, SEQ_SIZE);
 
-    auto tgt_mask = new SequenceMask(g, SEQ_SIZE);
-    g.keep(tgt_mask, "tgt_mask");
+    src_mask.source(SEQ_SIZE);
+    tgt_mask.target(SEQ_SIZE);
 
     auto& F = *(new DecoderLayer(g, x, e, src_mask, tgt_mask,
       SEQ_SIZE, EMB_SIZE, NUM_HEADS, FF_SIZE, dropout));
     g.keep(&F);
-
-    src_mask->source(SEQ_SIZE);
-    tgt_mask->target(SEQ_SIZE);
 
     auto vars = g.named_variables();
     //print(g);
@@ -1495,7 +1496,34 @@ void test_transformer_forward()
 
     print(g);
     
-    ASSERT(false)
+    const DTYPE PADDING = std::numeric_limits<DTYPE>::quiet_NaN();
+    
+    auto y_logit = T();
+    Tensor y_logit_hat(SEQ_SIZE, TGT_TOKENS);
+    y_logit_hat <<
+      -0.8373, -0.2303,  0.2102,  0.5463,  0.0835,  0.6512, -0.0579, -0.8578,  0.6470,  1.1275,
+      -0.8642, -0.1822,  0.1841,  0.5928,  0.0569,  0.6655, -0.0717, -0.8065,  0.6609,  1.1561,
+      -0.8683, -0.1421,  0.1810,  0.6232,  0.0386,  0.6596, -0.0741, -0.7732,  0.6778,  1.1673,
+      -0.8707, -0.1883,  0.1762,  0.5909,  0.0579,  0.6734, -0.0750, -0.8069,  0.6552,  1.1593,
+      PADDING, PADDING, PADDING, PADDING, PADDING, PADDING, PADDING, PADDING, PADDING, PADDING;
+
+    print("y_logit", y_logit);
+    print("y_logit_hat", y_logit_hat);
+    
+    auto y_num = y_logit.block(0,0, SEQ_SIZE-1, TGT_TOKENS);
+    auto y_hat_num = y_logit_hat.block(0,0, SEQ_SIZE-1, TGT_TOKENS);
+
+    print("y_num", y_num);
+    print("y_hat_num", y_hat_num);
+
+    auto y_nan = y_logit.block(SEQ_SIZE-1,0, 1, TGT_TOKENS);
+    auto y_hat_nan = y_logit_hat.block(SEQ_SIZE-1,0, 1, TGT_TOKENS);
+
+    print("y_nan", y_nan);
+    print("y_hat_nan", y_hat_nan);
+    
+    ASSERT(isApprox(y_num, y_hat_num, 0.0001))
+    ASSERT(y_nan == y_hat_nan)
 
     TEST_END()
 }

@@ -12,37 +12,43 @@ using namespace seegnify;
 
 
 ///////////////////////////////////
-// SequenceMask
+// SequenceMask for SoftMax
 ///////////////////////////////////
 class SequenceMask : public Constant
 {
 public:
-  SequenceMask(Graph& g, int max_seq_size) :
-  Constant(g), _max_seq_size(max_seq_size)
+  SequenceMask(Graph& g, int seq_size) :
+  Constant(g), _seq_size(seq_size)
   {
   }
 
   void source(int src_size)
   {
-    _value = Tensor::Zero(_max_seq_size, _max_seq_size);
-    _value.leftCols(src_size) = Tensor::Ones(_max_seq_size, src_size);
-  }
+    _value = Tensor::Zero(_seq_size, _seq_size);
 
-  void target(int src_size)
-  {
-    _value = Tensor::Zero(_max_seq_size, _max_seq_size);
-    _value.triangularView<Eigen::Lower>().setConstant(1);
-
-    auto padding = std::max(_max_seq_size - src_size, 0);
-
+    auto padding = std::max(_seq_size - src_size, 0);
     if (padding)
     {
-      _value.rightCols(padding) = Tensor::Zero(_max_seq_size, padding);
+      DTYPE inf = std::numeric_limits<DTYPE>::infinity();
+      _value.rightCols(padding) = Tensor::Constant(_seq_size, padding, -inf);
+    }
+  }
+
+  void target(int tgt_size)
+  {
+    DTYPE inf = std::numeric_limits<DTYPE>::infinity();
+    _value = Tensor::Constant(_seq_size, _seq_size, -inf);
+    _value.triangularView<Eigen::Lower>().setConstant(0);
+
+    auto padding = std::max(_seq_size - tgt_size, 0);
+    if (padding)
+    {
+      _value.rightCols(padding) = Tensor::Constant(_seq_size, padding, -inf);
     }
   }
 
 private:
-  const int _max_seq_size;
+  const int _seq_size;
 };
 
 
@@ -58,13 +64,13 @@ public:
   // trg_size - target and query size
   // seq_size - max sequence size
   // head_size - head size
-  // mask - attention mask [trg_size x seq_size]
+  // mask - attention mask [trg_size x seq_size] (dim of Q x K.T)
   // dropout - dropout probability
   ScaledDotProductAttention(
-    Graph& g, Function& q, Function& k, Function& v, Function* mask, 
+    Graph& g, Function& q, Function& k, Function& v, Function& mask, 
     int trg_size, int seq_size, int head_size, DTYPE dropout=0.0
   ) :
-  Function(g), _q(q), _k(k), _v(v), _mask(mask), _dropout(dropout)
+  Function(g), _q(q), _k(k), _v(v), _dropout(dropout)
   {
     // L - target lenght, S - sequance lenght, D - embedding dimension
     int L = trg_size;  // _q().rows()
@@ -74,11 +80,8 @@ public:
     // get qk_T attention component [LxS]
     _attention = _graph.new_product(_q, *_graph.new_transpose(_k));
 
-    // attention bias [LxS] (actual dimension updated in forward)
-    _bias = _graph.new_constant();
-
-    // scale and add attention mask as bias
-    _attention = &(*_attention / sqrt(D) + *_bias);
+    // scale and add attention mask as bias [LxS]
+    _attention = &(*_attention / sqrt(D) + mask);
 
     // apply row-wise softmax [LxS]
     _attention = _graph.new_rowwise(*_attention, L, S, [&](Function& row) {
@@ -101,25 +104,6 @@ public:
   {
     if (_value.size() > 0) return _value;
 
-    auto& q = _q();
-    auto& k = _k();
-
-    // get input/output dimensions
-    int L = q.rows();
-    int S = k.rows();
-
-    // initialize default attention mask
-    auto& b = _bias->value();
-    b = Tensor::Zero(L, S);
-
-    // set custom attention mask
-    if (_mask)
-    {
-      auto& m = _mask->forward();
-      DTYPE inf = std::numeric_limits<DTYPE>::infinity();
-      b = (m.array() == 0).select(-inf, b);
-    }
-
     _value = _attention->forward();
 
     return _value;
@@ -129,8 +113,6 @@ protected:
   Function& _q;
   Function& _k;
   Function& _v;
-  Function* _mask;
-  Constant* _bias;
   Function* _attention;
   const DTYPE _dropout;
 };
@@ -143,7 +125,7 @@ class MultiHeadAttention : public Function
 {
 public:
   MultiHeadAttention(
-    Graph& g, Function& q, Function& k, Function& v, Function* mask,
+    Graph& g, Function& q, Function& k, Function& v, Function& mask,
     int trg_size, int seq_size, int emb_size, int num_heads,
     bool bias = true, DTYPE dropout = 0.0) :
     Function(g)
@@ -385,7 +367,7 @@ class EncoderLayer : public Function
 {
 public:
   EncoderLayer(
-    Graph& g, Function& x, Function* mask,
+    Graph& g, Function& x, Function& mask,
     int seq_size, int emb_size, int num_heads, int ff_size, DTYPE dropout) :
     Function(g)
   {
@@ -428,7 +410,7 @@ class DecoderLayer : public Function
 {
 public:
   DecoderLayer(
-    Graph& g, Function& x, Function& e, Function* src_mask, Function* tgt_mask,
+    Graph& g, Function& x, Function& e, Function& src_mask, Function& tgt_mask,
     int seq_size, int emb_size, int num_heads, int ff_size, DTYPE dropout) :
     Function(g)
   {
@@ -505,7 +487,7 @@ public:
     g.scope_push("encoder");
     for (int i=0; i<num_layers; i++)
     {
-      enc = new EncoderLayer(g, *enc, _src_mask,
+      enc = new EncoderLayer(g, *enc, *_src_mask,
         max_seq_size, emb_size, num_heads, ff_size, dropout);
       g.keep(enc);
     }
@@ -517,7 +499,7 @@ public:
     g.scope_push("decoder");
     for (int i=0; i<num_layers; i++)
     {
-      dec = new DecoderLayer(g, *dec, *enc, _src_mask, _tgt_mask,
+      dec = new DecoderLayer(g, *dec, *enc, *_src_mask, *_tgt_mask,
         max_seq_size, emb_size, num_heads, ff_size, dropout);
       g.keep(dec);
     }
@@ -533,22 +515,17 @@ public:
   {
     if (_value.size() > 0) return _value;
 
-    auto& src = _src_x();
-    int src_size = src.cols();
-
     // determine size of the source sequence
-    for (int i=0; i<src.cols(); i++)
-    {
-      if (src(i) == _pad_token)
-      {
-        src_size = i;
-        break;
-      }
-    }
+    int src_size = sequence_size(_src_x());
+    int tgt_size = sequence_size(_tgt_x());
 
     // set mask according to source seqeunce size
     _src_mask->source(src_size);
-    _tgt_mask->target(src_size);
+    _tgt_mask->target(tgt_size);
+    std::cout << "_src_mask" << std::endl;
+    std::cout << _src_mask->value() << std::endl;
+    std::cout << "_tgt_mask" << std::endl;
+    std::cout << _tgt_mask->value() << std::endl;
 
     // run transformer
     _value = _y->forward();
@@ -560,6 +537,25 @@ public:
   Function& encoder() { return *_encoder; }
 
 protected:
+
+  // determine actual sequence size
+  int sequence_size(const Tensor& sequence)
+  {
+    int size = sequence.size();
+
+    // determine size of the source sequence
+    for (int i=0; i<size; i++)
+    {
+      if (sequence(i) == _pad_token)
+      {
+        return i;
+      }
+    }
+
+    return size;
+  }
+
+private:
   Function& _src_x;
   Function& _tgt_x;
   const int _pad_token;
