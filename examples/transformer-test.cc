@@ -37,7 +37,7 @@ void print(const std::string& name, Function& f)
   print(name, f.forward());
 }
 
-void print(const Graph& g, bool values = false)
+void print(const Graph& g, bool values = false, bool grads = false)
 {
   auto vars = g.named_variables();
 
@@ -53,7 +53,13 @@ void print(const Graph& g, bool values = false)
     << std::endl;
     if (values)
     {
+      std::cout << "value" << std::endl;
       std::cout << tensor << std::endl;
+    }
+    if (grads)
+    {
+      std::cout << "gradient" << std::endl;
+      std::cout << var->gradient() << std::endl;
     }
   }
 }
@@ -1489,19 +1495,18 @@ void test_transformer_forward()
     Tensor y_hat(1, SEQ_SIZE);
     y_hat <<
       1, 2, 3, EOS_TOKEN, PAD_TOKEN; // output sequence
-    
+
     Transformer T(
       g, src_x, tgt_x,
       SRC_TOKENS, TGT_TOKENS, PAD_TOKEN,
       NUM_LAYERS, NUM_HEADS, EMB_SIZE, FF_SIZE, SEQ_SIZE, DROPOUT);
 
+    auto vars = g.named_variables();
     //print(g);
 
-    auto vars = g.named_variables();
-
     /////////////////////////////////////////////////////
-    // embeddings
-    ////////////////////////////////////////////////////.
+    // embedding weights
+    /////////////////////////////////////////////////////
 
     auto& enc_emb = *vars["Embedding.E"];
     auto& dec_emb = *vars["Embedding.E.1"];
@@ -1530,8 +1535,8 @@ void test_transformer_forward()
       -0.9148,  1.0367, -1.0432,  1.4304;
 
     /////////////////////////////////////////////////////
-    // encoder
-    ////////////////////////////////////////////////////.
+    // encoder weights
+    /////////////////////////////////////////////////////
     
     auto& Wq = *vars["encoder:MHA.Wq"];
     auto& Wk = *vars["encoder:MHA.Wk"];
@@ -1592,11 +1597,11 @@ void test_transformer_forward()
        0.4126, -0.3719,  0.5352;
     ffL2b.value() <<
       -6.5333, -0.0515, -0.1337,  0.0297;
-    
+
     /////////////////////////////////////////////////////
-    // decoder
-    ////////////////////////////////////////////////////.
-    
+    // decoder weights
+    /////////////////////////////////////////////////////
+
     // self-attention
     auto& self_attn_Wq = *vars["decoder:MHA.Wq"];
     auto& self_attn_Wk = *vars["decoder:MHA.Wk"];
@@ -1700,8 +1705,8 @@ void test_transformer_forward()
       -6.5333, -0.0515, -0.1337,  0.0297;
 
     /////////////////////////////////////////////////////
-    // fully connected (linear)
-    ////////////////////////////////////////////////////.
+    // fully connected weights
+    /////////////////////////////////////////////////////
 
     auto& fc_W = *vars["Linear.W"];
     auto& fc_b = *vars["Linear.b"];
@@ -1742,6 +1747,308 @@ void test_transformer_forward()
     TEST_END()
 }
 
+void test_transformer_backward()
+{
+    TEST_BEGIN("Transformer Backward")
+
+    int NUM_LAYERS = 1;
+    int NUM_HEADS = 2;
+    int EMB_SIZE = 4;
+    int SEQ_SIZE = 5;
+    int FF_SIZE = 3;
+    DTYPE DROPOUT = 0.0;
+
+    int SRC_TOKENS = 10; // input vocabulary size
+    int TGT_TOKENS = 10; // output vocabulary size
+    int SOS_TOKEN = 8; // start of sequence token
+    int EOS_TOKEN = 9; // end of sequence token
+    int PAD_TOKEN = 0; // padding token (marks positions to ignore)
+
+    Graph g;
+
+    auto& src_x = *g.new_variable(1, SEQ_SIZE, "src_x");
+    src_x.value() <<
+      1, 2, 3, PAD_TOKEN, PAD_TOKEN; // input sequence
+
+    auto& tgt_x = *g.new_variable(1, SEQ_SIZE, "tgt_x");
+    tgt_x.value() <<
+      SOS_TOKEN, 1, 2, 3, PAD_TOKEN; // target sequence
+
+    Tensor y_hat(1, SEQ_SIZE);
+    y_hat <<
+      1, 2, 3, EOS_TOKEN, PAD_TOKEN; // output sequence
+
+    auto& T = *(new Transformer(
+      g, src_x, tgt_x,
+      SRC_TOKENS, TGT_TOKENS, PAD_TOKEN,
+      NUM_LAYERS, NUM_HEADS, EMB_SIZE, FF_SIZE, SEQ_SIZE, DROPOUT));
+
+    auto vars = g.named_variables();
+    //print(g);
+
+    /////////////////////////////////////////////////////
+    // embedding weights
+    /////////////////////////////////////////////////////
+
+    auto& enc_emb = *vars["Embedding.E"];
+    auto& dec_emb = *vars["Embedding.E.1"];
+
+    enc_emb.value() <<
+      -1.5104, -0.0284,  0.8700,  0.8670,
+       1.1990,  1.1361,  0.8644,  0.1473,
+      -0.7335,  0.3807,  0.7741,  0.4396,
+      -0.7043,  1.6892, -0.5124,  0.4657,
+       0.0162, -1.9550,  1.6194,  1.5560,
+       1.3285,  0.2094, -1.5481,  0.2234,
+      -0.8587, -0.4757,  0.1260, -1.9552,
+      -0.7352, -0.9533, -0.7015, -1.8978,
+      -0.3166,  1.9976,  0.1297,  0.9044,
+       0.7586, -1.0734, -0.4338, -0.8578;
+    dec_emb.value() <<
+      -0.5281,  0.1697, -0.9366,  0.0129,
+       0.1969, -1.1860,  0.0961, -0.6315,
+      -0.1603, -0.1080,  0.1573,  0.9020,
+       1.2745,  0.0302,  1.0822, -0.4542,
+      -0.5246, -0.9769, -0.6335,  2.4609,
+      -0.7565,  1.0006, -1.5738,  1.5421,
+      -0.7897, -3.4246,  0.4188, -1.1293,
+       0.9453, -0.1520, -0.7238,  0.7383,
+       0.0729,  0.3859,  0.0163, -0.9825,
+      -0.9148,  1.0367, -1.0432,  1.4304;
+
+    /////////////////////////////////////////////////////
+    // encoder weights
+    /////////////////////////////////////////////////////
+
+    auto& Wq = *vars["encoder:MHA.Wq"];
+    auto& Wk = *vars["encoder:MHA.Wk"];
+    auto& Wv = *vars["encoder:MHA.Wv"];
+    auto& Wo = *vars["encoder:MHA.Wo"];
+
+    auto& bq = *vars["encoder:MHA.bq"];
+    auto& bk = *vars["encoder:MHA.bk"];
+    auto& bv = *vars["encoder:MHA.bv"];
+    auto& bo = *vars["encoder:MHA.bo"];
+
+    // element-wise feed forward
+    auto& ffL1w = *vars["encoder:Linear.W"];
+    auto& ffL1b = *vars["encoder:Linear.b"];
+    auto& ffL2w = *vars["encoder:Linear.W.1"];
+    auto& ffL2b = *vars["encoder:Linear.b.1"];
+
+    // norms (default to A=1 and B=0)
+
+    Wq.value() <<
+      -1.2321, -0.4785, -0.4598, -0.1860,
+       0.4576,  0.4961, -0.0903, -0.4833,
+      -0.1442,  0.3495,  0.4236, -0.0846,
+      -0.3082,  0.0956, -0.2470,  0.3061;
+    bq.value() <<
+      -1.3717, -0.1179, -0.0096, -0.4240;
+    Wk.value() <<
+      -2.2321, -0.4785, -0.4598, -0.1860,
+       0.4576,  0.4961, -0.0903, -0.4833,
+      -0.1442,  0.3495,  0.4236, -0.0846,
+      -0.3082,  0.0956, -0.2470,  0.3061;
+    bk.value() <<
+      -2.3717, -0.1179, -0.0096, -0.4240;
+    Wv.value() <<
+      -3.2321, -0.4785, -0.4598, -0.1860,
+       0.4576,  0.4961, -0.0903, -0.4833,
+      -0.1442,  0.3495,  0.4236, -0.0846,
+      -0.3082,  0.0956, -0.2470,  0.3061;
+    bv.value() <<
+      -3.3717, -0.1179, -0.0096, -0.4240;
+    Wo.value() <<
+      -4.2321, -0.4785, -0.4598, -0.1860,
+       0.4576,  0.4961, -0.0903, -0.4833,
+      -0.1442,  0.3495,  0.4236, -0.0846,
+      -0.3082,  0.0956, -0.2470,  0.3061;
+    bo.value() <<
+      -4.3717, -0.1179, -0.0096, -0.4240;
+    ffL1w.value() <<
+      -5.4208,  0.2836, -0.1770,  0.3684,
+       0.3448,  0.4124, -0.2545,  0.2874,
+      -0.4372,  0.4165, -0.2362,  0.1144;
+    ffL1b.value() <<
+       5.2621, -0.3262,  0.4815;
+    ffL2w.value() <<
+      -6.3926, -0.1717,  0.2300,
+       0.0701,  0.3166, -0.2458,
+       0.1431, -0.3391,  0.5407,
+       0.4126, -0.3719,  0.5352;
+    ffL2b.value() <<
+      -6.5333, -0.0515, -0.1337,  0.0297;
+
+    /////////////////////////////////////////////////////
+    // decoder weights
+    /////////////////////////////////////////////////////
+
+    // self-attention
+    auto& self_attn_Wq = *vars["decoder:MHA.Wq"];
+    auto& self_attn_Wk = *vars["decoder:MHA.Wk"];
+    auto& self_attn_Wv = *vars["decoder:MHA.Wv"];
+    auto& self_attn_Wo = *vars["decoder:MHA.Wo"];
+
+    auto& self_attn_bq = *vars["decoder:MHA.bq"];
+    auto& self_attn_bk = *vars["decoder:MHA.bk"];
+    auto& self_attn_bv = *vars["decoder:MHA.bv"];
+    auto& self_attn_bo = *vars["decoder:MHA.bo"];
+
+    // cross-attention
+    auto& cross_attn_Wq = *vars["decoder:MHA.Wq.1"];
+    auto& cross_attn_Wk = *vars["decoder:MHA.Wk.1"];
+    auto& cross_attn_Wv = *vars["decoder:MHA.Wv.1"];
+    auto& cross_attn_Wo = *vars["decoder:MHA.Wo.1"];
+
+    auto& cross_attn_bq = *vars["decoder:MHA.bq.1"];
+    auto& cross_attn_bk = *vars["decoder:MHA.bk.1"];
+    auto& cross_attn_bv = *vars["decoder:MHA.bv.1"];
+    auto& cross_attn_bo = *vars["decoder:MHA.bo.1"];
+
+    // element-wise feed forward
+    auto& decoder_ffL1w = *vars["decoder:Linear.W"];
+    auto& decoder_ffL1b = *vars["decoder:Linear.b"];
+    auto& decoder_ffL2w = *vars["decoder:Linear.W.1"];
+    auto& decoder_ffL2b = *vars["decoder:Linear.b.1"];
+
+    // norms (default to A=1 and B=0)
+
+    self_attn_Wq.value() <<
+      -1.2321, -0.4785, -0.4598, -0.1860,
+       0.4576,  0.4961, -0.0903, -0.4833,
+      -0.1442,  0.3495,  0.4236, -0.0846,
+      -0.3082,  0.0956, -0.2470,  0.3061;
+    self_attn_bq.value() <<
+      -1.3717, -0.1179, -0.0096, -0.4240;
+    self_attn_Wk.value() <<
+      -2.2321, -0.4785, -0.4598, -0.1860,
+       0.4576,  0.4961, -0.0903, -0.4833,
+      -0.1442,  0.3495,  0.4236, -0.0846,
+      -0.3082,  0.0956, -0.2470,  0.3061;
+    self_attn_bk.value() <<
+      -2.3717, -0.1179, -0.0096, -0.4240;
+    self_attn_Wv.value() <<
+      -3.2321, -0.4785, -0.4598, -0.1860,
+       0.4576,  0.4961, -0.0903, -0.4833,
+      -0.1442,  0.3495,  0.4236, -0.0846,
+      -0.3082,  0.0956, -0.2470,  0.3061;
+    self_attn_bv.value() <<
+      -3.3717, -0.1179, -0.0096, -0.4240;
+    self_attn_Wo.value() <<
+      -4.2321, -0.4785, -0.4598, -0.1860,
+       0.4576,  0.4961, -0.0903, -0.4833,
+      -0.1442,  0.3495,  0.4236, -0.0846,
+      -0.3082,  0.0956, -0.2470,  0.3061;
+    self_attn_bo.value() <<
+      -4.3717, -0.1179, -0.0096, -0.4240;
+
+    cross_attn_Wq.value() <<
+       0.0675,  0.0034,  0.2860, -0.0438,
+       0.3234,  0.4208, -0.0814, -0.0883,
+      -0.3376,  0.2880,  0.0641, -0.4295,
+       0.4480,  0.4328, -0.4657,  0.1207;
+    cross_attn_bq.value() <<
+      -0.3390,  0.0716,  0.4804, -0.4253;
+    cross_attn_Wk.value() <<
+       0.2975,  0.0247,  0.4618, -0.1429,
+      -0.0016, -0.0542, -0.3919,  0.1051,
+       0.4285,  0.0760, -0.3002, -0.2579,
+      -0.1038,  0.4511,  0.4412,  0.2605;
+    cross_attn_bk.value() <<
+      -0.3793,  0.4552,  0.1502,  0.3554;
+    cross_attn_Wv.value() <<
+      -0.4192, -0.4004,  0.0120, -0.4717,
+      -0.3308, -0.4728, -0.1381,  0.3374,
+       0.1521, -0.1548,  0.2885,  0.4352,
+      -0.1196, -0.2579, -0.3167,  0.0128;
+    cross_attn_bv.value() <<
+       0.4992, -0.2558,  0.1871, -0.3701;
+    cross_attn_Wo.value() <<
+       1.5146e-01,  5.0816e-02,  3.9053e-04, -4.6405e-01,
+      -1.2832e-01, -4.3910e-01, -1.8390e-01, -5.1324e-02,
+       4.4734e-01, -3.3816e-01,  1.3738e-01, -1.3041e-01,
+       1.8204e-01, -2.9708e-01,  3.2434e-01, -6.3109e-02;
+    cross_attn_bo.value() <<
+      -0.4427, -0.0959, -0.2821, -0.2209;
+
+    decoder_ffL1w.value() <<
+      -5.4208,  0.2836, -0.1770,  0.3684,
+       0.3448,  0.4124, -0.2545,  0.2874,
+      -0.4372,  0.4165, -0.2362,  0.1144;
+    decoder_ffL1b.value() <<
+       5.2621, -0.3262,  0.4815;
+    decoder_ffL2w.value() <<
+      -6.3926, -0.1717,  0.2300,
+       0.0701,  0.3166, -0.2458,
+       0.1431, -0.3391,  0.5407,
+       0.4126, -0.3719,  0.5352;
+    decoder_ffL2b.value() <<
+      -6.5333, -0.0515, -0.1337,  0.0297;
+
+    /////////////////////////////////////////////////////
+    // fully connected weights
+    /////////////////////////////////////////////////////
+
+    auto& fc_W = *vars["Linear.W"];
+    auto& fc_b = *vars["Linear.b"];
+
+    fc_W.value() <<
+       0.4024,  0.2209, -0.3322, -0.2039,
+      -0.0586, -0.3453, -0.4044,  0.3376,
+      -0.4428,  0.0175, -0.4929, -0.2737,
+      -0.4433, -0.2716, -0.0390,  0.4631,
+      -0.0599,  0.1389,  0.0554, -0.2265,
+      -0.4810, -0.2936,  0.2530, -0.0608,
+       0.1361,  0.1135, -0.1584, -0.0923,
+       0.3696, -0.2719, -0.0755,  0.3822,
+      -0.2697,  0.1172, -0.0242,  0.4085,
+      -0.2495, -0.1300,  0.2470,  0.3172;
+    fc_b.value() <<
+       0.1317, -0.1626, -0.0434, -0.4033,  0.0458, -0.1930,  0.3019, -0.3306,
+      -0.1221,  0.3670;
+
+    /////////////////////////////////////////////////////
+
+    Tensor y = T();
+    T.gradient() = Tensor::Ones(SEQ_SIZE, TGT_TOKENS);
+    T.gradient().leftCols(1) = Tensor::Constant(SEQ_SIZE,1, 1250);
+
+    Tensor dTdenc_emb = enc_emb.backward();
+    Tensor dTddec_emb = dec_emb.backward();
+
+    Tensor dTdenc_emb_hat(SRC_TOKENS, EMB_SIZE);
+    dTdenc_emb_hat <<
+       0.0000,  0.0000,  0.0000,  0.0000,
+       0.4342,  1.0443, -2.2485, -0.0814,
+       0.6311,  1.0999, -2.1718, -0.0151,
+       0.4310,  1.2264, -2.1344,  0.0286,
+       0.0000,  0.0000,  0.0000,  0.0000,
+       0.0000,  0.0000,  0.0000,  0.0000,
+       0.0000,  0.0000,  0.0000,  0.0000,
+       0.0000,  0.0000,  0.0000,  0.0000,
+       0.0000,  0.0000,  0.0000,  0.0000,
+       0.0000,  0.0000,  0.0000,  0.0000;
+
+    Tensor dTddec_emb_hat(TGT_TOKENS, EMB_SIZE);
+    dTddec_emb_hat <<
+      3.4459,  14.6792, -14.8203,  -2.4398,
+     23.8857,   9.9135, -12.1941,  -4.5663,
+     11.0370,  10.6798, -13.9681,  -3.3901,
+     15.5422,   9.4706,  -7.8664,  -2.6836,
+      0.0000,   0.0000,   0.0000,   0.0000,
+      0.0000,   0.0000,   0.0000,   0.0000,
+      0.0000,   0.0000,   0.0000,   0.0000,
+      0.0000,   0.0000,   0.0000,   0.0000,
+     -8.6914,  20.0081, -29.9860, -17.2931,
+      0.0000,   0.0000,   0.0000,   0.0000;
+
+    ASSERT(isApprox(dTdenc_emb, dTdenc_emb_hat, 0.0005))
+    ASSERT(isApprox(dTddec_emb, dTddec_emb_hat, 0.0005))
+
+    TEST_END()
+}
+
 int main(int argc, char* argv[]) {
 
     //test_cnpy();
@@ -1761,6 +2068,7 @@ int main(int argc, char* argv[]) {
     test_decoder_layer_forward();
     test_decoder_layer_backward();
     test_transformer_forward();
+    test_transformer_backward();
 
     return 0;
 }

@@ -523,16 +523,6 @@ public:
     _src_mask->source(src_size);
     _tgt_mask->target(tgt_size);
 
-    std::cout << "_src_x" << std::endl;
-    std::cout << _src_x() << std::endl;
-    std::cout << "_src_mask" << std::endl;
-    std::cout << _src_mask->forward() << std::endl;
-
-    std::cout << "_tgt_x" << std::endl;
-    std::cout << _tgt_x() << std::endl;
-    std::cout << "_tgt_mask" << std::endl;
-    std::cout << _tgt_mask->forward() << std::endl;
-
     // run transformer
     _value = _y->forward();
 

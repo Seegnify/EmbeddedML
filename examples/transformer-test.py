@@ -1073,7 +1073,6 @@ def test_transformer():
     print("output")
     print(A)
 
-    """
     dA = torch.ones_like(A)
     dA[0,:,0] = 1250
     print("dA", dA)
@@ -1089,7 +1088,20 @@ def test_transformer():
     # Print or use the gradients as needed
     for name, grad in gradients.items():
         print(f'Gradient for {name}:\n{grad}')
-    """
+
+def test_sequence_mask():
+  print("=== test_sequence_mask")
+  pad = 0
+  src = torch.tensor([[1,2,3,4,pad]])
+  tgt = torch.tensor([[1,2,3,0,pad]])
+  print("src\n", src)
+  print("tgt\n", tgt)
+
+  mask = transformer.SeqeunceMask(pad, pad)
+  src_mask = mask.make_src_mask(src)
+  tgt_mask = mask.make_tgt_mask(tgt)
+  print("src_mask\n", src_mask)
+  print("tgt_mask\n", tgt_mask)
 
 if __name__ == "__main__":
     #test_softmax()
@@ -1101,6 +1113,7 @@ if __name__ == "__main__":
     #test_encoder_layer()
     #test_decoder_layer()
     test_transformer()
+    #test_sequence_mask()
     #test_layernorm()
     #test_grad()
     #test_linear()
