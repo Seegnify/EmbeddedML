@@ -172,25 +172,23 @@ class Transformer(nn.Module):
 
     def generate_mask(self, src, tgt):
         src_mask = (src != 0).unsqueeze(1).unsqueeze(2)
-        tgt_mask = (tgt != 0).unsqueeze(1).unsqueeze(3)
+        #tgt_mask = (tgt != 0).unsqueeze(1).unsqueeze(3)
+        tgt_mask = (tgt != 0).unsqueeze(1).unsqueeze(2)
+        #print("=== tgt_mask\n", tgt_mask)
         seq_length = tgt.size(1)
         nopeak_mask = (1 - torch.triu(torch.ones(1, seq_length, seq_length), diagonal=1)).bool()
+        #print("=== nopeak_mask\n", nopeak_mask)
         tgt_mask = tgt_mask & nopeak_mask
         return src_mask, tgt_mask
 
     def forward(self, src, tgt):
-        print("=== Transformer.forward()")
-        print("=== src", src.shape)
-        print("=== tgt", tgt.shape)
         src_mask, tgt_mask = self.generate_mask(src, tgt)
-        #print("=== src_mask", src_mask.shape, (src_mask == True).all())
-        #print("=== tgt_mask", tgt_mask.shape, (tgt_mask == True).all())
-        print("src_mask", src_mask.shape, "\n", src_mask)
-        print("tgt_mask", tgt_mask.shape, "\n", tgt_mask)        
+        #print("src_mask", src_mask.shape, "\n", src_mask)
+        #print("tgt_mask", tgt_mask.shape, "\n", tgt_mask)        
         src_embedded = self.dropout(self.positional_encoding(self.encoder_embedding(src)))
         tgt_embedded = self.dropout(self.positional_encoding(self.decoder_embedding(tgt)))
-        print("=== src_embedded", src_embedded.shape)
-        print("=== tgt_embedded", tgt_embedded.shape)
+        #print("=== src_embedded", src_embedded.shape)
+        #print("=== tgt_embedded", tgt_embedded.shape)
 
         enc_output = src_embedded
         for enc_layer in self.encoder_layers:
@@ -255,10 +253,10 @@ def main():
     tgt_data = torch.randint(1, tgt_vocab_size, (batch_size, max_seq_length))  # (batch_size, seq_length)
     print("New training data generated")
   print("src_data", src_data.shape)
-  print(src_data)
+  #print(src_data)
   print("tgt_data", tgt_data.shape, tgt_data[:, :-1].shape)
-  print(tgt_data)
-  os.exit
+  #print(tgt_data)
+  #os.exit
 
   print_model(torch.load(model_path))
 

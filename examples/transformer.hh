@@ -515,17 +515,23 @@ public:
   {
     if (_value.size() > 0) return _value;
 
-    // determine size of the source sequence
+    // determine sizes of source and target sequences
     int src_size = sequence_size(_src_x());
     int tgt_size = sequence_size(_tgt_x());
 
-    // set mask according to source seqeunce size
+    // update seqeunce masks according to seqeunce sizes
     _src_mask->source(src_size);
     _tgt_mask->target(tgt_size);
+
+    std::cout << "_src_x" << std::endl;
+    std::cout << _src_x() << std::endl;
     std::cout << "_src_mask" << std::endl;
-    std::cout << _src_mask->value() << std::endl;
+    std::cout << _src_mask->forward() << std::endl;
+
+    std::cout << "_tgt_x" << std::endl;
+    std::cout << _tgt_x() << std::endl;
     std::cout << "_tgt_mask" << std::endl;
-    std::cout << _tgt_mask->value() << std::endl;
+    std::cout << _tgt_mask->forward() << std::endl;
 
     // run transformer
     _value = _y->forward();
