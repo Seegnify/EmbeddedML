@@ -194,14 +194,19 @@ void test_sequence_mask()
 {
     TEST_BEGIN("Sequence Mask")
 
+    int TGT_TOKENS = 10;
+    int PAD_TOKEN = 9;
     int SEQ_SIZE = 5;
     DTYPE I = std::numeric_limits<DTYPE>::infinity();
 
     Graph g;
-    SequenceMask m(g, SEQ_SIZE);
+    SequenceMask m(g, TGT_TOKENS, PAD_TOKEN, SEQ_SIZE);
+
+    std::vector<int> src_seq = {1,2,3,PAD_TOKEN,PAD_TOKEN};
+    std::vector<int> tgt_seq = {1,2,3,4,PAD_TOKEN};
 
     // test source mask
-    m.source(SEQ_SIZE-2);
+    m.source(src_seq);
     Tensor source(SEQ_SIZE, SEQ_SIZE);
     source <<
       0, 0, 0,-I,-I,
@@ -212,7 +217,7 @@ void test_sequence_mask()
     ASSERT(m() == source)
 
     // test target mask
-    m.target(SEQ_SIZE-1);
+    m.target(tgt_seq);
     Tensor target(SEQ_SIZE, SEQ_SIZE);
     target <<
       0,-I,-I,-I,-I,
@@ -364,26 +369,29 @@ void test_scaled_dot_product_attention_backward()
 void test_multihead_attention_forward()
 {
     TEST_BEGIN("Multi-Head Attention Forward")
-        
+
     Graph g;
 
-    int TRG_SIZE = 3;
+    int TGT_TOKENS = 5;
+    int PAD_TOKEN = 4;
+
+    int TGT_SIZE = 3;
     int SEQ_SIZE = 3;
     int EMB_SIZE = 4;
     int NUM_HEADS = 2;
     bool bias = true;
     DTYPE dropout = 0.0;
 
-    auto q = g.new_variable(TRG_SIZE, EMB_SIZE);
+    auto q = g.new_variable(TGT_SIZE, EMB_SIZE);
     auto k = g.new_variable(SEQ_SIZE, EMB_SIZE);
-    auto v = g.new_variable(TRG_SIZE, EMB_SIZE);
+    auto v = g.new_variable(TGT_SIZE, EMB_SIZE);
 
-    SequenceMask m(g, SEQ_SIZE);
-    m.source(SEQ_SIZE);
+    SequenceMask m(g, TGT_TOKENS, PAD_TOKEN, SEQ_SIZE);
+    m.source({1,2,3}); // no PAD_TOKEN
 
     MultiHeadAttention mha(
       g, *q, *k, *v, m,
-      TRG_SIZE, SEQ_SIZE, EMB_SIZE, NUM_HEADS,
+      TGT_SIZE, SEQ_SIZE, EMB_SIZE, NUM_HEADS,
       bias, dropout
     );
 
@@ -449,14 +457,14 @@ void test_multihead_attention_forward()
         0.0307, 0.1667, 0.4442, 0.1971;
     }
 
-    Tensor mha_hat(TRG_SIZE, EMB_SIZE);
+    Tensor mha_hat(TGT_SIZE, EMB_SIZE);
     mha_hat <<   
         0.4363, 0.5356, 0.4469, 0.9232,
         0.4293, 0.5403, 0.4531, 0.9223,
         0.4353, 0.5364, 0.4456, 0.9224;
 
     ASSERT(mha().isApprox(mha_hat, 0.0001))
-    ASSERT(mha().rows() == TRG_SIZE)
+    ASSERT(mha().rows() == TGT_SIZE)
     ASSERT(mha().cols() == EMB_SIZE)
 
     TEST_END()
@@ -468,23 +476,26 @@ void test_multihead_attention_backward()
 
     Graph g;
 
-    int TRG_SIZE = 3;
+    int TGT_TOKENS = 5;
+    int PAD_TOKEN = 4;
+
+    int TGT_SIZE = 3;
     int SEQ_SIZE = 3;
     int EMB_SIZE = 4;
     int NUM_HEADS = 2;
     bool bias = true;
     DTYPE dropout = 0.0;
 
-    auto q = g.new_variable(TRG_SIZE, EMB_SIZE);
+    auto q = g.new_variable(TGT_SIZE, EMB_SIZE);
     auto k = g.new_variable(SEQ_SIZE, EMB_SIZE);
-    auto v = g.new_variable(TRG_SIZE, EMB_SIZE);
+    auto v = g.new_variable(TGT_SIZE, EMB_SIZE);
 
-    SequenceMask m(g, SEQ_SIZE);
-    m.source(SEQ_SIZE);
+    SequenceMask m(g, TGT_TOKENS, PAD_TOKEN, SEQ_SIZE);
+    m.source({1,2,3}); // no PAD_TOKEN
 
     auto mhaptr = new MultiHeadAttention(
       g, *q, *k, *v, m,
-      TRG_SIZE, SEQ_SIZE, EMB_SIZE, NUM_HEADS,
+      TGT_SIZE, SEQ_SIZE, EMB_SIZE, NUM_HEADS,
       bias, dropout
     );
     g.keep(mhaptr); // for auto-grad
@@ -551,7 +562,7 @@ void test_multihead_attention_backward()
 
     auto& F = mha();
 
-    mha.gradient() = Tensor::Ones(TRG_SIZE, EMB_SIZE);
+    mha.gradient() = Tensor::Ones(TGT_SIZE, EMB_SIZE);
     mha.gradient()(0) = 5;
 
     const Tensor dFdq = q->backward();
@@ -568,19 +579,19 @@ void test_multihead_attention_backward()
     const Tensor dFdbv = bv.backward();
     const Tensor dFdbo = bo.backward();
 
-    Tensor dFdq_hat(TRG_SIZE, EMB_SIZE);
+    Tensor dFdq_hat(TGT_SIZE, EMB_SIZE);
     dFdq_hat <<
       -0.0026, -0.0249,  0.0291,  0.0100,
       0.0004,  0.0037, -0.0015, -0.0093,
       0.0003,  0.0034, -0.0013, -0.0091;
 
-    Tensor dFdk_hat(TRG_SIZE, EMB_SIZE);
+    Tensor dFdk_hat(TGT_SIZE, EMB_SIZE);
     dFdk_hat <<
       0.0074, -0.0047, -0.0078,  0.0137,
      -0.0168, -0.0184,  0.0007, -0.0346,
       0.0094,  0.0231,  0.0071,  0.0209;
 
-    Tensor dFdv_hat(TRG_SIZE, EMB_SIZE);
+    Tensor dFdv_hat(TGT_SIZE, EMB_SIZE);
     dFdv_hat <<
       0.0305,  1.7188, -1.1291,  0.9921,
       0.0227,  1.7295, -1.1511,  0.9818,
@@ -923,6 +934,9 @@ void test_encoder_layer_forward()
 {
     TEST_BEGIN("EncoderLayer Forward")
 
+    int TGT_TOKENS = 10;
+    int PAD_TOKEN = 9;
+
     int EMB_SIZE = 4;
     int SEQ_SIZE = 5;
     int NUM_HEADS = 2;
@@ -939,8 +953,8 @@ void test_encoder_layer_forward()
       -0.3883,  0.2742, -0.4652, -0.1417,
       0.5300, 0.2800, 0.5306, 0.4950;
 
-    SequenceMask m(g, SEQ_SIZE);
-    m.source(SEQ_SIZE);
+    SequenceMask m(g, TGT_TOKENS, PAD_TOKEN, SEQ_SIZE);
+    m.source({1,2,3,4,5});
 
     EncoderLayer el(g, x, m,
       SEQ_SIZE, EMB_SIZE, NUM_HEADS, FF_SIZE, dropout);
@@ -1028,6 +1042,9 @@ void test_encoder_layer_backward()
 {
     TEST_BEGIN("EncoderLayer Backward")
 
+    int TGT_TOKENS = 10;
+    int PAD_TOKEN = 9;
+
     int EMB_SIZE = 4;
     int SEQ_SIZE = 5;
     int NUM_HEADS = 2;
@@ -1044,8 +1061,8 @@ void test_encoder_layer_backward()
       -0.3883,  0.2742, -0.4652, -0.1417,
       0.5300, 0.2800, 0.5306, 0.4950;
 
-    SequenceMask m(g, SEQ_SIZE);
-    m.source(SEQ_SIZE);
+    SequenceMask m(g, TGT_TOKENS, PAD_TOKEN, SEQ_SIZE);
+    m.source({1,2,3,4,5});
 
     auto& F = *(new EncoderLayer(g, x, m,
       SEQ_SIZE, EMB_SIZE, NUM_HEADS, FF_SIZE, dropout));
@@ -1138,6 +1155,9 @@ void test_decoder_layer_forward()
 {
     TEST_BEGIN("DecoderLayer Forward")
 
+    int TGT_TOKENS = 10;
+    int PAD_TOKEN = 9;
+
     int EMB_SIZE = 4;
     int SEQ_SIZE = 5;
     int NUM_HEADS = 2;
@@ -1162,11 +1182,11 @@ void test_decoder_layer_forward()
       -1.7244,  0.4406,  0.5782,  0.7056,
       -1.7241,  0.4344,  0.5848,  0.7048;
 
-    SequenceMask src_mask(g, SEQ_SIZE);
-    SequenceMask tgt_mask(g, SEQ_SIZE);
+    SequenceMask src_mask(g, TGT_TOKENS, PAD_TOKEN, SEQ_SIZE);
+    SequenceMask tgt_mask(g, TGT_TOKENS, PAD_TOKEN, SEQ_SIZE);
 
-    src_mask.source(SEQ_SIZE);
-    tgt_mask.target(SEQ_SIZE);
+    src_mask.source({1,2,3,4,5});
+    tgt_mask.target({1,2,3,4,5});
 
     DecoderLayer dl(g, x, e, src_mask, tgt_mask,
       SEQ_SIZE, EMB_SIZE, NUM_HEADS, FF_SIZE, dropout);
@@ -1296,6 +1316,9 @@ void test_decoder_layer_backward()
 {
     TEST_BEGIN("DecoderLayer Backward")
 
+    int TGT_TOKENS = 10;
+    int PAD_TOKEN = 9;
+
     int EMB_SIZE = 4;
     int SEQ_SIZE = 5;
     int NUM_HEADS = 2;
@@ -1320,11 +1343,11 @@ void test_decoder_layer_backward()
       -1.7244,  0.4406,  0.5782,  0.7056,
       -1.7241,  0.4344,  0.5848,  0.7048;
 
-    SequenceMask src_mask(g, SEQ_SIZE);
-    SequenceMask tgt_mask(g, SEQ_SIZE);
+    SequenceMask src_mask(g, TGT_TOKENS, PAD_TOKEN, SEQ_SIZE);
+    SequenceMask tgt_mask(g, TGT_TOKENS, PAD_TOKEN, SEQ_SIZE);
 
-    src_mask.source(SEQ_SIZE);
-    tgt_mask.target(SEQ_SIZE);
+    src_mask.source({1,2,3,4,5});
+    tgt_mask.target({1,2,3,4,5});
 
     auto& F = *(new DecoderLayer(g, x, e, src_mask, tgt_mask,
       SEQ_SIZE, EMB_SIZE, NUM_HEADS, FF_SIZE, dropout));
@@ -1484,21 +1507,13 @@ void test_transformer_forward()
 
     Graph g;
 
-    auto& src_x = *g.new_variable(1, SEQ_SIZE, "src_x");
-    src_x.value() <<
-      1, 2, 3, PAD_TOKEN, PAD_TOKEN; // input sequence
+    std::vector<int> src_x = {1, 2, 3, PAD_TOKEN, PAD_TOKEN}; // input sequence
 
-    auto& tgt_x = *g.new_variable(1, SEQ_SIZE, "tgt_x");
-    tgt_x.value() <<
-      SOS_TOKEN, 1, 2, 3, PAD_TOKEN; // target sequence
+    std::vector<int> tgt_x = {SOS_TOKEN, 1, 2, 3, PAD_TOKEN}; // target sequence
 
-    Tensor y_hat(1, SEQ_SIZE);
-    y_hat <<
-      1, 2, 3, EOS_TOKEN, PAD_TOKEN; // output sequence
+    std::vector<int> y_hat = {1, 2, 3, EOS_TOKEN, PAD_TOKEN}; // output sequence
 
-    Transformer T(
-      g, src_x, tgt_x,
-      SRC_TOKENS, TGT_TOKENS, PAD_TOKEN,
+    Transformer T(g, SRC_TOKENS, TGT_TOKENS, PAD_TOKEN,
       NUM_LAYERS, NUM_HEADS, EMB_SIZE, FF_SIZE, SEQ_SIZE, DROPOUT);
 
     auto vars = g.named_variables();
@@ -1728,7 +1743,7 @@ void test_transformer_forward()
 
     /////////////////////////////////////////////////////
     
-    auto y_logit = T();
+    auto y_logit = T.forward(src_x, tgt_x);
     Tensor y_logit_hat(SEQ_SIZE, TGT_TOKENS);
     y_logit_hat <<
       -0.8373, -0.2303,  0.2102,  0.5463,  0.0835,  0.6512, -0.0579, -0.8578,
@@ -1766,21 +1781,13 @@ void test_transformer_backward()
 
     Graph g;
 
-    auto& src_x = *g.new_variable(1, SEQ_SIZE, "src_x");
-    src_x.value() <<
-      1, 2, 3, PAD_TOKEN, PAD_TOKEN; // input sequence
+    std::vector<int> src_x = {1, 2, 3, PAD_TOKEN, PAD_TOKEN}; // input sequence
 
-    auto& tgt_x = *g.new_variable(1, SEQ_SIZE, "tgt_x");
-    tgt_x.value() <<
-      SOS_TOKEN, 1, 2, 3, PAD_TOKEN; // target sequence
+    std::vector<int> tgt_x = {SOS_TOKEN, 1, 2, 3, PAD_TOKEN}; // target sequence
 
-    Tensor y_hat(1, SEQ_SIZE);
-    y_hat <<
-      1, 2, 3, EOS_TOKEN, PAD_TOKEN; // output sequence
+    std::vector<int> y_hat = {1, 2, 3, EOS_TOKEN, PAD_TOKEN}; // output sequence
 
-    auto& T = *(new Transformer(
-      g, src_x, tgt_x,
-      SRC_TOKENS, TGT_TOKENS, PAD_TOKEN,
+    auto& T = *(new Transformer(g, SRC_TOKENS, TGT_TOKENS, PAD_TOKEN,
       NUM_LAYERS, NUM_HEADS, EMB_SIZE, FF_SIZE, SEQ_SIZE, DROPOUT));
 
     auto vars = g.named_variables();
@@ -2010,7 +2017,7 @@ void test_transformer_backward()
 
     /////////////////////////////////////////////////////
 
-    Tensor y = T();
+    Tensor y = T.forward(src_x, tgt_x);
     T.gradient() = Tensor::Ones(SEQ_SIZE, TGT_TOKENS);
     T.gradient().leftCols(1) = Tensor::Constant(SEQ_SIZE,1, 1250);
 
