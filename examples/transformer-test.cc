@@ -1789,6 +1789,7 @@ void test_transformer_backward()
 
     auto& T = *(new Transformer(g, SRC_TOKENS, TGT_TOKENS, PAD_TOKEN,
       NUM_LAYERS, NUM_HEADS, EMB_SIZE, FF_SIZE, SEQ_SIZE, DROPOUT));
+    g.keep(&T);
 
     auto vars = g.named_variables();
     //print(g);
@@ -2061,6 +2062,7 @@ int main(int argc, char* argv[]) {
     //test_cnpy();
     //test_threads();
     //test_thread_pool();
+
     test_sequence_mask();
     test_scaled_dot_product_attention_forward();
     test_scaled_dot_product_attention_backward();

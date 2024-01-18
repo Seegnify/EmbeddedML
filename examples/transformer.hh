@@ -506,8 +506,8 @@ public:
   int num_layers, int num_heads, int emb_size, int ff_size, int seq_size,
   DTYPE dropout) : Function(g)
   {
-    _src = g.new_constant(1, seq_size, "source");
-    _tgt = g.new_constant(1, seq_size, "target");
+    _src = g.new_constant(1, seq_size);
+    _tgt = g.new_constant(1, seq_size);
 
     auto src_emb = g.new_embedding(*_src, src_tokens, emb_size);
     auto tgt_emb = g.new_embedding(*_tgt, tgt_tokens, emb_size);
