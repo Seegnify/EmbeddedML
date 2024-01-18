@@ -55,14 +55,20 @@ public:
 
     Graph g;
 
-    _model = new Transformer( g, SRC_TOKENS, TGT_TOKENS, PAD_TOKEN,
+    // model
+    _model = new Transformer(g, SRC_TOKENS, TGT_TOKENS, PAD_TOKEN,
       NUM_LAYERS, NUM_HEADS, EMB_SIZE, FF_SIZE, SEQ_SIZE, DROPOUT);
+    g.keep(_model);
 
+    // predicted output
     auto y = g.new_rowwise(*_model, SEQ_SIZE, TGT_TOKENS,
       [&](Function& row) { return g.new_log_softmax(row); });
+
+    // expected output
+    _y_hat = new SequenceMask(g, TGT_TOKENS, PAD_TOKEN, SEQ_SIZE);
+    g.keep(_y_hat);
     
     // loss
-    _y_hat = g.new_constant(SEQ_SIZE, TGT_TOKENS); // expected output
     _tgt_size = g.new_constant(1,1); // target sequence size
     _loss = g.new_sum(- *_y_hat * *y); // cross entropy
     _loss = &(*_loss / *_tgt_size / TGT_TOKENS); // normalized loss
@@ -77,7 +83,6 @@ public:
 
   ~TransformerClient()
   {
-    delete _model;
     delete _optimizer;
   }
     
@@ -139,7 +144,7 @@ private:
   Transformer *_model;
   Optimizer *_optimizer;
   Constant* _tgt_size;
-  Constant* _y_hat;
+  SequenceMask* _y_hat;
   Function* _loss;
   int _batch;
 };

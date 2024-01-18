@@ -506,8 +506,8 @@ public:
   int num_layers, int num_heads, int emb_size, int ff_size, int seq_size,
   DTYPE dropout) : Function(g)
   {
-    _src = g.new_variable(1, seq_size, "source");
-    _tgt = g.new_variable(1, seq_size, "target");
+    _src = g.new_constant(1, seq_size, "source");
+    _tgt = g.new_constant(1, seq_size, "target");
 
     auto src_emb = g.new_embedding(*_src, src_tokens, emb_size);
     auto tgt_emb = g.new_embedding(*_tgt, tgt_tokens, emb_size);
@@ -584,15 +584,15 @@ public:
   }
 
   // source and target
-  Variable& source() { return *_src; }
-  Variable& target() { return *_tgt; }
+  Function& source() { return *_src; }
+  Function& target() { return *_tgt; }
 
   // access to encoder cached output for inferrence
   Function& encoder() { return *_encoder; }
 
 private:
-  Variable* _src;
-  Variable* _tgt;
+  Constant* _src;
+  Constant* _tgt;
   SequenceMask* _src_mask;
   SequenceMask* _tgt_mask;
   Function* _encoder;
