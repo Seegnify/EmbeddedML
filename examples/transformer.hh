@@ -522,43 +522,41 @@ public:
     g.keep(_src_mask);
     g.keep(_tgt_mask);
 
-    Function* enc = g.new_dropout(*src_pos, dropout);
-    Function* dec = g.new_dropout(*tgt_pos, dropout);
+    _encoder = g.new_dropout(*src_pos, dropout);
+    _decoder = g.new_dropout(*tgt_pos, dropout);
 
     // encoder layers
     g.scope_push("encoder");
     for (int i=0; i<num_layers; i++)
     {
-      enc = new EncoderLayer(g, *enc, *_src_mask,
+      _encoder = new EncoderLayer(g, *_encoder, *_src_mask,
         seq_size, emb_size, num_heads, ff_size, dropout);
-      g.keep(enc);
+      g.keep(_encoder);
     }
     g.scope_pop();
-
-    _encoder = enc;
 
     // decoder layers
     g.scope_push("decoder");
     for (int i=0; i<num_layers; i++)
     {
-      dec = new DecoderLayer(g, *dec, *enc, *_src_mask, *_tgt_mask,
-        seq_size, emb_size, num_heads, ff_size, dropout);
-      g.keep(dec);
+      _decoder = new DecoderLayer(g, *_decoder, *_encoder, *_src_mask,
+        *_tgt_mask, seq_size, emb_size, num_heads, ff_size, dropout);
+      g.keep(_decoder);
     }
     g.scope_pop();
 
-    _y = g.new_linear(*dec, emb_size, tgt_tokens);
+    _decoder = g.new_linear(*_decoder, emb_size, tgt_tokens);
 
-    _y->derivative(g.new_iderivative(*this));
+    _decoder->derivative(g.new_iderivative(*this));
   }
 
-  // requires src sequence and tgt sequence
+  // requires src and tgt sequences
   virtual const Tensor& forward()
   {
     if (_value.size() > 0) return _value;
 
     // run transformer
-    _value = _y->forward();
+    _value = _decoder->forward();
 
     return _value;
   }
@@ -568,6 +566,8 @@ public:
     const std::vector<int>& src, const std::vector<int>& tgt
   )
   {
+    if (_value.size() > 0) return _value;
+
     // update source input tensor
     _src->value() = Tensor::Zero(1, src.size());
     for (int i=0; i<src.size(); i++) _src->value()(i) = src[i];
@@ -596,7 +596,7 @@ private:
   SequenceMask* _src_mask;
   SequenceMask* _tgt_mask;
   Function* _encoder;
-  Function* _y;
+  Function* _decoder;
 };
 
 
