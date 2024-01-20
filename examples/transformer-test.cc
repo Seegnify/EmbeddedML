@@ -195,15 +195,17 @@ void test_sequence_mask()
     TEST_BEGIN("Sequence Mask")
 
     int TGT_TOKENS = 10;
+    int BOS_TOKEN = 7;
+    int EOS_TOKEN = 8;
     int PAD_TOKEN = 9;
     int SEQ_SIZE = 5;
     DTYPE I = std::numeric_limits<DTYPE>::infinity();
 
     Graph g;
-    SequenceMask m(g, TGT_TOKENS, PAD_TOKEN, SEQ_SIZE);
+    SequenceMask m(g, TGT_TOKENS, BOS_TOKEN, EOS_TOKEN, PAD_TOKEN, SEQ_SIZE);
 
     std::vector<int> src_seq = {1,2,3,PAD_TOKEN,PAD_TOKEN};
-    std::vector<int> tgt_seq = {1,2,3,4,PAD_TOKEN};
+    std::vector<int> tgt_seq = {BOS_TOKEN,2,3,4,PAD_TOKEN};
 
     // test source mask
     m.source(src_seq);
@@ -226,6 +228,17 @@ void test_sequence_mask()
       0, 0, 0, 0,-I,
       0, 0, 0, 0,-I,
     ASSERT(m() == target)
+
+    // test output mask
+    m.output(tgt_seq);
+    Tensor output(SEQ_SIZE, TGT_TOKENS);
+    output <<
+      0, 0, 1, 0, 0, 0, 0, 0, 0, 0, // tgt_seq[1] = unmasekd 2
+      0, 0, 0, 1, 0, 0, 0, 0, 0, 0, // tgt_seq[2] = unmasekd 3
+      0, 0, 0, 0, 1, 0, 0, 0, 0, 0, // tgt_seq[3] = unmasekd 4
+      0, 0, 0, 0, 0, 0, 0, 0, 1, 0, // EOS_TOKEN = unmasekd 8
+      0, 0, 0, 0, 0, 0, 0, 0, 0, 0, // PAD_TOKEN = all masked (no backprop)
+    ASSERT(m() == output)
 
     TEST_END()
 }
@@ -372,8 +385,10 @@ void test_multihead_attention_forward()
 
     Graph g;
 
-    int TGT_TOKENS = 5;
-    int PAD_TOKEN = 4;
+    int TGT_TOKENS = 10;
+    int BOS_TOKEN = 7;
+    int EOS_TOKEN = 8;
+    int PAD_TOKEN = 9;
 
     int TGT_SIZE = 3;
     int SEQ_SIZE = 3;
@@ -386,8 +401,8 @@ void test_multihead_attention_forward()
     auto k = g.new_variable(SEQ_SIZE, EMB_SIZE);
     auto v = g.new_variable(TGT_SIZE, EMB_SIZE);
 
-    SequenceMask m(g, TGT_TOKENS, PAD_TOKEN, SEQ_SIZE);
-    m.source({1,2,3}); // no PAD_TOKEN
+    SequenceMask m(g, TGT_TOKENS, BOS_TOKEN, EOS_TOKEN, PAD_TOKEN, SEQ_SIZE);
+    m.source({1,2,3}); // no special tokens
 
     MultiHeadAttention mha(
       g, *q, *k, *v, m,
@@ -477,7 +492,9 @@ void test_multihead_attention_backward()
     Graph g;
 
     int TGT_TOKENS = 5;
-    int PAD_TOKEN = 4;
+    int BOS_TOKEN = 7;
+    int EOS_TOKEN = 8;
+    int PAD_TOKEN = 9;
 
     int TGT_SIZE = 3;
     int SEQ_SIZE = 3;
@@ -490,7 +507,7 @@ void test_multihead_attention_backward()
     auto k = g.new_variable(SEQ_SIZE, EMB_SIZE);
     auto v = g.new_variable(TGT_SIZE, EMB_SIZE);
 
-    SequenceMask m(g, TGT_TOKENS, PAD_TOKEN, SEQ_SIZE);
+    SequenceMask m(g, TGT_TOKENS, BOS_TOKEN, EOS_TOKEN, PAD_TOKEN, SEQ_SIZE);
     m.source({1,2,3}); // no PAD_TOKEN
 
     auto mhaptr = new MultiHeadAttention(
@@ -935,6 +952,8 @@ void test_encoder_layer_forward()
     TEST_BEGIN("EncoderLayer Forward")
 
     int TGT_TOKENS = 10;
+    int BOS_TOKEN = 7;
+    int EOS_TOKEN = 8;
     int PAD_TOKEN = 9;
 
     int EMB_SIZE = 4;
@@ -953,7 +972,7 @@ void test_encoder_layer_forward()
       -0.3883,  0.2742, -0.4652, -0.1417,
       0.5300, 0.2800, 0.5306, 0.4950;
 
-    SequenceMask m(g, TGT_TOKENS, PAD_TOKEN, SEQ_SIZE);
+    SequenceMask m(g, TGT_TOKENS, BOS_TOKEN, EOS_TOKEN, PAD_TOKEN, SEQ_SIZE);
     m.source({1,2,3,4,5});
 
     EncoderLayer el(g, x, m,
@@ -1043,6 +1062,8 @@ void test_encoder_layer_backward()
     TEST_BEGIN("EncoderLayer Backward")
 
     int TGT_TOKENS = 10;
+    int BOS_TOKEN = 7;
+    int EOS_TOKEN = 8;
     int PAD_TOKEN = 9;
 
     int EMB_SIZE = 4;
@@ -1061,7 +1082,7 @@ void test_encoder_layer_backward()
       -0.3883,  0.2742, -0.4652, -0.1417,
       0.5300, 0.2800, 0.5306, 0.4950;
 
-    SequenceMask m(g, TGT_TOKENS, PAD_TOKEN, SEQ_SIZE);
+    SequenceMask m(g, TGT_TOKENS, BOS_TOKEN, EOS_TOKEN, PAD_TOKEN, SEQ_SIZE);
     m.source({1,2,3,4,5});
 
     auto& F = *(new EncoderLayer(g, x, m,
@@ -1156,6 +1177,8 @@ void test_decoder_layer_forward()
     TEST_BEGIN("DecoderLayer Forward")
 
     int TGT_TOKENS = 10;
+    int BOS_TOKEN = 7;
+    int EOS_TOKEN = 8;
     int PAD_TOKEN = 9;
 
     int EMB_SIZE = 4;
@@ -1182,8 +1205,8 @@ void test_decoder_layer_forward()
       -1.7244,  0.4406,  0.5782,  0.7056,
       -1.7241,  0.4344,  0.5848,  0.7048;
 
-    SequenceMask src_mask(g, TGT_TOKENS, PAD_TOKEN, SEQ_SIZE);
-    SequenceMask tgt_mask(g, TGT_TOKENS, PAD_TOKEN, SEQ_SIZE);
+    SequenceMask src_mask(g, TGT_TOKENS, BOS_TOKEN, EOS_TOKEN, PAD_TOKEN, SEQ_SIZE);
+    SequenceMask tgt_mask(g, TGT_TOKENS, BOS_TOKEN, EOS_TOKEN, PAD_TOKEN, SEQ_SIZE);
 
     src_mask.source({1,2,3,4,5});
     tgt_mask.target({1,2,3,4,5});
@@ -1317,6 +1340,8 @@ void test_decoder_layer_backward()
     TEST_BEGIN("DecoderLayer Backward")
 
     int TGT_TOKENS = 10;
+    int BOS_TOKEN = 7;
+    int EOS_TOKEN = 8;
     int PAD_TOKEN = 9;
 
     int EMB_SIZE = 4;
@@ -1343,8 +1368,8 @@ void test_decoder_layer_backward()
       -1.7244,  0.4406,  0.5782,  0.7056,
       -1.7241,  0.4344,  0.5848,  0.7048;
 
-    SequenceMask src_mask(g, TGT_TOKENS, PAD_TOKEN, SEQ_SIZE);
-    SequenceMask tgt_mask(g, TGT_TOKENS, PAD_TOKEN, SEQ_SIZE);
+    SequenceMask src_mask(g, TGT_TOKENS, BOS_TOKEN, EOS_TOKEN, PAD_TOKEN, SEQ_SIZE);
+    SequenceMask tgt_mask(g, TGT_TOKENS, BOS_TOKEN, EOS_TOKEN, PAD_TOKEN, SEQ_SIZE);
 
     src_mask.source({1,2,3,4,5});
     tgt_mask.target({1,2,3,4,5});
@@ -1501,7 +1526,7 @@ void test_transformer_forward()
 
     int SRC_TOKENS = 10; // input vocabulary size
     int TGT_TOKENS = 10; // output vocabulary size
-    int SOS_TOKEN = 8; // start of sequence token
+    int BOS_TOKEN = 8; // begining of sequence token
     int EOS_TOKEN = 9; // end of sequence token
     int PAD_TOKEN = 0; // padding token (marks positions to ignore)
 
@@ -1509,11 +1534,11 @@ void test_transformer_forward()
 
     std::vector<int> src_x = {1, 2, 3, PAD_TOKEN, PAD_TOKEN}; // input sequence
 
-    std::vector<int> tgt_x = {SOS_TOKEN, 1, 2, 3, PAD_TOKEN}; // target sequence
+    std::vector<int> tgt_x = {BOS_TOKEN, 1, 2, 3, PAD_TOKEN}; // target sequence
 
     std::vector<int> y_hat = {1, 2, 3, EOS_TOKEN, PAD_TOKEN}; // output sequence
 
-    Transformer T(g, SRC_TOKENS, TGT_TOKENS, PAD_TOKEN,
+    Transformer T(g, SRC_TOKENS, TGT_TOKENS, BOS_TOKEN, EOS_TOKEN, PAD_TOKEN,
       NUM_LAYERS, NUM_HEADS, EMB_SIZE, FF_SIZE, SEQ_SIZE, DROPOUT);
 
     auto vars = g.named_variables();
@@ -1775,7 +1800,7 @@ void test_transformer_backward()
 
     int SRC_TOKENS = 10; // input vocabulary size
     int TGT_TOKENS = 10; // output vocabulary size
-    int SOS_TOKEN = 8; // start of sequence token
+    int BOS_TOKEN = 8; // begining of sequence token
     int EOS_TOKEN = 9; // end of sequence token
     int PAD_TOKEN = 0; // padding token (marks positions to ignore)
 
@@ -1783,11 +1808,12 @@ void test_transformer_backward()
 
     std::vector<int> src_x = {1, 2, 3, PAD_TOKEN, PAD_TOKEN}; // input sequence
 
-    std::vector<int> tgt_x = {SOS_TOKEN, 1, 2, 3, PAD_TOKEN}; // target sequence
+    std::vector<int> tgt_x = {BOS_TOKEN, 1, 2, 3, PAD_TOKEN}; // target sequence
 
     std::vector<int> y_hat = {1, 2, 3, EOS_TOKEN, PAD_TOKEN}; // output sequence
 
-    auto& T = *(new Transformer(g, SRC_TOKENS, TGT_TOKENS, PAD_TOKEN,
+    auto& T = *(new Transformer(g,
+      SRC_TOKENS, TGT_TOKENS, BOS_TOKEN, EOS_TOKEN, PAD_TOKEN,
       NUM_LAYERS, NUM_HEADS, EMB_SIZE, FF_SIZE, SEQ_SIZE, DROPOUT));
     g.keep(&T);
 

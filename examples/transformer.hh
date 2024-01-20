@@ -17,9 +17,12 @@ using namespace seegnify;
 class SequenceMask : public Constant
 {
 public:
-  SequenceMask(Graph& g, int tgt_tokens, int pad_token, int seq_size) :
+  SequenceMask(Graph& g,
+  int tgt_tokens, int bos_token, int eos_token, int pad_token, int seq_size) :
   Constant(g),
   _tgt_tokens(tgt_tokens),
+  _bos_token(bos_token),
+  _eos_token(eos_token),
   _pad_token(pad_token),
   _seq_size(seq_size)
   {
@@ -27,10 +30,10 @@ public:
 
   void source(const std::vector<int>& src_seq)
   {
-    auto src_size = sequence_size(src_seq);
-    auto padding = std::max(_seq_size - src_size, 0);
-
     _value = Tensor::Zero(_seq_size, _seq_size);
+
+    auto bos = src_seq[0] == _bos_token;
+    auto padding = _seq_size - sequence_size(src_seq) - bos;
 
     if (padding)
     {
@@ -41,12 +44,12 @@ public:
 
   void target(const std::vector<int>& tgt_seq)
   {
-    auto tgt_size = sequence_size(tgt_seq);
-    auto padding = std::max(_seq_size - tgt_size, 0);
-
     DTYPE inf = std::numeric_limits<DTYPE>::infinity();
     _value = Tensor::Constant(_seq_size, _seq_size, -inf);
     _value.triangularView<Eigen::Lower>().setConstant(0);
+
+    auto bos = tgt_seq[0] == _bos_token;
+    auto padding = _seq_size - sequence_size(tgt_seq) - bos;
 
     if (padding)
     {
@@ -56,13 +59,23 @@ public:
 
   void output(const std::vector<int>& tgt_seq)
   {
-    int tgt_size = sequence_size(tgt_seq);
-
     _value = Tensor::Zero(_seq_size, _tgt_tokens);
 
+    if (!tgt_seq.size()) return;
+
+    auto bos = tgt_seq[0] == _bos_token;
+    auto tgt_size = sequence_size(tgt_seq);
+
+    // one-hot token
     for (int i=0; i<tgt_size; i++)
     {
-      _value(i, (int)tgt_seq[i]) = 1;
+      _value(i, (int)tgt_seq[i+bos]) = 1;
+    }
+
+    // one-hot EOS
+    if (tgt_size < _seq_size)
+    {
+      _value(tgt_size, _eos_token) = 1;
     }
   }
 
@@ -71,22 +84,27 @@ protected:
   // determine actual sequence size
   int sequence_size(const std::vector<int>& sequence)
   {
-    int size = sequence.size();
+    // regular token count
+    int count = 0;
 
     // determine size of the source sequence
-    for (int i=0; i<size; i++)
+    for (auto e: sequence)
     {
-      if (sequence[i] == _pad_token)
-      {
-        return i;
-      }
+      if (e == _bos_token) continue;
+      if (e == _eos_token) continue;
+      if (e == _pad_token) continue;
+
+      count++;
     }
 
-    return size;
+    // limit seqence size to max sequence size
+    return std::min(count, _seq_size);
   }
 
 private:
   const int _tgt_tokens;
+  const int _bos_token;
+  const int _eos_token;
   const int _pad_token;
   const int _seq_size;
 };
@@ -502,7 +520,8 @@ class Transformer : public Function
 {
 public:
   Transformer(
-  Graph& g, int src_tokens, int tgt_tokens, int pad_token,
+  Graph& g, int src_tokens, int tgt_tokens,
+  int bos_token, int eos_token, int pad_token,
   int num_layers, int num_heads, int emb_size, int ff_size, int seq_size,
   DTYPE dropout) : Function(g)
   {
@@ -517,8 +536,10 @@ public:
     g.keep(src_pos);
     g.keep(tgt_pos);
 
-    _src_mask = new SequenceMask(g, tgt_tokens, pad_token, seq_size);
-    _tgt_mask = new SequenceMask(g, tgt_tokens, pad_token, seq_size);
+    _src_mask = new SequenceMask(g,
+      tgt_tokens, bos_token, eos_token, pad_token, seq_size);
+    _tgt_mask = new SequenceMask(g,
+      tgt_tokens, bos_token, eos_token, pad_token, seq_size);
     g.keep(_src_mask);
     g.keep(_tgt_mask);
 

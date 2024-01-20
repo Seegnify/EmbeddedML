@@ -1,5 +1,5 @@
 /*
- * Copyright 2020-2023 Greg Padiasek. All Rights Reserved.
+ * Copyright 2020-2024 Greg Padiasek. All Rights Reserved.
  */
 
 #include "main/training.hh"
@@ -8,6 +8,18 @@
 
 #include "transformer.hh"
 
+#define NUM_LAYERS 2    // number of encoder/decoder layers
+#define NUM_HEADS 4     // numberof multiheads
+#define EMB_SIZE 16     // size of embeddings
+#define SEQ_SIZE 32     // max seqeunce size
+#define FF_SIZE 64      // size of feed forward hidden layer
+#define DROPOUT 0.0     // dropout probability
+
+#define SRC_TOKENS 128  // input vocabulary size
+#define TGT_TOKENS 128  // output vocabulary size
+#define BOS_TOKEN 1     // begining of sequence token
+#define EOS_TOKEN 2     // end of sequence token
+#define PAD_TOKEN 3     // padding token (marks positions to ignore)
 
 /////////////////////////////////////
 // training instance implementation
@@ -34,29 +46,16 @@ public:
     );
     _train_data.push_back(
       {
-        "I like chockolate.",
+        "I like chocolate.",
         "Lubie czekolade.",
       }
     );
 
-    // create graph
-    int NUM_LAYERS = 1;
-    int NUM_HEADS = 2;
-    int EMB_SIZE = 4;
-    int SEQ_SIZE = 5;
-    int FF_SIZE = 3;
-    DTYPE DROPOUT = 0.0;
-
-    int SRC_TOKENS = 10; // input vocabulary size
-    int TGT_TOKENS = 10; // output vocabulary size
-    int SOS_TOKEN = 8; // start of sequence token
-    int EOS_TOKEN = 9; // end of sequence token
-    int PAD_TOKEN = 0; // padding token (marks positions to ignore)
-
-    Graph g;
+    Graph& g = graph();
 
     // model
-    _model = new Transformer(g, SRC_TOKENS, TGT_TOKENS, PAD_TOKEN,
+    _model = new Transformer(g,
+      SRC_TOKENS, TGT_TOKENS, BOS_TOKEN, EOS_TOKEN, PAD_TOKEN,
       NUM_LAYERS, NUM_HEADS, EMB_SIZE, FF_SIZE, SEQ_SIZE, DROPOUT);
     g.keep(_model);
 
@@ -65,7 +64,8 @@ public:
       [&](Function& row) { return g.new_log_softmax(row); });
 
     // expected output
-    _y_hat = new SequenceMask(g, TGT_TOKENS, PAD_TOKEN, SEQ_SIZE);
+    _y_hat = new SequenceMask(g,
+      TGT_TOKENS, BOS_TOKEN, EOS_TOKEN, PAD_TOKEN, SEQ_SIZE);
     g.keep(_y_hat);
     
     // loss
