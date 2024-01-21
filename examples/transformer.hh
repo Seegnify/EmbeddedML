@@ -32,8 +32,8 @@ public:
   {
     _value = Tensor::Zero(_seq_size, _seq_size);
 
-    auto bos = src_seq[0] == _bos_token;
-    auto padding = _seq_size - sequence_size(src_seq) - bos;
+    size_t bos = src_seq.size() ? src_seq[0] == _bos_token : 0;
+    size_t padding = _seq_size - sequence_size(src_seq) - bos;
 
     if (padding)
     {
@@ -48,8 +48,8 @@ public:
     _value = Tensor::Constant(_seq_size, _seq_size, -inf);
     _value.triangularView<Eigen::Lower>().setConstant(0);
 
-    auto bos = tgt_seq[0] == _bos_token;
-    auto padding = _seq_size - sequence_size(tgt_seq) - bos;
+    size_t bos = tgt_seq.size() ? tgt_seq[0] == _bos_token : 0;
+    size_t padding = _seq_size - sequence_size(tgt_seq) - bos;
 
     if (padding)
     {
@@ -61,10 +61,8 @@ public:
   {
     _value = Tensor::Zero(_seq_size, _tgt_tokens);
 
-    if (!tgt_seq.size()) return;
-
-    auto bos = tgt_seq[0] == _bos_token;
-    auto tgt_size = sequence_size(tgt_seq);
+    size_t bos = tgt_seq.size() ? tgt_seq[0] == _bos_token : 0;
+    size_t tgt_size = sequence_size(tgt_seq);
 
     // one-hot token
     for (int i=0; i<tgt_size; i++)
