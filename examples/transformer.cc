@@ -57,8 +57,7 @@ public:
     Graph& g = graph();
 
     // model
-    _model = new Transformer(g,
-      SRC_TOKENS, TGT_TOKENS, BOS_TOKEN, EOS_TOKEN, PAD_TOKEN,
+    _model = new Transformer(g, SRC_TOKENS, TGT_TOKENS, PAD_TOKEN,
       NUM_LAYERS, NUM_HEADS, EMB_SIZE, FF_SIZE, SEQ_SIZE, DROPOUT);
     g.keep(_model);
 

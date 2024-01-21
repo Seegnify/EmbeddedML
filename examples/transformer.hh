@@ -478,8 +478,7 @@ class Transformer : public Function
 {
 public:
   Transformer(
-  Graph& g, int src_tokens, int tgt_tokens,
-  int bos_token, int eos_token, int pad_token,
+  Graph& g, int src_tokens, int tgt_tokens, int pad_token,
   int num_layers, int num_heads, int emb_size, int ff_size, int seq_size,
   DTYPE dropout) : Function(g)
   {
