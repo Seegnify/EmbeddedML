@@ -166,12 +166,27 @@ public:
         for (auto t: tgt_x) std::cout << "tgt token:" << t << std::endl;
         std::cout << "y_hat (output mask):" << std::endl;
         std::cout << _y_hat->forward() << std::endl;
-        exit(1);
       }
       
-      // generator
-      //Tensor y = _model->forward(src_x, tgt_x);
-      //_model->backward(image);
+      // forward pass (set inputs and compute output)
+      auto& y = _model->forward(src_x, tgt_x);
+      if (worker() == 0)
+      {
+        std::cout << "y" << std::endl;
+        std::cout << y << std::endl;
+      }
+
+      // traning loss
+      auto& loss = _loss->forward();
+      if (worker() == 0)
+      {
+        std::cout << "loss" << std::endl;
+        std::cout << loss << std::endl;
+        exit(1);
+      }
+
+      // backward pass from loss
+      g.backward(*_loss, Tensor::Ones(1,1));
     }
 
     // update weights
