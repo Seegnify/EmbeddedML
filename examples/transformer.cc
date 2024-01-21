@@ -51,6 +51,9 @@ public:
       }
     );
 
+    // init train batch sequence
+    for (int i=0; i<_train_data.size(); i++) _train_batch.push_back(i);
+
     Graph& g = graph();
 
     // model
@@ -64,8 +67,7 @@ public:
       [&](Function& row) { return g.new_log_softmax(row); });
 
     // expected output
-    _y_hat = new SequenceMask(g,
-      TGT_TOKENS, BOS_TOKEN, EOS_TOKEN, PAD_TOKEN, SEQ_SIZE);
+    _y_hat = new SequenceMask(g, PAD_TOKEN, SEQ_SIZE);
     g.keep(_y_hat);
     
     // loss
@@ -85,33 +87,97 @@ public:
   {
     delete _optimizer;
   }
-    
+
+  // tokenize and pad source sequence
+  std::vector<int> source_tokens(const std::string& text)
+  {
+    std::vector<int> tokens(SEQ_SIZE, PAD_TOKEN);
+
+    auto size = std::min<int>(text.size(), SEQ_SIZE);
+    for (int i=0; i<size; i++) tokens[i] = text[i];
+
+    return tokens;
+  }
+
+  // tokenize and pad target sequence
+  std::vector<int> target_tokens(const std::string& text)
+  {
+    std::vector<int> tokens(SEQ_SIZE, PAD_TOKEN);
+
+    tokens[0] = BOS_TOKEN; // BOS as first token
+
+    auto size = std::min<int>(text.size(), SEQ_SIZE - 1); // 1 for BOS
+    for (int i=0; i<size; i++) tokens[i + 1] = text[i]; // 1 for BOS
+
+    return tokens;
+  }
+
+  // generate output mask for training loss
+  Tensor output_mask(const std::vector<int>& tgt)
+  {
+    Tensor mask = Tensor::Zero(SEQ_SIZE, TGT_TOKENS);
+
+    auto it = std::find(tgt.begin(), tgt.end(), PAD_TOKEN);
+    size_t tgt_size = ((it != tgt.end()) ? it - tgt.begin() : tgt.size()) - 1;
+
+    // one-hot token
+    for (int i=0; i<tgt_size; i++)
+    {
+      mask(i, tgt[i + 1]) = 1; // i + 1 for BOS
+    }
+
+    // one-hot EOS
+    mask(tgt_size, EOS_TOKEN) = 1;
+    return mask;
+  }
+
   virtual void batch_train()
   {
     // restore references
     auto& g = graph();
     auto& opt = *_optimizer;
 
-    int batch_size = 100;
+    int batch_size = _train_data.size();
     _batch++;
-    float success = 0;
+
+    // sample training data
+    g.random().shuffle(_train_batch.begin(), _train_batch.end());
 
     // batch train
     for (int i=0; i<batch_size; i++)
     {
       g.recache();
+
+      // training sample
+      auto& x = _train_data[_train_batch[i]];
+      auto src_x = source_tokens(x.first);
+      auto tgt_x = target_tokens(x.second);
+
+      // training mask
+      _y_hat->value() = output_mask(tgt_x);
       
-      std::vector<int> src_x;
-      std::vector<int> tgt_x;
+      if (worker() == 0)
+      {
+        std::cout << "=== training step ===" << std::endl;
+        std::cout << "batch id:" << i << std::endl;
+        std::cout << "sample id:" << _train_batch[i] << std::endl;
+        std::cout << "source:" << x.first << std::endl;
+        for (auto t: src_x) std::cout << "src token:" << t << std::endl;
+        std::cout << "target:" << x.second << std::endl;
+        for (auto t: tgt_x) std::cout << "tgt token:" << t << std::endl;
+        std::cout << "y_hat (output mask):" << std::endl;
+        std::cout << _y_hat->forward() << std::endl;
+        exit(1);
+      }
       
       // generator
-      Tensor y = _model->forward(src_x, tgt_x);
+      //Tensor y = _model->forward(src_x, tgt_x);
       //_model->backward(image);
     }
 
     // update weights
-    opt.update();
-    g.zero_grad();
+    //opt.update();
+    //g.zero_grad();
 
     int valid_step = 100;
     if (_batch % valid_step == 0 and worker() == 0)
@@ -141,6 +207,7 @@ public:
 
 private:
   std::vector<std::pair<std::string, std::string>> _train_data;
+  std::vector<int> _train_batch;
   Transformer *_model;
   Optimizer *_optimizer;
   Constant* _tgt_size;

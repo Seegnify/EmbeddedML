@@ -202,7 +202,7 @@ void test_sequence_mask()
     DTYPE I = std::numeric_limits<DTYPE>::infinity();
 
     Graph g;
-    SequenceMask m(g, TGT_TOKENS, BOS_TOKEN, EOS_TOKEN, PAD_TOKEN, SEQ_SIZE);
+    SequenceMask m(g, PAD_TOKEN, SEQ_SIZE);
 
     std::vector<int> src_seq = {1,2,3,PAD_TOKEN,PAD_TOKEN};
     std::vector<int> tgt_seq = {BOS_TOKEN,2,3,4,PAD_TOKEN};
@@ -228,17 +228,6 @@ void test_sequence_mask()
       0, 0, 0, 0,-I,
       0, 0, 0, 0,-I,
     ASSERT(m() == target)
-
-    // test output mask
-    m.output(tgt_seq);
-    Tensor output(SEQ_SIZE, TGT_TOKENS);
-    output <<
-      0, 0, 1, 0, 0, 0, 0, 0, 0, 0, // tgt_seq[1] = unmasekd 2
-      0, 0, 0, 1, 0, 0, 0, 0, 0, 0, // tgt_seq[2] = unmasekd 3
-      0, 0, 0, 0, 1, 0, 0, 0, 0, 0, // tgt_seq[3] = unmasekd 4
-      0, 0, 0, 0, 0, 0, 0, 0, 1, 0, // EOS_TOKEN = unmasekd 8
-      0, 0, 0, 0, 0, 0, 0, 0, 0, 0, // PAD_TOKEN = all masked (no backprop)
-    ASSERT(m() == output)
 
     TEST_END()
 }
@@ -401,7 +390,7 @@ void test_multihead_attention_forward()
     auto k = g.new_variable(SEQ_SIZE, EMB_SIZE);
     auto v = g.new_variable(TGT_SIZE, EMB_SIZE);
 
-    SequenceMask m(g, TGT_TOKENS, BOS_TOKEN, EOS_TOKEN, PAD_TOKEN, SEQ_SIZE);
+    SequenceMask m(g, PAD_TOKEN, SEQ_SIZE);
     m.source({1,2,3}); // no special tokens
 
     MultiHeadAttention mha(
@@ -507,7 +496,7 @@ void test_multihead_attention_backward()
     auto k = g.new_variable(SEQ_SIZE, EMB_SIZE);
     auto v = g.new_variable(TGT_SIZE, EMB_SIZE);
 
-    SequenceMask m(g, TGT_TOKENS, BOS_TOKEN, EOS_TOKEN, PAD_TOKEN, SEQ_SIZE);
+    SequenceMask m(g, PAD_TOKEN, SEQ_SIZE);
     m.source({1,2,3}); // no PAD_TOKEN
 
     auto mhaptr = new MultiHeadAttention(
@@ -972,7 +961,7 @@ void test_encoder_layer_forward()
       -0.3883,  0.2742, -0.4652, -0.1417,
       0.5300, 0.2800, 0.5306, 0.4950;
 
-    SequenceMask m(g, TGT_TOKENS, BOS_TOKEN, EOS_TOKEN, PAD_TOKEN, SEQ_SIZE);
+    SequenceMask m(g, PAD_TOKEN, SEQ_SIZE);
     m.source({1,2,3,4,5});
 
     EncoderLayer el(g, x, m,
@@ -1082,7 +1071,7 @@ void test_encoder_layer_backward()
       -0.3883,  0.2742, -0.4652, -0.1417,
       0.5300, 0.2800, 0.5306, 0.4950;
 
-    SequenceMask m(g, TGT_TOKENS, BOS_TOKEN, EOS_TOKEN, PAD_TOKEN, SEQ_SIZE);
+    SequenceMask m(g, PAD_TOKEN, SEQ_SIZE);
     m.source({1,2,3,4,5});
 
     auto& F = *(new EncoderLayer(g, x, m,
@@ -1205,8 +1194,8 @@ void test_decoder_layer_forward()
       -1.7244,  0.4406,  0.5782,  0.7056,
       -1.7241,  0.4344,  0.5848,  0.7048;
 
-    SequenceMask src_mask(g, TGT_TOKENS, BOS_TOKEN, EOS_TOKEN, PAD_TOKEN, SEQ_SIZE);
-    SequenceMask tgt_mask(g, TGT_TOKENS, BOS_TOKEN, EOS_TOKEN, PAD_TOKEN, SEQ_SIZE);
+    SequenceMask src_mask(g, PAD_TOKEN, SEQ_SIZE);
+    SequenceMask tgt_mask(g, PAD_TOKEN, SEQ_SIZE);
 
     src_mask.source({1,2,3,4,5});
     tgt_mask.target({1,2,3,4,5});
@@ -1368,8 +1357,8 @@ void test_decoder_layer_backward()
       -1.7244,  0.4406,  0.5782,  0.7056,
       -1.7241,  0.4344,  0.5848,  0.7048;
 
-    SequenceMask src_mask(g, TGT_TOKENS, BOS_TOKEN, EOS_TOKEN, PAD_TOKEN, SEQ_SIZE);
-    SequenceMask tgt_mask(g, TGT_TOKENS, BOS_TOKEN, EOS_TOKEN, PAD_TOKEN, SEQ_SIZE);
+    SequenceMask src_mask(g, PAD_TOKEN, SEQ_SIZE);
+    SequenceMask tgt_mask(g, PAD_TOKEN, SEQ_SIZE);
 
     src_mask.source({1,2,3,4,5});
     tgt_mask.target({1,2,3,4,5});
