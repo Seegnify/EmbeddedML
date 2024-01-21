@@ -64,6 +64,7 @@ public:
     // predicted output
     auto y = g.new_rowwise(*_model, SEQ_SIZE, TGT_TOKENS,
       [&](Function& row) { return g.new_log_softmax(row); });
+    g.name(y, "softmax_y");
 
     // expected output
     _y_hat = new SequenceMask(g, PAD_TOKEN, SEQ_SIZE);
@@ -96,6 +97,17 @@ public:
     for (int i=0; i<size; i++) tokens[i] = text[i];
 
     return tokens;
+  }
+
+  // determine actual sequence size
+  int sequence_size(const std::vector<int>& sequence)
+  {
+    auto it = std::find(sequence.begin(), sequence.end(), PAD_TOKEN);
+
+    if (it == sequence.end()) return sequence.size();
+
+    // limit seqence size to max sequence size
+    return std::min<int>(it - sequence.begin(), SEQ_SIZE);
   }
 
   // tokenize and pad target sequence
@@ -152,28 +164,33 @@ public:
       auto src_x = source_tokens(x.first);
       auto tgt_x = target_tokens(x.second);
 
-      // training mask
+      // loss mask
       _y_hat->value() = output_mask(tgt_x);
+
+      // loss normalization
+      _tgt_size->value()(0) = sequence_size(tgt_x);
       
       if (worker() == 0)
       {
         std::cout << "=== training step ===" << std::endl;
         std::cout << "batch id:" << i << std::endl;
         std::cout << "sample id:" << _train_batch[i] << std::endl;
-        std::cout << "source:" << x.first << std::endl;
-        for (auto t: src_x) std::cout << "src token:" << t << std::endl;
-        std::cout << "target:" << x.second << std::endl;
-        for (auto t: tgt_x) std::cout << "tgt token:" << t << std::endl;
+        std::cout << "batch source:" << x.first << std::endl;
+        std::cout << "batch target:" << x.second << std::endl;
         std::cout << "y_hat (output mask):" << std::endl;
         std::cout << _y_hat->forward() << std::endl;
       }
       
-      // forward pass (set inputs and compute output)
+      // set model inputs
       auto& y = _model->forward(src_x, tgt_x);
       if (worker() == 0)
       {
-        std::cout << "y" << std::endl;
-        std::cout << y << std::endl;
+        std::cout << "model source" << std::endl;
+        std::cout << _model->source()() << std::endl;
+        std::cout << "model target" << std::endl;
+        std::cout << _model->target()() << std::endl;
+        std::cout << "model output" << std::endl;
+        std::cout << _model->forward() << std::endl;
       }
 
       // traning loss
