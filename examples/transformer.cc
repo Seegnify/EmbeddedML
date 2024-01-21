@@ -151,7 +151,7 @@ public:
     int batch_size = _train_data.size();
     _batch++;
 
-    // sample training data
+    // select training batch
     g.random().shuffle(_train_batch.begin(), _train_batch.end());
 
     // batch train
@@ -199,7 +199,6 @@ public:
       {
         std::cout << "loss" << std::endl;
         std::cout << loss << std::endl;
-        exit(1);
       }
 
       // backward pass from loss
@@ -207,8 +206,14 @@ public:
     }
 
     // update weights
-    //opt.update();
-    //g.zero_grad();
+    opt.update();
+    g.zero_grad();
+
+    if (worker() == 0)
+    {
+      std::cout << "training loop complete!" << std::endl;
+      exit(1);
+    }
 
     int valid_step = 100;
     if (_batch % valid_step == 0 and worker() == 0)
