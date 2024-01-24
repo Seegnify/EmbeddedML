@@ -1548,19 +1548,18 @@ Function(graph), _x(x)
       auto& g = _base.backward();
       auto& y = _base.forward();
 
-      // reshape to flat row vector
+      // reshape input to flat row vector
       auto F = y.reshaped(1, y.size());
 
       // use Identity matrix to construct diagonal matrix
       auto I = Tensor::Identity(F.size(), F.size());
 
-      //auto dFdx = I * F.asDiagonal() - F * F.transpose(); // col major
-      auto dFdx = I * F.asDiagonal() - F.transpose() * F; // row major
-
       // col major
+      //auto dFdx = I * F.asDiagonal() - F * F.transpose();
       //auto gdFdx = (g.asDiagonal() * dFdx).colwise().sum().transpose();
 
       // row major
+      auto dFdx = I * F.asDiagonal() - F.transpose() * F;
       auto gdFdx = (g.asDiagonal() * dFdx).colwise().sum();
 
       // reshape to input shape
@@ -1678,13 +1677,24 @@ Function(graph), _x(x)
       if (_value.size()) return _value;
 
       auto& g = _base.backward();
-      auto S = _base.softmax();
+      auto s = _base.softmax();
 
-      auto I = Tensor::Identity(S.rows(), S.rows());
-      auto dFdx = I - Tensor::Ones(S.rows(), 1) * S.transpose();
+      // reshape input to flat row vector
+      auto S = s.reshaped(1, s.size());
 
-      // multiply each row of dFdx by coresponding coefficient from g
-      _value = (g.asDiagonal() * dFdx).colwise().sum().transpose();
+      // use Identity matrix to construct diagonal matrix
+      auto I = Tensor::Identity(S.size(), S.size());
+
+      // col-major
+      // auto dFdx = I - Tensor::Ones(S.size(), 1) * S.transpose();
+      // auto gdFdx = (g.asDiagonal() * dFdx).colwise().sum().transpose();
+
+      // row-major
+      auto dFdx = I - Tensor::Ones(S.size(), 1) * S;
+      auto gdFdx = (g.asDiagonal() * dFdx).colwise().sum();
+
+      // reshape to input shape
+      _value = gdFdx.reshaped(s.rows(), s.cols());
 
       return _value;
     }    
