@@ -166,7 +166,7 @@ public:
       _graph.keep(heads[i]);
     }
 
-    auto& joined = join_heads(heads, S, H);
+    auto& joined = join_heads(heads, S, D);
     _attention = &linear(joined, E, E, bias, "Wo", "bo");
 
     _attention->derivative(_graph.new_iderivative(*this));
