@@ -8,12 +8,23 @@
 
 #include "transformer.hh"
 
+/* Standard Transfomer options */
+#define NUM_LAYERS 6    // number of encoder/decoder layers
+#define NUM_HEADS 8     // numberof multiheads
+#define EMB_SIZE 512    // size of embeddings
+#define SEQ_SIZE 100    // max seqeunce size
+#define FF_SIZE 2048    // size of feed forward hidden layer
+#define DROPOUT 0.1     // dropout probability
+
+/* Test Transfomer options */
+/*
 #define NUM_LAYERS 2    // number of encoder/decoder layers
-#define NUM_HEADS 4     // numberof multiheads
-#define EMB_SIZE 16     // size of embeddings
-#define SEQ_SIZE 32     // max seqeunce size
-#define FF_SIZE 64      // size of feed forward hidden layer
+#define NUM_HEADS 2     // numberof multiheads
+#define EMB_SIZE 64     // size of embeddings
+#define SEQ_SIZE 48     // max seqeunce size
+#define FF_SIZE 16      // size of feed forward hidden layer
 #define DROPOUT 0.0     // dropout probability
+*/
 
 #define SRC_TOKENS 128  // input vocabulary size
 #define TGT_TOKENS 128  // output vocabulary size
@@ -170,35 +181,16 @@ public:
       // loss normalization
       _tgt_size->value()(0) = sequence_size(tgt_x);
       
-      if (worker() == 0)
-      {
-        std::cout << "=== training step ===" << std::endl;
-        std::cout << "batch id:" << i << std::endl;
-        std::cout << "sample id:" << _train_batch[i] << std::endl;
-        std::cout << "batch source:" << x.first << std::endl;
-        std::cout << "batch target:" << x.second << std::endl;
-        std::cout << "y_hat (output mask):" << std::endl;
-        std::cout << _y_hat->forward() << std::endl;
-      }
-      
       // set model inputs
       auto& y = _model->forward(src_x, tgt_x);
-      if (worker() == 0)
-      {
-        std::cout << "model source" << std::endl;
-        std::cout << _model->source()() << std::endl;
-        std::cout << "model target" << std::endl;
-        std::cout << _model->target()() << std::endl;
-        std::cout << "model output" << std::endl;
-        std::cout << _model->forward() << std::endl;
-      }
 
       // traning loss
       auto& loss = _loss->forward();
       if (worker() == 0)
       {
-        std::cout << "loss" << std::endl;
-        std::cout << loss << std::endl;
+        std::cout << "time:" << time_to_string(time_now())
+                  << " loss:" << loss
+                  << std::endl;
       }
 
       // backward pass from loss
@@ -208,12 +200,6 @@ public:
     // update weights
     opt.update();
     g.zero_grad();
-
-    if (worker() == 0)
-    {
-      std::cout << "training loop complete!" << std::endl;
-      exit(1);
-    }
 
     int valid_step = 100;
     if (_batch % valid_step == 0 and worker() == 0)
