@@ -293,7 +293,7 @@ def main():
   #print(tgt_data)
   #os.exit
 
-  print_model(torch.load(model_path))
+  # print_model(torch.load(model_path))
 
   # Model training
   criterion = nn.CrossEntropyLoss(ignore_index=0)

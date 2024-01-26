@@ -82,13 +82,11 @@ public:
     g.keep(_y_hat);
     
     // loss
-    _tgt_size = g.new_constant(1,1); // target sequence size
     _loss = g.new_sum(- *_y_hat * *y); // cross entropy
-    _loss = &(*_loss / *_tgt_size / TGT_TOKENS); // normalized loss
 
     // optimizer
-    //_optimizer = new Adam(g.variables(), 0.0001);
-    _optimizer = new SGD(g.variables(), 0.001, 0.1);
+    _optimizer = new Adam(g.variables(), 0.0001);
+    //_optimizer = new SGD(g.variables(), 0.1, 0.1);
 
     // counters
     _batch = 0;
@@ -97,6 +95,34 @@ public:
   ~TransformerClient()
   {
     delete _optimizer;
+  }
+
+  // print variables
+  void print(bool values = false, bool grads = false)
+  {
+    auto vars = graph().named_variables();
+
+    for (const auto& it: vars)
+    {
+      auto name = it.first;
+      auto var = it.second;
+
+      // print name and varaible value
+      auto& tensor = var->forward();
+      std::cout << "node[" << name << "]"
+      << " [" << tensor.rows() << " x " << tensor.cols() << "]"
+      << std::endl;
+      if (values)
+      {
+        std::cout << "value norm: " << tensor.norm() << std::endl;
+        //std::cout << tensor << std::endl;
+      }
+      if (grads)
+      {
+        std::cout << "gradient norm:" << var->gradient().norm() << std::endl;
+        //std::cout << var->gradient() << std::endl;
+      }
+    }
   }
 
   // tokenize and pad source sequence
@@ -178,9 +204,6 @@ public:
       // loss mask
       _y_hat->value() = output_mask(tgt_x);
 
-      // loss normalization
-      _tgt_size->value()(0) = sequence_size(tgt_x);
-      
       // set model inputs
       auto& y = _model->forward(src_x, tgt_x);
 
@@ -196,6 +219,14 @@ public:
       // backward pass from loss
       g.backward(*_loss, Tensor::Ones(1,1));
     }
+
+    /*
+    if (worker() == 0)
+    {
+      std::cout << "model variables:" << std::endl;
+      print(true, true);
+    }
+    */
 
     // update weights
     opt.update();
@@ -232,7 +263,6 @@ private:
   std::vector<int> _train_batch;
   Transformer *_model;
   Optimizer *_optimizer;
-  Constant* _tgt_size;
   SequenceMask* _y_hat;
   Function* _loss;
   int _batch;

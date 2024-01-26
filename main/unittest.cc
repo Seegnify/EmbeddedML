@@ -2241,21 +2241,18 @@ void test_log_softmax_forward()
   int N = 4;
 
   // log softmax input
-  Constant x(g, N, 1);
-  x.value() << -1,
-               0,
-               -3,
-               4;
+  Constant x(g, 1, N);
+  x.value() << -1, 0, -3, 4;
 
   // log_softmax([-1,0,-3,4])
-  Tensor y_hat(N, 1);
+  Tensor y_hat(1, N);
   y_hat <<  -5.0256, -4.0256, -7.0256, -0.0256;
 
   LogSoftmax y(g, x);
   auto F = y.forward();
   ASSERT(y.forward().isApprox(y_hat, 0.01))
-  ASSERT(y.forward().rows() == N)
-  ASSERT(y.forward().cols() == 1)
+  ASSERT(y.forward().rows() == 1)
+  ASSERT(y.forward().cols() == N)
 
   TEST_END()
 }
@@ -2269,21 +2266,18 @@ void test_log_softmax_backward()
   Graph g;
 
   // softmax input
-  auto& z = *g.new_variable(N, 1);
-  z.value() << -1,
-                0,
-                -3,
-                4;
+  auto& z = *g.new_variable(1, N);
+  z.value() << -1, 0, -3, 4;
 
   // F
   auto& y = *g.new_log_softmax(z);
   y.forward();
-  y.gradient() = Tensor::Ones(N, 1);
+  y.gradient() = Tensor::Ones(1, N);
 
   // dFdz
   auto& dFdz = z.backward();
-  ASSERT(dFdz.rows() == N);
-  ASSERT(dFdz.cols() == 1);
+  ASSERT(dFdz.rows() == 1);
+  ASSERT(dFdz.cols() == N);
 
   // dFdX_hat
   Tensor dFdz_hat = g.dFdX(y, z);
