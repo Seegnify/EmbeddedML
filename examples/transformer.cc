@@ -136,17 +136,6 @@ public:
     return tokens;
   }
 
-  // determine actual sequence size
-  int sequence_size(const std::vector<int>& sequence)
-  {
-    auto it = std::find(sequence.begin(), sequence.end(), PAD_TOKEN);
-
-    if (it == sequence.end()) return sequence.size();
-
-    // limit seqence size to max sequence size
-    return std::min<int>(it - sequence.begin(), SEQ_SIZE);
-  }
-
   // tokenize and pad target sequence
   std::vector<int> target_tokens(const std::string& text)
   {
@@ -158,6 +147,20 @@ public:
     for (int i=0; i<size; i++) tokens[i + 1] = text[i]; // 1 for BOS
 
     return tokens;
+  }
+
+  // generate text from token sequence
+  std::string output_text(const std::vector<int>& out)
+  {
+    std::string text;
+
+    for (auto t: out)
+    {
+      if (t == EOS_TOKEN || t == PAD_TOKEN) break;
+      text.push_back(t);
+    }
+
+    return text;
   }
 
   // generate output mask for training loss
@@ -232,7 +235,7 @@ public:
     opt.update();
     g.zero_grad();
 
-    int valid_step = 100;
+    int valid_step = 1;
     if (_batch % valid_step == 0 and worker() == 0)
     {
       std::cout << "validation success "
@@ -245,14 +248,31 @@ public:
   {
     float success = 0;
 
-    int size = 0;
+    int size = _train_data.size();
 
     for (int i=0; i<size; i++)
     {
       g.recache();
 
-      // generator
-      //success += _model->forward(image, label, false);
+      // validation sample
+      // TODO: change data to validation
+      auto& x = _train_data[i];
+      auto src_x = source_tokens(x.first);
+      auto tgt_x = target_tokens(x.second);
+
+      // generate output
+      auto y = _model->generate(src_x, BOS_TOKEN, EOS_TOKEN, PAD_TOKEN);
+
+      // compare output with target
+      auto y_txt = output_text(y);
+      success += (y_txt == x.second);
+
+      if (y_txt != x.second)
+      {
+        std::cout << "Source:[" << x.first << "]" << std::endl;
+        std::cout << "Target:[" << x.second << "]" << std::endl;
+        std::cout << "Output:[" << y_txt << "]" << std::endl;
+      }
     }
 
     return success / size;

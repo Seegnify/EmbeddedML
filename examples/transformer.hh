@@ -558,12 +558,50 @@ public:
     return forward();
   }
 
+  // forward with automatic setting of src and tgt sequences
+  std::vector<int> generate(
+    const std::vector<int>& src, int bos_token, int eos_token, int pad_token
+  )
+  {
+    // create output sequence
+    int seq_size = src.size();
+    std::vector<int> tgt(seq_size, pad_token);
+    tgt[0] = bos_token;
+
+    // generate first token and cache encoder
+    graph().recache();
+    int token = decode(forward(src, tgt), 0);
+    Tensor encoder_cache = _encoder->forward();
+
+    // generate next tokens
+    for (int i=1; i<seq_size && token != eos_token; i++)
+    {
+      graph().recache();
+      _encoder->value() = encoder_cache;
+
+      tgt[i] = token;
+      token = decode(forward(src, tgt), i);
+    }
+
+    // shift output and append last token
+    std::vector<int> out(tgt.begin() + 1, tgt.end());
+    out.push_back(token);
+
+    // return generated sequence
+    return out;
+  }
+
   // source and target
   Function& source() { return *_src; }
   Function& target() { return *_tgt; }
 
-  // access to encoder cached output for inferrence
-  Function& encoder() { return *_encoder; }
+protected:
+  int decode(const Tensor& y, int row)
+  {
+    Eigen::Index max_col;
+    forward().row(row).maxCoeff(&max_col);
+    return max_col;
+  }
 
 private:
   Constant* _src;
