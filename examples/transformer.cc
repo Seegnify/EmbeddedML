@@ -220,7 +220,7 @@ public:
       }
 
       // backward pass from loss
-      g.backward(*_loss, Tensor::Ones(1,1));
+      g.backward(*_loss, loss.array().min(Tensor::Ones(1,1).array()));
     }
 
     /*
@@ -272,6 +272,16 @@ public:
         std::cout << "Source:[" << x.first << "]" << std::endl;
         std::cout << "Target:[" << x.second << "]" << std::endl;
         std::cout << "Output:[" << y_txt << "]" << std::endl;
+
+        std::cout << "First Target Token:" << "First Tgt=" << tgt_x.front() << std::endl;
+        for (int i=0; i<SEQ_SIZE-1; i++)
+        {
+          auto diff = (tgt_x[i+1] == y[i])? " (==)" : " (!=)";
+          std::cout << "Tgt["<< i+1 << "]=" << tgt_x[i+1]
+                    << " Out[" << i << "]=" << y[i]
+                    << diff << std::endl;
+        }
+        std::cout << "Last Output Token:" << "Last Out=" << y.back() << std::endl;
       }
     }
 
