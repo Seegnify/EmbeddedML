@@ -566,26 +566,31 @@ public:
     // create output sequence
     int seq_size = src.size();
     std::vector<int> tgt(seq_size, pad_token);
-    tgt[0] = bos_token;
+    int token = bos_token; // initial target token
 
-    // generate first token and cache encoder
-    graph().recache();
-    int token = decode(forward(src, tgt), 0);
-    Tensor encoder_cache = _encoder->forward();
+    // collect output tokens
+    std::vector<int> out;
+    Tensor encoder_cache;
 
-    // generate next tokens
-    for (int i=1; i<seq_size && token != eos_token; i++)
+    // generate output tokens
+    for (int i=0; i<seq_size && token != eos_token; i++)
     {
       graph().recache();
-      _encoder->value() = encoder_cache;
 
-      tgt[i] = token;
-      token = decode(forward(src, tgt), i);
+      if (encoder_cache.size())
+      {
+        _encoder->value() = encoder_cache;
+      }
+
+      tgt[i] = token; // add previoud token to target
+      token = decode(forward(src, tgt), i); // predict
+      out.push_back(token); // add new token to output
+
+      if (!encoder_cache.size())
+      {
+        encoder_cache = _encoder->forward();
+      }
     }
-
-    // shift output and append last token
-    std::vector<int> out(tgt.begin() + 1, tgt.end());
-    out.push_back(token);
 
     // return generated sequence
     return out;
@@ -596,10 +601,10 @@ public:
   Function& target() { return *_tgt; }
 
 protected:
-  int decode(const Tensor& y, int row)
+  int decode(const Tensor& output, int row)
   {
     Eigen::Index max_col;
-    forward().row(row).maxCoeff(&max_col);
+    output.row(row).maxCoeff(&max_col);
     return max_col;
   }
 
