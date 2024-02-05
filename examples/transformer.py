@@ -6,6 +6,7 @@ import torch.utils.data as data
 import math
 import copy
 import numpy as np
+import collections
 
 def scaled_dot_product_attention(query, key, value, attn_mask=None, dropout=0.0, scale=None) -> torch.Tensor:
     # Efficient implementation equivalent to the following:
@@ -237,14 +238,19 @@ class Transformer(nn.Module):
         return output
 
 
-def save_model_as_numpy(np_path, model_state_dict):
-  model_np_dict = {}
-  for m in model_state_dict:
-    arr = model_state_dict[m].numpy()
-    print("Saving", m, arr.shape)
-    model_np_dict[m] = arr
-  np.savez(np_path, **model_np_dict)
+def save_model_as_numpy(torch_state_dict, numpy_path):
+  model_dict = collections.OrderedDict()
+  for m in torch_state_dict:
+    arr = torch_state_dict[m].numpy()
+    model_dict[m] = arr
+  np.savez(numpy_path, **model_dict)
 
+def save_model_as_torch(numpy_state_dict, torch_path):
+  model_dict = collections.OrderedDict()
+  for m in numpy_state_dict:
+    arr = numpy_state_dict[m]
+    model_dict[m] = torch.FloatTensor(arr)
+  torch.save(model_dict, torch_path)
 
 def print_model(model_state_dict):
   for m in model_state_dict:
@@ -312,16 +318,17 @@ def main():
       print(f"Epoch: {epoch+1} / {num_epochs}, Loss: {loss.item()}")
 
   # Save data
-  #train_data = {"src_data":src_data, "tgt_data":tgt_data}
-  #torch.save(train_data, train_data_path)
-  #print("Training data saved to", train_data_path)
+  train_data = {"src_data":src_data, "tgt_data":tgt_data}
+  torch.save(train_data, train_data_path)
+  print("Training data saved to", train_data_path)
 
   # Save model
-  #torch.save(transformer.state_dict(), model_path)
-  #print("Model saved to", model_path)
+  torch.save(transformer.state_dict(), model_path)
+  print("Torch model saved to", model_path)
 
   # Save model as numpy
-  #save_model_as_numpy(model_np_path, transformer.state_dict())
+  save_model_as_numpy(transformer.state_dict(), model_np_path)
+  print("Model as numpy saved to", model_np_path)
 
 if __name__ == "__main__":
   main()

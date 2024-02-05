@@ -4,6 +4,7 @@ import math
 import torch
 #from torch.nn.functional import scaled_dot_product_attention
 import transformer
+import collections
 
 def scaled_dot_product_attention(query, key, value, attn_mask=None, dropout_p=0.0, is_causal=False, scale=None) -> torch.Tensor:
     # Efficient implementation equivalent to the following:
@@ -1103,6 +1104,60 @@ def test_sequence_mask():
   print("src_mask\n", src_mask)
   print("tgt_mask\n", tgt_mask)
 
+def save_model_as_numpy(torch_state_dict, numpy_path):
+  model_dict = collections.OrderedDict()
+  for m in torch_state_dict:
+    arr = torch_state_dict[m].numpy()
+    model_dict[m] = arr
+  np.savez(numpy_path, **model_dict)
+
+def save_model_as_torch(numpy_state_dict, torch_path):
+  model_dict = collections.OrderedDict()
+  for m in numpy_state_dict:
+    arr = numpy_state_dict[m]
+    model_dict[m] = torch.FloatTensor(arr)
+  torch.save(model_dict, torch_path)
+
+def test_model_conversion():
+  torch_model_path = "transformer.pt"
+  numpy_model_path = "transformer.npz"
+
+  print("=== torch ===")
+  torch_dics = torch.load(torch_model_path)
+  torch.save(torch_dics, torch_model_path + "1")
+  print(type(torch_dics))
+  #for d in torch_dics:
+  #  print(type(d), d, type(torch_dics[d]), torch_dics[d].shape)
+  a = torch_dics["fc.weight"]
+  print("fc.weight", a.dtype, a.shape, a)
+
+  print("=== numpy ===")
+  numpy_dics = np.load(numpy_model_path)
+  print(type(numpy_dics))
+  #for d in numpy_dics:
+  #  print(type(d), d, type(numpy_dics[d]), numpy_dics[d].shape)
+  a = numpy_dics["fc.weight"]
+  print("fc.weight", a.dtype, a.shape, a)
+  save_model_as_torch(numpy_dics, torch_model_path + "2")
+
+  print("=== torch 2 ===")
+  torch_dics = torch.load(torch_model_path + "2")
+  print(type(torch_dics))
+  #for d in torch_dics:
+  #  print(type(d), d, type(torch_dics[d]), torch_dics[d].shape)
+  a = torch_dics["fc.weight"]
+  print("fc.weight", a.dtype, a.shape, a)
+
+  pt1 = torch.load(torch_model_path + "1")
+  pt2 = torch.load(torch_model_path + "2")
+
+  for p in pt2:
+    d1 = pt1[p]
+    d2 = pt2[p]
+    if not torch.equal(d1, d2):
+      print(d, d1.dtype, d1.shape, d2.dtype, d2.shape)
+
+
 if __name__ == "__main__":
     #test_softmax()
     #test_scaled_dot_product_attention()
@@ -1112,8 +1167,9 @@ if __name__ == "__main__":
     #test_positional_encoding()
     #test_encoder_layer()
     #test_decoder_layer()
-    test_transformer()
+    #test_transformer()
     #test_sequence_mask()
     #test_layernorm()
     #test_grad()
     #test_linear()
+    test_model_conversion()
