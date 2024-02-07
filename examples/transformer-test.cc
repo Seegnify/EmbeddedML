@@ -135,8 +135,20 @@ void test_threads() {
 
 void test_cnpy()
 {
+  TEST_BEGIN("Numpy Test")
+
+  Tensor two = Tensor::Zero(5,10);
+  Tensor one = Tensor::Zero(1,5);
+
+  for (int i=0; i<one.size(); i++) one(i) = i;
+  for (int i=0; i<two.size(); i++) two(i) = i;
+
+  // save array of tensors to npz file
+  cnpy::npz_save("transformer-test.npz","varTwo",two.data(),{5,10},"w"); //"w" create
+  cnpy::npz_save("transformer-test.npz","varOne",one.data(),{5},"a"); //"a" append
+
   // load the entire npz file
-  cnpy::npz_t my_npz = cnpy::npz_load("transformer.npz");
+  cnpy::npz_t my_npz = cnpy::npz_load("transformer-test.npz");
 
   for (const auto& item : my_npz)
   {
@@ -144,27 +156,30 @@ void test_cnpy()
     auto& arr = item.second;
 
     std::cout << "name:" << name << std::endl;
-    std::cout << "word " << arr.word_size << std::endl;
-    std::cout << "shape " << arr.shape.size() << std::endl;
+    std::cout << "word: " << arr.word_size << std::endl;
+    std::cout << "dims: " << arr.shape.size() << std::endl;
+    size_t size = 1;
     for (auto s: arr.shape)
     {
       std::cout << "dimension:" << s << std::endl;
+      size *= s;
     }
+    std::cout << "size: " << size << std::endl;
 
     const float* data = arr.data<float>();
-    for (int i=0; i<4; i++)
+    if (arr.shape.size() == 1)
     {
-      if (arr.shape.size() == 1)
-        std::cout << "data:" << *(data+i) << std::endl;
-      else
-      if (arr.shape.size() == 2)
-      {
-        int rows = arr.shape[0];
-        int cols = arr.shape[1];
-        std::cout << "row 2 data:" << *(data+cols+i) << std::endl;
-      }
+      ConstTensorMap t(data, 1, arr.shape[0]);
+      ASSERT(t == one);
+    }
+    if (arr.shape.size() == 2)
+    {
+      ConstTensorMap t(data, arr.shape[0], arr.shape[1]);
+      ASSERT(t == two);
     }
   }
+
+  TEST_END()
 }
 
 void test_thread_pool() {
@@ -2073,7 +2088,7 @@ void test_transformer_backward()
 
 int main(int argc, char* argv[]) {
 
-    //test_cnpy();
+    test_cnpy();
     //test_threads();
     //test_thread_pool();
 

@@ -217,7 +217,7 @@ class Transformer(nn.Module):
         tgt_mask = tgt_mask & nopeak_mask
         return src_mask, tgt_mask
 
-    def forward(self, src, tgt):
+    def forward(self, src, tgt, enc_output = None):
         src_mask, tgt_mask = self.generate_mask(src, tgt)
         #print("src_mask", src_mask.shape, "\n", src_mask)
         #print("tgt_mask", tgt_mask.shape, "\n", tgt_mask)        
@@ -226,17 +226,48 @@ class Transformer(nn.Module):
         #print("=== src_embedded", src_embedded.shape)
         #print("=== tgt_embedded", tgt_embedded.shape)
 
-        enc_output = src_embedded
-        for enc_layer in self.encoder_layers:
-            enc_output = enc_layer(enc_output, src_mask)
-        
+        if enc_output is None:
+          enc_output = src_embedded
+          for enc_layer in self.encoder_layers:
+              enc_output = enc_layer(enc_output, src_mask)
+
         dec_output = tgt_embedded
         for dec_layer in self.decoder_layers:
             dec_output = dec_layer(dec_output, enc_output, src_mask, tgt_mask)
 
         output = self.fc(dec_output)
-        return output
+        return output, enc_output
 
+    def decode(self, output, row):
+      row = output.detach().numpy()[row]
+      token = np.argmax(row)
+      print("Decoded token", token)
+      return token
+
+    def generate(self, src, bos_token, eos_token, pad_token):
+      # set evaluation mode
+      self.eval()
+
+      # create source target sequences
+      src = torch.tensor([src], requires_grad=False)
+      tgt = torch.tensor([[pad_token] * src.size(1)], requires_grad=False)
+      token = bos_token # initial target token
+
+      output = []
+      encoder_cache = None
+
+      # generate next tokens
+      for i in range(src.size(1)):
+        tgt[0,i] = token
+        print("input target:", tgt)
+        y, encoder_cache = self.forward(src, tgt, encoder_cache)
+        token = self.decode(y[0], 0)
+        output.append(token)
+        if token == eos_token:
+          break
+
+      # return generated sequence
+      return output
 
 def save_model_as_numpy(torch_state_dict, numpy_path):
   model_dict = collections.OrderedDict()
@@ -309,10 +340,14 @@ def main():
 
   for epoch in range(num_epochs):
       optimizer.zero_grad()
-      output = transformer(src_data, tgt_data[:, :-1])
-      #output = transformer(src_data, tgt_data) # same target lenght
-      loss = criterion(output.contiguous().view(-1, tgt_vocab_size), tgt_data[:, 1:].contiguous().view(-1))
-      #loss = criterion(output.contiguous().view(-1, tgt_vocab_size), tgt_data.contiguous().view(-1)) # same target lenght
+      # one-less target lenght
+      #output = transformer(src_data, tgt_data[:, :-1])
+      #loss = criterion(output.contiguous().view(-1, tgt_vocab_size), tgt_data[:, 1:].contiguous().view(-1))
+
+      # same target lenght
+      output = transformer(src_data, tgt_data)
+      loss = criterion(output.contiguous().view(-1, tgt_vocab_size), tgt_data.contiguous().view(-1))
+
       loss.backward()
       optimizer.step()
       print(f"Epoch: {epoch+1} / {num_epochs}, Loss: {loss.item()}")

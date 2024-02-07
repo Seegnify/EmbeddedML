@@ -1157,6 +1157,65 @@ def test_model_conversion():
     if not torch.equal(d1, d2):
       print(d, d1.dtype, d1.shape, d2.dtype, d2.shape)
 
+def test_sequence_generation():
+    src_vocab_size = 128
+    tgt_vocab_size = 128
+    num_layers = 6
+    emb_size = 512
+    num_heads = 8
+    max_seq_length = 100
+    ff_size = 2048
+    dropout = 0.1
+    bos_token = 1
+    eos_token = 2
+    pad_token = 3
+
+    test_data = [
+      [
+        "Hi, how is it going?",
+        "Czesc, co u ciebie?"
+      ],
+      [
+        "When is your next train?",
+        "Kiedy jest twoj nastepny pociag?",
+      ],
+      [
+        "I like chocolate.",
+        "Lubie czekolade.",
+      ]
+    ]
+
+    def tokenize(text):
+      return [ord(c) for c in text]
+
+    def detokenize(tokens):
+      text = ""
+      for t in tokens:
+        if t != eos_token and t != pad_token:
+          text = text + chr(t)
+      return text
+
+    model = transformer.Transformer(src_vocab_size, tgt_vocab_size,
+      emb_size, num_heads, num_layers, ff_size, max_seq_length, dropout)
+
+    for i,test in enumerate(test_data):
+      print(f"=== test {i} ===")
+      src = test[0]
+      tgt = test[1]
+      print("src:", src)
+      src = tokenize(src)
+      tgt = tokenize(tgt)
+      print(f"str src:[{src}]")
+
+      out = model.generate(src, bos_token, eos_token, pad_token)
+
+      print("tgt:", tgt)
+      print("out:", out)
+      tgt = detokenize(tgt)
+      out = detokenize(out)
+      print(f"str tgt:[{tgt}]")
+      print(f"str out:[{out}]")
+
 
 if __name__ == "__main__":
     #test_softmax()
@@ -1172,4 +1231,5 @@ if __name__ == "__main__":
     #test_layernorm()
     #test_grad()
     #test_linear()
-    test_model_conversion()
+    #test_model_conversion()
+    test_sequence_generation()
