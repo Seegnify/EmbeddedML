@@ -5,6 +5,7 @@
 #include "main/training.hh"
 #include "main/optimizer.hh"
 #include "main/storage.hh"
+#include "external/cnpy/cnpy.h"
 
 #include "transformer.hh"
 
@@ -182,8 +183,40 @@ public:
     return mask;
   }
 
+  void save_numpy(const std::string& filepath)
+  {
+    int count = 0;
+    auto vars = graph().named_variables();
+
+    for (const auto& it: vars)
+    {
+      auto name = it.first;
+      auto var = it.second;
+      auto data = var->value().data();
+      size_t rows = var->value().rows();
+      size_t cols = var->value().cols();
+
+      std::string mode = (count) ? "a" : "w"; // a to append, w to create
+      if (rows == 1)
+      {
+        cnpy::npz_save(filepath, name, data, {cols}, mode);
+      }
+      else
+      {
+        cnpy::npz_save(filepath, name, data, {rows, cols}, mode);
+      }
+
+      count+=1;
+    }
+  }
+
   virtual void batch_train()
   {
+    if (worker() == 0 && _batch == 0)
+    {
+      save_numpy("transformer-cpp.npz");
+    }
+
     // restore references
     auto& g = graph();
     auto& opt = *_optimizer;

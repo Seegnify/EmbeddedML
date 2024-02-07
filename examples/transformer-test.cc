@@ -155,6 +155,7 @@ void test_cnpy()
     auto& name = item.first;
     auto& arr = item.second;
 
+    /*
     std::cout << "name:" << name << std::endl;
     std::cout << "word: " << arr.word_size << std::endl;
     std::cout << "dims: " << arr.shape.size() << std::endl;
@@ -165,6 +166,7 @@ void test_cnpy()
       size *= s;
     }
     std::cout << "size: " << size << std::endl;
+    */
 
     const float* data = arr.data<float>();
     if (arr.shape.size() == 1)
