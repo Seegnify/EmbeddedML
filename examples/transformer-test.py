@@ -1163,6 +1163,7 @@ def load_cpp_model():
 
   torch_vars = torch.load(torch_model_path)
   numpy_vars = np.load(numpy_model_path)
+  numpy_vars = {var:numpy_vars[var] for var in numpy_vars}
 
   name_map = {
     "encoder_embedding.weight": "Embedding.E",
@@ -1253,7 +1254,7 @@ def load_cpp_model():
     "encoder_layers.5.self_attn.W_k.weight": "encoder:MHA.Wk.5",
     "encoder_layers.5.self_attn.W_k.bias": "encoder:MHA.bk.5",
     "encoder_layers.5.self_attn.W_v.weight": "encoder:MHA.Wv.5",
-    "encoder_layers.5.self_attn.W_v.bias": "encoder:MHA.bc.5",
+    "encoder_layers.5.self_attn.W_v.bias": "encoder:MHA.bv.5",
     "encoder_layers.5.self_attn.W_o.weight": "encoder:MHA.Wo.5",
     "encoder_layers.5.self_attn.W_o.bias": "encoder:MHA.bo.5",
     "encoder_layers.5.feed_forward.w_1.weight": "encoder:Linear.W.10",
@@ -1423,6 +1424,27 @@ def load_cpp_model():
     "fc.weight": "Linear.W",
     "fc.bias": "Linear.b",
   }
+    
+  # validate mapping
+  for item in name_map.items():
+    if item[0] in torch_vars:
+      torch_vars.pop(item[0])
+    if item[1] in numpy_vars:
+      numpy_vars.pop(item[1])
+
+  assert len(torch_vars) == 0, f"Left torch vars {torch_vars.keys()}"
+  assert len(numpy_vars) == 0, f"Left numpy vars {numpy_vars.keys()}"
+
+  # reload models
+  torch_vars = torch.load(torch_model_path)
+  numpy_vars = np.load(numpy_model_path)
+
+  # assing numpy to torch
+  for item in name_map.items():
+    if None in item: continue
+    torch_var = torch_vars[item[0]]
+    numpy_var = numpy_vars[item[1]]
+    
 
 def test_sequence_generation():
     src_vocab_size = 128
