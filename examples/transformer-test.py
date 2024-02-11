@@ -1157,14 +1157,8 @@ def test_model_conversion():
     if not torch.equal(d1, d2):
       print(d, d1.dtype, d1.shape, d2.dtype, d2.shape)
 
-def load_cpp_model():
-  torch_model_path = "transformer.pt"
-  numpy_model_path = "transformer-cpp.npz"
-
-  torch_vars = torch.load(torch_model_path)
-  numpy_vars = np.load(numpy_model_path)
-  numpy_vars = {var:numpy_vars[var] for var in numpy_vars}
-
+def numpy_model_to_torch_model(numpy_vars, torch_vars):
+  # map Torch weight names to CPP weight names
   name_map = {
     "encoder_embedding.weight": "Embedding.E",
     "decoder_embedding.weight": "Embedding.E.1",
@@ -1424,26 +1418,26 @@ def load_cpp_model():
     "fc.weight": "Linear.W",
     "fc.bias": "Linear.b",
   }
-    
+
+  torch_names = set(name for name in torch_vars.keys())
+  numpy_names = set(name for name in numpy_vars.keys())
+
   # validate mapping
   for item in name_map.items():
     if item[0] in torch_vars:
-      torch_vars.pop(item[0])
+      torch_names.remove(item[0])
     if item[1] in numpy_vars:
-      numpy_vars.pop(item[1])
+      numpy_names.remove(item[1])
 
-  assert len(torch_vars) == 0, f"Left torch vars {torch_vars.keys()}"
-  assert len(numpy_vars) == 0, f"Left numpy vars {numpy_vars.keys()}"
-
-  # reload models
-  torch_vars = torch.load(torch_model_path)
-  numpy_vars = np.load(numpy_model_path)
+  assert len(torch_names) == 0, f"Left torch vars {torch_names}"
+  assert len(numpy_names) == 0, f"Left numpy vars {numpy_names}"
 
   # assing numpy to torch
   for item in name_map.items():
     if None in item: continue
     torch_var = torch_vars[item[0]]
     numpy_var = numpy_vars[item[1]]
+    torch_var.copy_(torch.tensor(numpy_var))
     
 
 def test_sequence_generation():
@@ -1475,17 +1469,34 @@ def test_sequence_generation():
     ]
 
     def tokenize(text):
-      return [ord(c) for c in text]
+      if len(text) > max_seq_length:
+          text = text[:max_seq_length]
+
+      tokens = [pad_token] * max_seq_length
+      for i in range(len(text)):
+        tokens[i] = ord(text[i])
+
+      return tokens
 
     def detokenize(tokens):
       text = ""
+
       for t in tokens:
         if t != eos_token and t != pad_token:
           text = text + chr(t)
+
       return text
 
-    model = transformer.Transformer(src_vocab_size, tgt_vocab_size,
-      emb_size, num_heads, num_layers, ff_size, max_seq_length, dropout)
+    print("Create Transformer model")
+    with torch.no_grad():
+      model = transformer.Transformer(src_vocab_size, tgt_vocab_size,
+        emb_size, num_heads, num_layers, ff_size, max_seq_length, dropout)
+
+    print("Load Transformer CPP weights")
+    numpy_vars = np.load("transformer-cpp.npz")
+
+    print("Assign Transformer CPP weights to model")
+    numpy_model_to_torch_model(numpy_vars, model.state_dict())
 
     for i,test in enumerate(test_data):
       print(f"=== test {i} ===")
@@ -1494,16 +1505,17 @@ def test_sequence_generation():
       print("src:", src)
       src = tokenize(src)
       tgt = tokenize(tgt)
-      print(f"str src:[{src}]")
+      print(f"src tokens:[{src}]")
 
       out = model.generate(src, bos_token, eos_token, pad_token)
 
-      print("tgt:", tgt)
-      print("out:", out)
+      print("tgt tokens:", tgt)
+      print("out tokens:", out)
       tgt = detokenize(tgt)
       out = detokenize(out)
-      print(f"str tgt:[{tgt}]")
-      print(f"str out:[{out}]")
+      print(f"tgt:[{tgt}]")
+      print(f"out:[{out}]")
+      assert out == tgt, f"output is [{out}] but should be [{tgt}]"
 
 
 if __name__ == "__main__":
@@ -1521,5 +1533,5 @@ if __name__ == "__main__":
     #test_grad()
     #test_linear()
     #test_model_conversion()
-    #test_sequence_generation()
-    load_cpp_model()
+    test_sequence_generation()
+

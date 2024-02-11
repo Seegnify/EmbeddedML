@@ -158,7 +158,6 @@ class EncoderLayer(nn.Module):
         super(EncoderLayer, self).__init__()
         self.self_attn = MultiHeadAttention(d_model, num_heads, dropout)
         self.feed_forward = PositionWiseFeedForward(d_model, d_ff, dropout)
-        print("d_model", d_model)
         self.norm1 = nn.LayerNorm(d_model)
         self.norm2 = nn.LayerNorm(d_model)
         self.dropout = nn.Dropout(dropout)
@@ -206,25 +205,18 @@ class Transformer(nn.Module):
         self.fc = nn.Linear(d_model, tgt_vocab_size)
         self.dropout = nn.Dropout(dropout)
 
-    def generate_mask(self, src, tgt):
-        src_mask = (src != 0).unsqueeze(1).unsqueeze(2)
-        #tgt_mask = (tgt != 0).unsqueeze(1).unsqueeze(3)
-        tgt_mask = (tgt != 0).unsqueeze(1).unsqueeze(2)
-        #print("=== tgt_mask\n", tgt_mask)
+    def generate_mask(self, src, tgt, pad_token):
+        src_mask = (src != pad_token).unsqueeze(1).unsqueeze(2)
+        tgt_mask = (tgt != pad_token).unsqueeze(1).unsqueeze(2)
         seq_length = tgt.size(1)
         nopeak_mask = (1 - torch.triu(torch.ones(1, seq_length, seq_length), diagonal=1)).bool()
-        #print("=== nopeak_mask\n", nopeak_mask)
         tgt_mask = tgt_mask & nopeak_mask
         return src_mask, tgt_mask
 
-    def forward(self, src, tgt, enc_output = None):
-        src_mask, tgt_mask = self.generate_mask(src, tgt)
-        #print("src_mask", src_mask.shape, "\n", src_mask)
-        #print("tgt_mask", tgt_mask.shape, "\n", tgt_mask)        
+    def forward(self, src, tgt, pad_token, enc_output = None):
+        src_mask, tgt_mask = self.generate_mask(src, tgt, pad_token)
         src_embedded = self.dropout(self.positional_encoding(self.encoder_embedding(src)))
         tgt_embedded = self.dropout(self.positional_encoding(self.decoder_embedding(tgt)))
-        #print("=== src_embedded", src_embedded.shape)
-        #print("=== tgt_embedded", tgt_embedded.shape)
 
         if enc_output is None:
           enc_output = src_embedded
@@ -241,7 +233,6 @@ class Transformer(nn.Module):
     def decode(self, output, row):
       row = output.detach().numpy()[row]
       token = np.argmax(row)
-      print("Decoded token", token)
       return token
 
     def generate(self, src, bos_token, eos_token, pad_token):
@@ -259,9 +250,8 @@ class Transformer(nn.Module):
       # generate next tokens
       for i in range(src.size(1)):
         tgt[0,i] = token
-        print("input target:", tgt)
-        y, encoder_cache = self.forward(src, tgt, encoder_cache)
-        token = self.decode(y[0], 0)
+        y, encoder_cache = self.forward(src, tgt, pad_token, encoder_cache)
+        token = self.decode(y[0], i)
         output.append(token)
         if token == eos_token:
           break
