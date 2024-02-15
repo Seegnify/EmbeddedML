@@ -2728,47 +2728,68 @@ void test_gru_forward()
   int OUT = 4;
   Graph g;
 
-  auto& x = *g.new_variable(IN,1);
-  auto& h = *g.new_variable(OUT,1);
+  auto& x = *g.new_variable(1, IN);
+  auto& h = *g.new_variable(1, OUT);
   auto& y = *g.new_gru(x, h, IN, OUT);
 
   x.value()     << 0.01,    -0.02,    0.03;
   h.value()     << 0.01,    -0.02,    0.03,   -0.03;
 
-  y.Wz().value() << 1,2,3,      -4,-5,-6,     7,8,7,      -9,-9,-9;
-  y.Uz().value() << 3,2,1,-1,   -6,-5,-4,1,   9,8,7,-1,   -9,-9,-9,1;
+  y.Wz().value() <<
+    1, -4, 7, -9,
+    2, -5, 8, -9,
+    3, -6, 7, -9;
+  y.Uz().value() <<
+    3, -6, 9, -9,
+    2, -5, 8, -9,
+    1, -4, 7, -9,
+    -1, 1, -1, 1;
   y.bz().value() << 1,2,-3,-4;
 
-  ASSERT(y.Wz().value().rows() == OUT)
-  ASSERT(y.Wz().value().cols() == IN)
+  ASSERT(y.Wz().value().rows() == IN)
+  ASSERT(y.Wz().value().cols() == OUT)
   ASSERT(y.Uz().value().rows() == OUT)
   ASSERT(y.Uz().value().cols() == OUT)
-  ASSERT(y.bz().value().rows() == OUT)
-  ASSERT(y.bz().value().cols() == 1)
+  ASSERT(y.bz().value().rows() == 1)
+  ASSERT(y.bz().value().cols() == OUT)
 
-  y.Wr().value() << 2,2,3,      -5,-5,-6,     8,8,9,      -10,10,-10;
-  y.Ur().value() << 3,2,1,-1,   -6,-5,-4,1,   9,8,7,-1,   -10,-10,-10,1;
+  y.Wr().value() <<
+    2, -5, 8, -10,
+    2, -5, 8, 10,
+    3, -6, 9, -10;
+  y.Ur().value() <<
+    3, -6, 9, -10,
+    2, -5, 8, -10,
+    1, -4, 7, -10,
+    -1, 1, -1, 1;
   y.br().value() << -1,2,-3,-4;
 
-  ASSERT(y.Wr().value().rows() == OUT)
-  ASSERT(y.Wr().value().cols() == IN)
+  ASSERT(y.Wr().value().rows() == IN)
+  ASSERT(y.Wr().value().cols() == OUT)
   ASSERT(y.Ur().value().rows() == OUT)
   ASSERT(y.Ur().value().cols() == OUT)
-  ASSERT(y.br().value().rows() == OUT)
-  ASSERT(y.br().value().cols() == 1)
+  ASSERT(y.br().value().rows() == 1)
+  ASSERT(y.br().value().cols() == OUT)
 
-  y.Wh().value() << -4,2,3,     -7,5,-6,      -7,8,5,     10,-12,10;
-  y.Uh().value() << 3,-2,1,-3,  6,5,-4,2,     9,-8,7,-2,  -9,11,-10,-3;
+  y.Wh().value() <<
+    -4, -7, -7, 10,
+    2, 5, 8, -12,
+    3, -6, 5, 10;
+  y.Uh().value() <<
+    3, 6, 9, -9,
+    -2, 5, -8, 11,
+    1, -4, 7, -10,
+    -3, 2, -2, -3;
   y.bh().value() << -1,2,-3,-4;
 
-  ASSERT(y.Wh().value().rows() == OUT)
-  ASSERT(y.Wh().value().cols() == IN)
+  ASSERT(y.Wh().value().rows() == IN)
+  ASSERT(y.Wh().value().cols() == OUT)
   ASSERT(y.Uh().value().rows() == OUT)
   ASSERT(y.Uh().value().cols() == OUT)
-  ASSERT(y.bh().value().rows() == OUT)
-  ASSERT(y.bh().value().cols() == 1)
+  ASSERT(y.bh().value().rows() == 1)
+  ASSERT(y.bh().value().cols() == OUT)
 
-  Tensor y_hat(OUT,1);
+  Tensor y_hat(1,OUT);
   y_hat << -0.1752,  0.1165, -0.9301, -0.9866;
 
   ASSERT(y().isApprox(y_hat, 0.001))
@@ -2785,174 +2806,58 @@ void test_gru_backward()
   int OUT = 4;
   Graph g;
 
-  auto& x = *g.new_variable(IN,1);
-  auto& h = *g.new_variable(OUT,1);
+  auto& x = *g.new_variable(1, IN);
+  auto& h = *g.new_variable(1, OUT);
   auto& y = *g.new_gru(x, h, IN, OUT);
 
   x.value()     << 0.01,    -0.02,    0.03;
   h.value()     << 0.01,    -0.02,    0.03,   -0.03;
 
-  y.Wz().value() << 1,2,3,      -4,-5,-6,     7,8,7,      -9,-9,-9;
-  y.Uz().value() << 3,2,1,-1,   -6,-5,-4,1,   9,8,7,-1,   -9,-9,-9,1;
+  y.Wz().value() <<
+    1, -4, 7, -9,
+    2, -5, 8, -9,
+    3, -6, 7, -9;
+  y.Uz().value() <<
+    3, -6, 9, -9,
+    2, -5, 8, -9,
+    1, -4, 7, -9,
+    -1, 1, -1, 1;
   y.bz().value() << 1,2,-3,-4;
 
-  y.Wr().value() << 2,2,3,      -5,-5,-6,     8,8,9,      -10,10,-10;
-  y.Ur().value() << 3,2,1,-1,   -6,-5,-4,1,   9,8,7,-1,   -10,-10,-10,1;
+  y.Wr().value() <<
+    2, -5, 8, -10,
+    2, -5, 8, 10,
+    3, -6, 9, -10;
+  y.Ur().value() <<
+    3, -6, 9, -10,
+    2, -5, 8, -10,
+    1, -4, 7, -10,
+    -1, 1, -1, 1;
   y.br().value() << -1,2,-3,-4;
 
-  y.Wh().value() << -4,2,3,     -7,5,-6,      -7,8,5,     10,-12,10;
-  y.Uh().value() << 3,-2,1,-3,  6,5,-4,2,     9,-8,7,-2,  -9,11,-10,-3;
+  y.Wh().value() <<
+    -4, -7, -7, 10,
+    2, 5, 8, -12,
+    3, -6, 5, 10;
+  y.Uh().value() <<
+    3, 6, 9, -9,
+    -2, 5, -8, 11,
+    1, -4, 7, -10,
+    -3, 2, -2, -3;
   y.bh().value() << -1,2,-3,-4;
 
   y.forward();
-  y.gradient() = Tensor::Ones(OUT,1);
+  y.gradient() = Tensor::Ones(1, OUT);
   auto& dydx = x.backward();
   auto& dydh = h.backward();
 
   auto dydx_num = g.dFdX(y,x);
   auto dydh_num = g.dFdX(y,h);
 
-  Tensor dydx_hat(IN,1);
-  Tensor dydh_hat(OUT,1);
+  Tensor dydx_hat(1,IN);
+  Tensor dydh_hat(1,OUT);
   dydx_hat << 0.2577, 1.6326, 1.7202;
   dydh_hat << 2.4663,  1.9466,  0.9862, -0.2952;
-
-  ASSERT(dydx.isApprox(dydx_hat, 0.001))
-  ASSERT(dydh.isApprox(dydh_hat, 0.001))
-
-  ASSERT(dydx.isApprox(dydx_num, 0.001))
-  ASSERT(dydh.isApprox(dydh_num, 0.001))
-
-  TEST_END()
-}
-
-void test_agru_forward()
-{
-  TEST_BEGIN("AGRU Forward")
-
-  // size
-  int IN = 3;
-  int OUT = 4;
-  Graph g;
-
-  auto& x = *g.new_variable(IN,1);
-  auto& h = *g.new_variable(OUT,1);
-  auto& y = *g.new_agru(x, h, IN, OUT);
-
-  x.value()     << 0.01,    -0.02,    0.03;
-  h.value()     << 0.01,    -0.02,    0.03,   -0.03;
-
-  y.Wz().value() << 1,2,3,      -4,-5,-6,     7,8,7,      -9,-9,-9;
-  y.Uz().value() << 3,2,1,-1,   -6,-5,-4,1,   9,8,7,-1,   -9,-9,-9,1;
-  y.bz().value() << 1,2,-3,-4;
-
-  ASSERT(y.Wz().value().rows() == OUT)
-  ASSERT(y.Wz().value().cols() == IN)
-  ASSERT(y.Uz().value().rows() == OUT)
-  ASSERT(y.Uz().value().cols() == OUT)
-  ASSERT(y.bz().value().rows() == OUT)
-  ASSERT(y.bz().value().cols() == 1)
-
-  y.Wr().value() << 2,2,3,      -5,-5,-6,     8,8,9,      -10,10,-10;
-  y.Ur().value() << 3,2,1,-1,   -6,-5,-4,1,   9,8,7,-1,   -10,-10,-10,1;
-  y.br().value() << -1,2,-3,-4;
-
-  ASSERT(y.Wr().value().rows() == OUT)
-  ASSERT(y.Wr().value().cols() == IN)
-  ASSERT(y.Ur().value().rows() == OUT)
-  ASSERT(y.Ur().value().cols() == OUT)
-  ASSERT(y.br().value().rows() == OUT)
-  ASSERT(y.br().value().cols() == 1)
-
-  y.Wp().value() << 2,-2,3,     -6,-5,-6,     7,9,9;
-  y.Up().value() << 3,-2,1,-1,  -6,-5,-4,1,   9,8,7,-1;
-  y.bp().value() << 1,-2,-3;
-
-  ASSERT(y.Wp().value().rows() == IN)
-  ASSERT(y.Wp().value().cols() == IN)
-  ASSERT(y.Up().value().rows() == IN)
-  ASSERT(y.Up().value().cols() == OUT)
-  ASSERT(y.bp().value().rows() == IN)
-  ASSERT(y.bp().value().cols() == 1)
-
-  y.Wq().value() << 4,2,3,      -7,-5,-6,     7,8,5,      -10,-12,10;
-  y.Uq().value() << 3,2,1,-1,   -6,-5,-4,1,   9,8,7,-1,   -9,-11,-10,1;
-  y.bq().value() << -1,-2,-3,-4;
-
-  ASSERT(y.Wq().value().rows() == OUT)
-  ASSERT(y.Wq().value().cols() == IN)
-  ASSERT(y.Uq().value().rows() == OUT)
-  ASSERT(y.Uq().value().cols() == OUT)
-  ASSERT(y.bq().value().rows() == OUT)
-  ASSERT(y.bq().value().cols() == 1)
-
-  y.Wh().value() << -4,2,3,     -7,5,-6,      -7,8,5,     10,-12,10;
-  y.Uh().value() << 3,-2,1,-3,  6,5,-4,2,     9,-8,7,-2,  -9,11,-10,-3;
-  y.bh().value() << -1,2,-3,-4;
-
-  ASSERT(y.Wh().value().rows() == OUT)
-  ASSERT(y.Wh().value().cols() == IN)
-  ASSERT(y.Uh().value().rows() == OUT)
-  ASSERT(y.Uh().value().cols() == OUT)
-  ASSERT(y.bh().value().rows() == OUT)
-  ASSERT(y.bh().value().cols() == 1)
-
-  Tensor y_hat(OUT,1);
-  y_hat << -0.0604, -0.0117, -0.0542, -0.1989;
-
-  ASSERT(y().isApprox(y_hat, 0.001))
-
-  TEST_END()
-}
-
-void test_agru_backward()
-{
-  TEST_BEGIN("AGRU Backward")
-
-  // size
-  int IN = 3;
-  int OUT = 4;
-  Graph g;
-
-  auto& x = *g.new_variable(IN,1);
-  auto& h = *g.new_variable(OUT,1);
-  auto& y = *g.new_agru(x, h, IN, OUT);
-
-  x.value()     << 0.01,    -0.02,    0.03;
-  h.value()     << 0.01,    -0.02,    0.03,   -0.03;
-
-  y.Wz().value() << 1,2,3,      -4,-5,-6,     7,8,7,      -9,-9,-9;
-  y.Uz().value() << 3,2,1,-1,   -6,-5,-4,1,   9,8,7,-1,   -9,-9,-9,1;
-  y.bz().value() << 1,2,-3,-4;
-
-  y.Wr().value() << 2,2,3,      -5,-5,-6,     8,8,9,      -10,10,-10;
-  y.Ur().value() << 3,2,1,-1,   -6,-5,-4,1,   9,8,7,-1,   -10,-10,-10,1;
-  y.br().value() << -1,2,-3,-4;
-
-  y.Wp().value() << 2,-2,3,     -6,-5,-6,     7,9,9;
-  y.Up().value() << 3,-2,1,-1,  -6,-5,-4,1,   9,8,7,-1;
-  y.bp().value() << 1,-2,-3;
-
-  y.Wq().value() << 4,2,3,      -7,-5,-6,     7,8,5,      -10,-12,10;
-  y.Uq().value() << 3,2,1,-1,   -6,-5,-4,1,   9,8,7,-1,   -9,-11,-10,1;
-  y.bq().value() << -1,-2,-3,-4;
-
-  y.Wh().value() << -4,2,3,     -7,5,-6,      -7,8,5,     10,-12,10;
-  y.Uh().value() << 3,-2,1,-3,  6,5,-4,2,     9,-8,7,-2,  -9,11,-10,-3;
-  y.bh().value() << -1,2,-3,-4;
-
-  y.forward();
-  y.gradient() = Tensor::Ones(OUT,1);
-  auto& dydx = x.backward();
-  auto& dydh = h.backward();
-
-  auto dydx_num = g.dFdX(y,x);
-  auto dydh_num = g.dFdX(y,h);
-
-  Tensor dydx_hat(IN,1);
-  Tensor dydh_hat(OUT,1);
-  dydx_hat << 0.4115, -0.3362, -0.5944;
-  dydh_hat << 0.6650,  3.3908, -0.3097,  0.0265;
 
   ASSERT(dydx.isApprox(dydx_hat, 0.001))
   ASSERT(dydh.isApprox(dydh_hat, 0.001))
@@ -4141,9 +4046,6 @@ int main(int argc, char* argv[]) {
 
   test_gru_forward();
   test_gru_backward();
-
-  test_agru_forward();
-  test_agru_backward();
 
   test_norm_forward();
   test_norm_backward();

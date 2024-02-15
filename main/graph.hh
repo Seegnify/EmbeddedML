@@ -499,9 +499,9 @@ protected:
 };
 
 // Standard GRU function
-// z(t) = Sigmoid(Wz * x(t) + Uz * h(t-1) + bz)
 // r(t) = Sigmoid(Wr * x(t) + Ur * h(t-1) + br)
-// c(t) = Tanh(Wh * x(t) + Uh * (r(t) . h(t-1)) + bh)
+// z(t) = Sigmoid(Wz * x(t) + Uz * h(t-1) + bz)
+// c(t) = Tanh   (Wh * x(t) + Uh * (r(t) . h(t-1)) + bh)
 // h(t) = z(t) . h(t-1) + (1-z(t)) . c(t)
 class GRU : public Function
 {
@@ -535,62 +535,13 @@ protected:
   Function  *_GRU;
 };
 
-// Augmented GRU function
-// z(t) = Sigmoid(Wz * x(t) + Uz * h(t-1) + bz)
-// r(t) = Sigmoid(Wr * x(t) + Ur * h(t-1) + br)
-// p(t) = Sigmoid(Wp * x(t) + Up * h(t-1) + bp)
-// q(t) = Sigmoid(Wq * x(t) + Uq * h(t-1) + bq)
-// c(t) = Tanh(Wh * (p(t) . x(t)) + Uh * (r(t) . h(t-1)) + q(t) . bh)
-// h(t) = z(t) . h(t-1) + (1-z(t)) . c(t)
-class AGRU : public Function
-{
-public:
-  AGRU(Graph& graph, Function& x, Function& h, int in, int out);
-  AGRU(Graph& graph, Function& x, Function& h, const AGRU& other);
-
-  Variable& Wz() { return *_Wz; }
-  Variable& Uz() { return *_Uz; }
-  Variable& bz() { return *_bz; }
-
-  Variable& Wr() { return *_Wr; }
-  Variable& Ur() { return *_Ur; }
-  Variable& br() { return *_br; }
-
-  Variable& Wp() { return *_Wp; }
-  Variable& Up() { return *_Up; }
-  Variable& bp() { return *_bp; }
-
-  Variable& Wq() { return *_Wq; }
-  Variable& Uq() { return *_Uq; }
-  Variable& bq() { return *_bq; }
-
-  Variable& Wh() { return *_Wh; }
-  Variable& Uh() { return *_Uh; }
-  Variable& bh() { return *_bh; }
-
-  virtual const Tensor& forward();
-
-private:
-  void init();
-
-protected:
-  Function  &_x;
-  Function  &_h;
-  Variable  *_Wz, *_Uz, *_bz;
-  Variable  *_Wr, *_Ur, *_br;
-  Variable  *_Wp, *_Up, *_bp;
-  Variable  *_Wq, *_Uq, *_bq;
-  Variable  *_Wh, *_Uh, *_bh;
-  Function  *_AGRU;
-};
-
 // Long Short-Term Memory (LSTM) function
-// Generating Sequences WithRecurrent Neural Networks
-// A. Graves, https://arxiv.org/pdf/1308.0850.pdf
-// f(t) = Sigmoid(Wf * x(t) + Hf * h(t-1) + Cf * c(t-1) + bf)
-// i(t) = Sigmoid(Wi * x(t) + Hi * h(t-1) + Ci * c(t-1) + bi)
-// c(t) = f(t) . c(t-1) + i(t) . Tanh(Wc * x(t) + Hc * h(t-1) + bc)
-// o(t) = Sigmoid(Wo * x(t) + Ho * h(t-1) + Co * c(t) + bo)
+// Based on PyTorch implemenation
+// f(t) = Sigmoid(Wf * x(t) + Hf * h(t-1) + bf)
+// i(t) = Sigmoid(Wi * x(t) + Hi * h(t-1) + bi)
+// o(t) = Sigmoid(Wo * x(t) + Ho * h(t-1) + bo)
+// g(t) = Tanh   (Wg * x(t) + Hg * h(t-1) + bo)
+// c(t) = f(t) . c(t-1) + i(t) . g(t)
 // h(t) = o(t) . Tanh(c(t))
 class LSTM : public Function
 {
@@ -600,22 +551,19 @@ public:
 
   Variable& Wf() { return *_Wf; }
   Variable& Hf() { return *_Hf; }
-  Variable& Cf() { return *_Cf; }
   Variable& bf() { return *_bf; }
 
   Variable& Wi() { return *_Wi; }
   Variable& Hi() { return *_Hi; }
-  Variable& Ci() { return *_Ci; }
   Variable& bi() { return *_bi; }
 
   Variable& Wo() { return *_Wo; }
   Variable& Ho() { return *_Ho; }
-  Variable& Co() { return *_Co; }
   Variable& bo() { return *_bo; }
 
-  Variable& Wc() { return *_Wc; }
-  Variable& Hc() { return *_Hc; }
-  Variable& bc() { return *_bc; }
+  Variable& Wg() { return *_Wg; }
+  Variable& Hg() { return *_Hg; }
+  Variable& bg() { return *_bg; }
 
   // c(t)
   Function& cell() { return *_cell; }
@@ -627,12 +575,12 @@ private:
 
 protected:
   Function &_x, &_h, &_c;
-  Variable *_Wf, *_Hf, *_Cf, *_bf;
-  Variable *_Wi, *_Hi, *_Ci, *_bi;
-  Variable *_Wo, *_Ho, *_Co, *_bo;
-  Variable *_Wc, *_Hc, *_bc;
-  Function *_LSTM;
+  Variable *_Wf, *_Hf, *_bf;
+  Variable *_Wi, *_Hi, *_bi;
+  Variable *_Wo, *_Ho, *_bo;
+  Variable *_Wg, *_Hg, *_bg;
   Function *_cell;
+  Function *_LSTM;
 };
 
 // Norm
@@ -1134,20 +1082,6 @@ public:
   GRU* new_gru(Function& x, Function& h, const GRU& other)
   {
     auto node = new GRU(*this, x, h, other);
-    keep(node);
-    return node;
-  }
-
-  AGRU* new_agru(Function& x, Function& h, int in = 0, int out = 0)
-  {
-    auto node = new AGRU(*this, x, h, in, out);
-    keep(node);
-    return node;
-  }
-
-  AGRU* new_agru(Function& x, Function& h, const AGRU& other)
-  {
-    auto node = new AGRU(*this, x, h, other);
     keep(node);
     return node;
   }

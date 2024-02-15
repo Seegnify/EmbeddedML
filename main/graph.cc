@@ -2017,18 +2017,18 @@ const Tensor& Mean::forward()
 GRU::GRU(Graph& graph, Function& x, Function& h, int in, int out) :
 Function(graph), _x(x), _h(h)
 {
-  // construct new variables
-  _Wz = graph.new_variable(out, in);
-  _Uz = graph.new_variable(out, out);
-  _bz = graph.new_variable(out, 1);
+  // construct new variables (row-major)
+  _Wz = graph.new_variable(in, out, "Wz");
+  _Uz = graph.new_variable(out, out, "Uz");
+  _bz = graph.new_variable(1, out, "bz");
 
-  _Wr = graph.new_variable(out, in);
-  _Ur = graph.new_variable(out, out);
-  _br = graph.new_variable(out, 1);
+  _Wr = graph.new_variable(in, out, "Wr");
+  _Ur = graph.new_variable(out, out, "Ur");
+  _br = graph.new_variable(1, out, "br");
 
-  _Wh = graph.new_variable(out, in);
-  _Uh = graph.new_variable(out, out);
-  _bh = graph.new_variable(out, 1);
+  _Wh = graph.new_variable(in, out, "Wh");
+  _Uh = graph.new_variable(out, out, "Uh");
+  _bh = graph.new_variable(1, out, "bh");
 
   // build graph
   init();
@@ -2070,15 +2070,15 @@ void GRU::init()
 {
   // z
   auto& z = *_graph.new_sigmoid(
-    product(*_Wz,_x) + product(*_Uz,_h) + *_bz);
+    product(_x,*_Wz) + product(_h,*_Uz) + *_bz);
 
   // r
   auto& r = *_graph.new_sigmoid(
-    product(*_Wr,_x) + product(*_Ur,_h) + *_br);
+    product(_x,*_Wr) + product(_h,*_Ur) + *_br);
 
   // c
   auto& c = *_graph.new_tanh(
-    product(*_Wh,_x) + product(*_Uh,r * _h) + *_bh);
+    product(_x,*_Wh) + product(r * _h,*_Uh) + *_bh);
 
   // h(t)
   _GRU = &(z * _h + (1-z) * c);
@@ -2088,132 +2088,28 @@ void GRU::init()
 }
 
 ///////////////////////////////////////////
-// Function AGRU
-///////////////////////////////////////////
-
-AGRU::AGRU(Graph& graph, Function& x, Function& h, int in, int out) :
-Function(graph), _x(x), _h(h)
-{
-  // construct new variables
-  _Wz = graph.new_variable(out, in);
-  _Uz = graph.new_variable(out, out);
-  _bz = graph.new_variable(out, 1);
-
-  _Wr = graph.new_variable(out, in);
-  _Ur = graph.new_variable(out, out);
-  _br = graph.new_variable(out, 1);
-
-  _Wp = graph.new_variable(in, in);
-  _Up = graph.new_variable(in, out);
-  _bp = graph.new_variable(in, 1);
-
-  _Wq = graph.new_variable(out, in);
-  _Uq = graph.new_variable(out, out);
-  _bq = graph.new_variable(out, 1);
-
-  _Wh = graph.new_variable(out, in);
-  _Uh = graph.new_variable(out, out);
-  _bh = graph.new_variable(out, 1);
-
-  // build graph
-  init();
-}
-
-AGRU::AGRU(Graph& graph, Function& x, Function& h, const AGRU& other) :
-Function(graph), _x(x), _h(h)
-{
-  // share variables with the "other"
-  _Wz = other._Wz;
-  _Uz = other._Uz;
-  _bz = other._bz;
-
-  _Wr = other._Wr;
-  _Ur = other._Ur;
-  _br = other._br;
-
-  _Wp = other._Wp;
-  _Up = other._Up;
-  _bp = other._bp;
-
-  _Wq = other._Wq;
-  _Uq = other._Uq;
-  _bq = other._bq;
-
-  _Wh = other._Wh;
-  _Uh = other._Uh;
-  _bh = other._bh;
-
-  // build graph
-  init();
-}
-
-const Tensor& AGRU::forward()
-{
-  // return cached value
-  if (_value.size()) return _value;
-
-  // create value h(t)
-  _value = _AGRU->forward();
-
-  // return value
-  return _value;
-}
-
-void AGRU::init()
-{
-  // z
-  auto& z = *_graph.new_sigmoid(
-    product(*_Wz,_x) + product(*_Uz,_h) + *_bz);
-
-  // r
-  auto& r = *_graph.new_sigmoid(
-    product(*_Wr,_x) + product(*_Ur,_h) + *_br);
-
-  // p
-  auto& p = *_graph.new_sigmoid(
-    product(*_Wp,_x) + product(*_Up,_h) + *_bp);
-
-  // q
-  auto& q = *_graph.new_sigmoid(
-    product(*_Wq,_x) + product(*_Uq,_h) + *_bq);
-
-  // c
-  auto& c = *_graph.new_tanh(
-    product(*_Wh,p * _x) + product(*_Uh,r * _h) + q * *_bh);
-
-  // h
-  _AGRU = &(z * _h + (1-z) * c);
-
-  // let output handle the gradient directly
-  _AGRU->derivative(_graph.new_iderivative(*this));
-}
-
-///////////////////////////////////////////
 // Function LSTM
 ///////////////////////////////////////////
 
 LSTM::LSTM(Graph& graph, Function& x, Function& h, Function& c, int in, int out) :
 Function(graph), _x(x), _h(h), _c(c)
 {
-  // construct new variables
-  _Wi = graph.new_variable(out, in);
-  _Hi = graph.new_variable(out, out);
-  _Ci = graph.new_variable(out, out);
-  _bi = graph.new_variable(out, 1);
+  // construct new variables (row-major)
+  _Wi = graph.new_variable(in, out, "Wi");
+  _Hi = graph.new_variable(out, out, "Hi");
+  _bi = graph.new_variable(1, out, "bi");
 
-  _Wf = graph.new_variable(out, in);
-  _Hf = graph.new_variable(out, out);
-  _Cf = graph.new_variable(out, out);
-  _bf = graph.new_variable(out, 1);
+  _Wf = graph.new_variable(in, out, "Wf");
+  _Hf = graph.new_variable(out, out, "Hf");
+  _bf = graph.new_variable(1, out, "bf");
 
-  _Wo = graph.new_variable(out, in);
-  _Ho = graph.new_variable(out, out);
-  _Co = graph.new_variable(out, out);
-  _bo = graph.new_variable(out, 1);
+  _Wo = graph.new_variable(in, out, "Wo");
+  _Ho = graph.new_variable(out, out, "Ho");
+  _bo = graph.new_variable(1, out, "bo");
 
-  _Wc = graph.new_variable(out, in);
-  _Hc = graph.new_variable(out, out);
-  _bc = graph.new_variable(out, 1);
+  _Wg = graph.new_variable(in, out, "Wg");
+  _Hg = graph.new_variable(out, out, "Hg");
+  _bg = graph.new_variable(1, out, "bg");
 
   // build graph
   init();
@@ -2225,22 +2121,19 @@ Function(graph), _x(x), _h(h), _c(c)
   // share variables with the "other"
   _Wi = other._Wi;
   _Hi = other._Hi;
-  _Ci = other._Ci;
   _bi = other._bi;
 
   _Wf = other._Wf;
   _Hf = other._Hf;
-  _Cf = other._Cf;
   _bf = other._bf;
 
   _Wo = other._Wo;
   _Ho = other._Ho;
-  _Co = other._Co;
   _bo = other._bo;
 
-  _Wc = other._Wc;
-  _Hc = other._Hc;
-  _bc = other._bc;
+  _Wg = other._Wg;
+  _Hg = other._Hg;
+  _bg = other._bg;
 
   // build graph
   init();
@@ -2258,28 +2151,32 @@ const Tensor& LSTM::forward()
   return _value;
 }
 
-// f(t) = Sigmoid(Wf * x(t) + Hf * h(t-1) + Cf * c(t-1) + bf)
-// i(t) = Sigmoid(Wi * x(t) + Hi * h(t-1) + Ci * c(t-1) + bi)
-// c(t) = f(t) . c(t-1) + i(t) . Tanh(Wc * x(t) + Hc * h(t-1) + bc)
-// o(t) = Sigmoid(Wo * x(t) + Ho * h(t-1) + Co * c(t) + bo)
+// f(t) = Sigmoid(Wf * x(t) + Hf * h(t-1) + bf)
+// i(t) = Sigmoid(Wi * x(t) + Hi * h(t-1) + bi)
+// o(t) = Sigmoid(Wo * x(t) + Ho * h(t-1) + bo)
+// g(t) = Tanh   (Wg * x(t) + Hg * h(t-1) + bo)
+// c(t) = f(t) . c(t-1) + i(t) . g(t)
 // h(t) = o(t) . Tanh(c(t))
 void LSTM::init()
 {
   // f
   auto& f = *_graph.new_sigmoid(
-    product(*_Wf,_x) + product(*_Hf,_h) + product(*_Cf,_c) + *_bf);
+    product(_x,*_Wf) + product(_h,*_Hf) + *_bf);
 
   // i
   auto& i = *_graph.new_sigmoid(
-    product(*_Wi,_x) + product(*_Hi,_h) + product(*_Ci,_c) + *_bi);
-
-  // c
-  auto& c = f * _c + i * *_graph.new_tanh(
-    product(*_Wc,_x) + product(*_Hc,_h) + *_bc);
+    product(_x,*_Wi) + product(_h,*_Hi) + *_bi);
 
   // o
   auto& o = *_graph.new_sigmoid(
-    product(*_Wo,_x) + product(*_Ho,_h) + product(*_Co,c) + *_bo);
+    product(_x,*_Wo) + product(_h,*_Ho) + *_bo);
+
+  // g
+  auto& g = *_graph.new_tanh(
+    product(_x,*_Wg) + product(_h,*_Hg) + *_bg);
+
+  // c
+  auto& c = f * _c + i * g;
 
   // h
   auto& h = o * *_graph.new_tanh(c);
