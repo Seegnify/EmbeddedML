@@ -111,6 +111,7 @@ external/cnpy/cnpy.cpp
 # train TRANSFORMER
 add_library (example-transformer SHARED
 examples/transformer.cc
+external/cnpy/cnpy.cpp
 )
 
 # train MNIST
