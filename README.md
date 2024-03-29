@@ -8,7 +8,7 @@
   * Automatic differentiation for training
   * SGD, Adam/AdamNC, Yogi and RMSprop optimizers
   * Extendable generic tensor with default Eigen backend
-  * No third-party dependencies in core graph
+  * No third-party dependencies in main module
   * Zero memory allocations during runtime
 
 ## More About Seegnify
@@ -31,7 +31,7 @@
 | Component | Description                                        |
 | --------- | -------------------------------------------------- |
 | bin       | Build and run-time control scripts for convenience |
-| graph     | Deep-Learning graph with automatic differentiation |
+| main      | Deep-Learning graph with automatic differentiation |
 | utils     | Utilities supporting distributed learning          |
 | external  | External source code for data IO and run-time      |
 | examples  | Neural Network models and training examples        |
@@ -40,7 +40,7 @@
 
 ### From Source
 
-The binaries can be compiled using the provided CMake wrapper script:
+Compile the binaries using provided CMake wrapper script:
 
 ```bash
 ./bin/build.sh
@@ -48,7 +48,7 @@ The binaries can be compiled using the provided CMake wrapper script:
 
 ### Unit test
 
-All unit tests can be executed by runing:
+Executed all unit tests:
 
 ```bash
 ./build/seegnify-unittest
@@ -87,9 +87,16 @@ The following training code examples can be found in the `examples` folder:
 
 ## Training
 
-A complete reference implementations of distributed training can be found 
-in folder `examples` as well as in the full test. Once implemented and 
-compiled, start master process and then worker process.
+A complete reference implementations for a single or multi-process training
+can be found in folder `examples` as well as in the full test. To train in a
+single process run the training loop in single an executable. To train in a 
+multi-process mode compile the model as shared object `.so` and start the master
+and worker proceses. To train in a distributed mode run the workers on multiple
+machines and point the workers to the server machine with the master process.
+
+In the example below the master process listens to workers on port 2020. The 
+workers are connecting to `localhost` on port 2020. A single worker by default 
+utilizes all cores and assignes one traning instance to each core.
 
 Start the master process on port 2020 and store the model in my.graph:
 
@@ -102,8 +109,6 @@ Start the worker process with your compiled model and connect to master:
 ```bash
 ./build/seegnify-training worker 127.0.0.1 2020 ./build/libseegnify-fulltest.so
 ```
-
-Workers can be started on multiple nodes. A worker by default utilizes all cores and assignes one traning instance to each core.
 
 Stop the training by sending SIGINT (Ctrl-C) signal to the master process.
 
