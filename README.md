@@ -1,67 +1,40 @@
 # Seegnify
 
-[Seegnify](https://www.seegnify.org/) is an open source federated machine learning framework that runs anywhere. It was created with the following goals in mind:
+[Seegnify](https://www.seegnify.org/) is a machine learning library that runs anywhere.
 
-  * High performance code for easy research and development
-  * Deep learning neural networks based on dynamic graph
-  * Automatic distributed learning on variety of platforms
+## Main Features
+
+  * Written in C++ for performance, portability and usability
+  * Automatic differentiation for training
+  * SGD, Adam/AdamNC, Yogi and RMSprop optimizers
+  * Extendable generic tensor with default Eigen backend
+  * No third-party dependencies in core graph
+  * Zero memory allocations during runtime
 
 ## More About Seegnify
 
 <!-- toc -->
 
-- [Research Areas](#research-areas)
-  - [Federated Learning](#federated-learning)
 - [Project Structure](#project-structure)
-  - [Main Components](#main-components)
-  - [Dependencies](#dependencies)
 - [Installation](#installation)
   - [From Source](#from-source)
   - [Unit Test](#unit-test)
   - [Full Test](#full-test)
 - [Examples](#examples)
 - [Training](#training)
-- [License](#license)
+- [Android Support](#android-support)
 
 <!-- tocstop -->
 
-## Research Areas
-
-### Federated Learning
-
-Federated Learning is a type of machine learning that occurs on multiple 
-decentralized nodes with local data samples. This type of learning is useful in 
-cases where data cannot be exchanged or when learning requires different data 
-samples on each node. This paradigm provides strong data privacy protection.
-
-Since Federated Learning is by definition distributed, it is also an 
-effective way of implementing a parallel training for Reinforcement Learning 
-where RL environment is not differentiable. RL with Seegnify is easy. A 
-developer simply writes a model and a training routine for a single core and 
-the framework runs it in a distributed mode automatically.
-
-## Project Structure
-
-### Main Components
+### Project Structure
 
 | Component | Description                                        |
 | --------- | -------------------------------------------------- |
 | bin       | Build and run-time control scripts for convenience |
-| main      | Distributed automatic differentiation library      |
-| rl        | Reinforcement-Learning environment                 |
-| examples  | Neural Network models and training samples         |
-| stream    | Alternative streaming-based weights aggregation    |
-
-### Dependencies
-
-| Component | Eigen | Protobuf | POCO | ImageMagick | SndFile* | Qt* |
-| --------- | ----- | -------- | ---- | ----------- | -------- | --- |
-| bin       | no    | no       | no   | no          | no       | no  |
-| main      | yes   | yes      | yes  | no          | yes      | yes |
-| rl        | no    | no       | no   | no          | no       | yes |
-| examples  | no    | no       | no   | yes         | no       | yes |
-
-(*) A work is beeing done to remove Qt and SndFile dependencies.
+| graph     | Deep-Learning graph with automatic differentiation |
+| utils     | Utilities supporting distributed learning          |
+| external  | External source code for data IO and run-time      |
+| examples  | Neural Network models and training examples        |
 
 ## Installation
 
@@ -114,10 +87,9 @@ The following training code examples can be found in the `examples` folder:
 
 ## Training
 
-Training a model requires implementing the `Training` interface and 
-creating the model definition. Complete reference implementations can be 
-found in the folder `examples` as well as in the full test. Once 
-implemented and compiled, start master process and then worker process.
+A complete reference implementations of distributed training can be found 
+in folder `examples` as well as in the full test. Once implemented and 
+compiled, start master process and then worker process.
 
 Start the master process on port 2020 and store the model in my.graph:
 
@@ -135,6 +107,3 @@ Workers can be started on multiple nodes. A worker by default utilizes all cores
 
 Stop the training by sending SIGINT (Ctrl-C) signal to the master process.
 
-## License
-
-All Rights Reserved.

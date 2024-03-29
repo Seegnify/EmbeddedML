@@ -17,7 +17,7 @@
 #include <chrono>
 #include <thread>
 
-#include "graph/optimizer.hh"
+#include "main/optimizer.hh"
 #include "utils/training.hh"
 #include "utils/storage.hh"
 #include "utils/rlenv.hh"

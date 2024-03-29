@@ -16,7 +16,7 @@
 
 #include "cifar10.hh"
 
-#include "graph/optimizer.hh"
+#include "main/optimizer.hh"
 #include "utils/training.hh"
 #include "utils/storage.hh"
 

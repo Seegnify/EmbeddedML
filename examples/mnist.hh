@@ -17,7 +17,7 @@
 #ifndef _SEEGNIFY_MNISTMODEL_H_
 #define _SEEGNIFY_MNISTMODEL_H_
 
-#include "graph/graph.hh"
+#include "main/graph.hh"
 
 // meta parameters
 #define INPUT  (28 * 28)

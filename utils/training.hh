@@ -17,7 +17,7 @@
 #ifndef _SEEGNIFY_TRAINING_H_
 #define _SEEGNIFY_TRAINING_H_
 
-#include "graph/graph.hh"
+#include "main/graph.hh"
 #include "utils/storage.hh"
 
 namespace seegnify {

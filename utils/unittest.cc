@@ -10,8 +10,8 @@
 
 #include <unsupported/Eigen/FFT>
 
-#include "graph/graph.hh"
-#include "graph/optimizer.hh"
+#include "main/graph.hh"
+#include "main/optimizer.hh"
 #include "unittest.hh"
 #include "storage.hh"
 #include "image.hh"

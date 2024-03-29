@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "graph/optimizer.hh"
+#include "main/optimizer.hh"
 #include "utils/training.hh"
 #include "utils/storage.hh"
 

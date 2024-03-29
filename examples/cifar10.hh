@@ -17,7 +17,7 @@
 #ifndef _SEEGNIFY_CIFAR10MODEL_H_
 #define _SEEGNIFY_CIFAR10MODEL_H_
 
-#include "graph/graph.hh"
+#include "main/graph.hh"
 
 // meta parameters
 #define INPUT  (32 * 32 * 3)

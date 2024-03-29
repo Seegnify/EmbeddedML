@@ -1,7 +1,7 @@
 #include "regression.hh"
 
-#include "graph/graph.hh"
-#include "graph/optimizer.hh"
+#include "main/graph.hh"
+#include "main/optimizer.hh"
 
 using namespace seegnify;
 

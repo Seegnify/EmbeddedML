@@ -59,7 +59,7 @@ include_directories(${ZLIB_INCLUDE_DIRS})
 
 # common
 add_library (seegnify-common STATIC
-graph/graph.cc
+main/graph.cc
 utils/storage.cc
 utils/image.cc
 utils/imageFP.cc
@@ -88,11 +88,6 @@ utils/rlenv.cc
 # full test
 add_library (seegnify-fulltest SHARED
 utils/fulltest.cc
-)
-
-# dopamine
-add_executable (test-dopamine
-examples/dopamine-test.cc
 )
 
 # test regression
@@ -137,7 +132,6 @@ target_link_libraries(seegnify-unittest ${DL_LIBS})
 target_link_libraries(seegnify-fulltest ${DL_LIBS})
 
 target_link_libraries(test-transformer ${DL_LIBS} ${ZLIB_LIBRARIES})
-target_link_libraries(test-dopamine ${DL_LIBS})
 target_link_libraries(test-regression ${DL_LIBS})
 
 target_link_libraries(example-transformer ${DL_LIBS})

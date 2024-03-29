@@ -2,7 +2,7 @@
  * Copyright 2020-2024 Greg Padiasek. All Rights Reserved.
  */
 
-#include "graph/optimizer.hh"
+#include "main/optimizer.hh"
 #include "utils/training.hh"
 #include "utils/storage.hh"
 #include "external/cnpy/cnpy.h"
