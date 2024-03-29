@@ -87,16 +87,17 @@ The following training code examples can be found in the `examples` folder:
 
 ## Training
 
-A complete reference implementations for a single or multi-process training
-can be found in folder `examples` as well as in the full test. To train in a
-single process run the training loop in single an executable. To train in a 
-multi-process mode compile the model as shared object `.so` and start the master
-and worker proceses. To train in a distributed mode run the workers on multiple
-machines and point the workers to the server machine with the master process.
+A complete reference implementation for single or multi-process training can
+be found in the `examples` folder as well as in the full test suite. To train
+in a single process, run the training loop within a single executable. To
+train in a multi-process mode, compile the model as a shared object `(.so)`
+and start the master and worker processes. To train in distributed mode, run
+the workers on multiple machines and point them to the server machine hosting
+the master process.
 
-In the example below the master process listens to workers on port 2020. The 
-workers are connecting to `localhost` on port 2020. A single worker by default 
-utilizes all cores and assignes one traning instance to each core.
+In the example below, the master process listens to workers on port 2020. The
+workers connect to `localhost` on port `2020`. By default, a single worker
+utilizes all available cores and assigns one training instance to each core.
 
 Start the master process on port 2020 and store the model in my.graph:
 
