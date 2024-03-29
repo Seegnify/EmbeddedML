@@ -40,13 +40,15 @@
 
 ### Dependencies
 
-| Component | Eigen | Protobuf | POCO | ImageMagick | SndFile* | ZLib |
-| --------- | ----- | -------- | ---- | ----------- | -------- | ---- |
-| bin       | no    | no       | no   | no          | no       | no   |
-| main      | yes   | no       | no   | no          | no       | no   |
-| utils     | yes   | yes      | yes  | yes         | yes      | no   |
-| external  | yes   | no       | no   | no          | no       | yes  |
-| examples  | yes   | yes      | yes  | yes         | no       | no   |
+| Component | Eigen(*) | Protobuf | POCO | ImageMagick | SndFile* | ZLib |
+| --------- | -------- | -------- | ---- | ----------- | -------- | ---- |
+| bin       | no       | no       | no   | no          | no       | no   |
+| main      | yes      | no       | no   | no          | no       | no   |
+| utils     | yes      | yes      | yes  | yes         | yes      | no   |
+| external  | yes      | no       | no   | no          | no       | yes  |
+| examples  | yes      | yes      | yes  | yes         | no       | no   |
+
+(*) Eigen is a header-only template library
 
 ## Installation
 
