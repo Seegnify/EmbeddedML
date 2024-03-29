@@ -10,6 +10,7 @@
   * Extendable generic tensor with default Eigen backend
   * No third-party dependencies in main module
   * Zero memory allocations during runtime
+  * Out-of-the-box distributed training option
 
 ## More About Seegnify
 
