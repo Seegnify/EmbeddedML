@@ -17,6 +17,7 @@
 <!-- toc -->
 
 - [Project Structure](#project-structure)
+  - [Dependencies](#dependencies)
 - [Installation](#installation)
   - [From Source](#from-source)
   - [Unit Test](#unit-test)
@@ -36,6 +37,16 @@
 | utils     | Utilities supporting distributed learning          |
 | external  | External source code for data IO and run-time      |
 | examples  | Neural Network models and training examples        |
+
+### Dependencies
+
+| Component | Eigen | Protobuf | POCO | ImageMagick | SndFile* | ZLib |
+| --------- | ----- | -------- | ---- | ----------- | -------- | ---- |
+| bin       | no    | no       | no   | no          | no       | no   |
+| main      | yes   | no       | no   | no          | no       | no   |
+| utils     | yes   | yes      | yes  | yes         | yes      | no   |
+| external  | yes   | no       | no   | no          | no       | yes  |
+| examples  | yes   | yes      | yes  | yes         | no       | no   |
 
 ## Installation
 
