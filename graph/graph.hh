@@ -23,7 +23,6 @@
 
 #include "types.hh"
 #include "random.hh"
-#include "image.hh"
 
 namespace seegnify {
 

@@ -22,7 +22,7 @@
 
 #include <google/protobuf/message.h>
 
-#include "types.hh"
+#include "graph/types.hh"
 
 namespace seegnify {
 

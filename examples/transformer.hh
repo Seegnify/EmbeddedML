@@ -5,7 +5,7 @@
 #ifndef _TRANSFORMER_MODEL_H_
 #define _TRANSFORMER_MODEL_H_
 
-#include "main/graph.hh"
+#include "graph/graph.hh"
 
 
 using namespace seegnify;

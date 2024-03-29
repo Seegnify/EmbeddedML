@@ -1,6 +1,6 @@
 Folder "stream" contains modified protocol where weights in set/get/update are
 streamed in chunks between workers and master. This is due to a limit on
-protobuf size in earlier implementations. The limit in removed in version 3.6.
+protobuf size in earlier implementations. The limit was removed in version 3.6.
 
 When building with earlier protobuf implementation one can use "stream" version,
 or create a local copy of google/protobuf/io/coded_stream.h and change default

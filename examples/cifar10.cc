@@ -16,9 +16,9 @@
 
 #include "cifar10.hh"
 
-#include "main/training.hh"
-#include "main/optimizer.hh"
-#include "main/storage.hh"
+#include "graph/optimizer.hh"
+#include "utils/training.hh"
+#include "utils/storage.hh"
 
 #include "cifar/cifar10_reader.hpp"
 #include "cifar10.hh"

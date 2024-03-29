@@ -14,9 +14,9 @@
  * limitations under the License.
  */
 
-#include "main/training.hh"
-#include "main/optimizer.hh"
-#include "main/storage.hh"
+#include "graph/optimizer.hh"
+#include "utils/training.hh"
+#include "utils/storage.hh"
 
 #include "mnist/mnist_reader.hpp"
 #include "mnist.hh"

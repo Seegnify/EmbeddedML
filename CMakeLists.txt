@@ -59,11 +59,11 @@ include_directories(${ZLIB_INCLUDE_DIRS})
 
 # common
 add_library (seegnify-common STATIC
-main/graph.cc
-main/storage.cc
-main/image.cc
-main/imageFP.cc
-main/graph.pb.cc
+graph/graph.cc
+utils/storage.cc
+utils/image.cc
+utils/imageFP.cc
+utils/graph.pb.cc
 )
 
 # library build options
@@ -74,20 +74,20 @@ target_compile_options(
 
 # client / server
 add_executable (seegnify-training
-main/main.cc
-main/master.cc
-main/worker.cc
+utils/main.cc
+utils/master.cc
+utils/worker.cc
 )
 
 # unit tests
 add_executable (seegnify-unittest
-main/unittest.cc
-main/rlenv.cc
+utils/unittest.cc
+utils/rlenv.cc
 )
 
 # full test
 add_library (seegnify-fulltest SHARED
-main/fulltest.cc
+utils/fulltest.cc
 )
 
 # dopamine

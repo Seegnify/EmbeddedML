@@ -1,7 +1,7 @@
 #ifndef _SEEGNIFY_IMAGE_FP_H_
 #define _SEEGNIFY_IMAGE_FP_H_
 
-#include "types.hh"
+#include "graph/types.hh"
 
 namespace seegnify {
 

@@ -9,7 +9,7 @@
 #include "external/thread-pool-11/ThreadPool.h"
 
 #include "examples/transformer.hh"
-#include "main/unittest.hh"
+#include "utils/unittest.hh"
 
 bool isApprox(const Tensor& A, const Tensor& B, DTYPE eps)
 {

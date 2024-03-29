@@ -17,10 +17,10 @@
 #include <chrono>
 #include <thread>
 
-#include "main/training.hh"
-#include "main/optimizer.hh"
-#include "main/storage.hh"
-#include "rl/env.hh"
+#include "graph/optimizer.hh"
+#include "utils/training.hh"
+#include "utils/storage.hh"
+#include "utils/rlenv.hh"
 
 #include "cifar/cifar10_reader.hpp"
 #include "cifarRL.hh"
