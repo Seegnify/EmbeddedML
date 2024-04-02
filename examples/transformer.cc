@@ -47,19 +47,19 @@ public:
     _train_data.push_back(
       {
         "Hi, how is it going?",
-        "Czesc, co u ciebie?"
+        "Salut, comment ça va?"
       }
     );
     _train_data.push_back(
       {
         "When is your next train?",
-        "Kiedy jest twoj nastepny pociag?",
+        "Quand est votre prochain train?",
       }
     );
     _train_data.push_back(
       {
         "I like chocolate.",
-        "Lubie czekolade.",
+        "J'aime le chocolat.",
       }
     );
 

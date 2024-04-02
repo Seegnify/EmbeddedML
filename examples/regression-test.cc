@@ -1,42 +1,84 @@
-#include "regression.hh"
-
 #include "main/graph.hh"
 #include "main/optimizer.hh"
 
 using namespace seegnify;
 
+static const int SIZE = 5;
+
 int main(int argc, char* argv[]) {
+
+  // create graph and optimizer
   Graph g;
-  auto& rng = g.random();
+  auto& x = *g.new_constant(1, SIZE);
+  auto& y = *g.new_linear(x, SIZE, SIZE);
+  Adam opt(g.variables(), 0.001);
 
-  float a = 2 * g.random().uniform_dec(-1, 1);
-  float b = 3 * g.random().uniform_dec(-1, 1);
+  // create loss function
+  auto& yhat = *g.new_constant(1, SIZE);
+  auto& diff = *g.new_sub(y, yhat);
+  auto& loss = *g.new_sum(diff * diff);
 
-  //a = 0;
-  //b = 300;
+  // set target variables
+  Tensor W = Tensor::Random(SIZE,SIZE);
+  Tensor b = Tensor::Random(1, SIZE);
 
-  std::cout << "input a=" << a << std::endl;
-  std::cout << "input b=" << b << std::endl;
-
-  std::vector<float> x_coord;
-  std::vector<float> y_coord;
-
-  int N = 100;
-  for (int x=0; x<N; x++)
+  // set training params
+  int epochs = 100;
+  int batch = 1000;
+  
+  // run training loop
+  for (int e=0; e<epochs; e++)
   {
-    float r = g.random().uniform_dec(-1, 1);
-    float y = a * x + b + r;
-    x_coord.push_back(x);
-    y_coord.push_back(y);
+    float error = 0;
+    for (int i=0; i<batch; i++)
+    {
+      // reset input
+      g.recache();
+
+      // create radnom regression sample
+      Tensor tx = Tensor::Random(1, SIZE);
+      yhat.value() = tx * W.transpose() + b;
+      x.value() = tx;
+
+      // collect loss
+      Tensor l = loss.forward();
+      error += l(0);
+
+      // update gradients
+      g.backward(loss, l);
+
+      // update weights
+      opt.update();
+
+      // clear gradients
+      g.zero_grad();
+    }
+        
+    // report progress
+    std::cout << "error: " << error / batch << std::endl;
+    if (error / batch < 1e-5)
+    {
+      std::cout << "training complete" <<  std::endl;    
+      break;
+    }    
   }
 
-  a = 0.0;
-  b = 0.0; 
-
-  int ret = linear_regression(x_coord, y_coord, a, b, 5000, 0.0001);
-
-  std::cout << "output a=" << a << std::endl;
-  std::cout << "output b=" << b << std::endl;
-
-  return ret;
+  /*  
+  std::cout << "target variables:" << std::endl;
+  for (const auto& t: {W, b})
+  {
+    std::cout << t.rows() << "x" << t.cols() << std::endl;
+    std::cout << t << std::endl;
+  }
+    
+  std::cout << "learned variables:" << std::endl;
+  for (auto v: g.variables())
+  {
+    auto& t = v->value();
+    std::cout << t.rows() << "x" << t.cols() << std::endl;
+    std::cout << t << std::endl;
+  }
+  */
+  
+  return 0;
 }

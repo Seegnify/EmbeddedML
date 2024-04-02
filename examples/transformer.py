@@ -315,10 +315,7 @@ def main():
     tgt_data = torch.randint(1, tgt_vocab_size, (batch_size, max_seq_length))  # (batch_size, seq_length)
     print("New training data generated")
   print("src_data", src_data.shape)
-  #print(src_data)
   print("tgt_data", tgt_data.shape, tgt_data[:, :-1].shape)
-  #print(tgt_data)
-  #os.exit
 
   # print_model(torch.load(model_path))
 
@@ -330,6 +327,7 @@ def main():
 
   for epoch in range(num_epochs):
       optimizer.zero_grad()
+
       # one-less target lenght
       #output = transformer(src_data, tgt_data[:, :-1])
       #loss = criterion(output.contiguous().view(-1, tgt_vocab_size), tgt_data[:, 1:].contiguous().view(-1))

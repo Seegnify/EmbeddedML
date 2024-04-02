@@ -17,10 +17,10 @@
 #include <chrono>
 #include <thread>
 
-#include "main/training.hh"
 #include "main/optimizer.hh"
-#include "main/storage.hh"
-#include "rl/env.hh"
+#include "utils/training.hh"
+#include "utils/storage.hh"
+#include "utils/rlenv.hh"
 
 #include "mnist/mnist_reader.hpp"
 #include "mnistRL.hh"
@@ -35,14 +35,32 @@
 #define LOGSTEPS 100
 #define VALSTEPS 10000
 
+// termination codintions
+#define MAX_ACTIONS 1000
+#define MIN_REWARD -1000
+
 ////////////////////////////////
 // MNIST RL training environment
 ////////////////////////////////
-class MNISTRLEnv : public Env
+class MNISTRLEnv : public RLEnv
 {
 public:
+  enum ACTION
+  {
+    ACTION_UP,
+    ACTION_DOWN,
+    ACTION_LEFT,
+    ACTION_RIGHT,
+    ACTION_FORWARD,
+    ACTION_BACKWARD,
+    ACTION_ZOOM_IN,
+    ACTION_ZOOM_OUT,
+  };
+
   MNISTRLEnv()
   {
+    finished = false;
+    last_action = NUM_OF_ACTIONS;
     set_view_size(VIEW_ROWS, VIEW_COLS);
   }
 
@@ -53,22 +71,57 @@ public:
 
   bool is_correct()
   {
-    return last_action - ACTION_END == label;
+    return last_action - NUM_OF_ACTIONS == label;
+  }
+  
+  uint16_t get_actions_count()
+  {
+    return NUM_OF_ACTIONS;
   }
 
+  bool is_episode_finished()
+  {
+    return finished || action_step > NUM_OF_ACTIONS || total_reward < MIN_REWARD;
+  }
+
+  float make_action(uint16_t action)
+  {
+    last_action = action;
+
+    switch(action)
+    {
+      case ACTION_UP:         action_up(); break;
+      case ACTION_DOWN:       action_down(); break;
+      case ACTION_LEFT:       action_left(); break;
+      case ACTION_RIGHT:      action_right(); break;
+      case ACTION_FORWARD:    action_forward(); break;
+      case ACTION_BACKWARD:   action_backward(); break;
+      case ACTION_ZOOM_IN:    action_zoom_in(); break;
+      case ACTION_ZOOM_OUT:   action_zoom_out(); break;
+    };
+
+    if (last_action >= NUM_OF_ACTIONS) finished = true;
+
+    auto r = get_reward();
+    total_reward += r;
+    return r;
+  }
+  
 protected:
   virtual void reset()
   {
     slice = 0;
 
-    auto center_x = data_cols / 2;
-    auto center_y = data_rows / 2;
-    auto max_dist = (uint32_t)(0.1 * data_cols / 2);
+    auto center_x = full_cols / 2;
+    auto center_y = full_rows / 2;
+    auto max_dist = (uint32_t)(0.1 * full_cols / 2);
 
     x = center_x + rand() % (2 * max_dist) - max_dist;
     y = center_y + rand() % (2 * max_dist) - max_dist;
 
-    label = ACTION_END;
+    total_reward = 0;
+    label = NUM_OF_ACTIONS;
+    last_action = NUM_OF_ACTIONS;
   }
 
   virtual float get_reward()
@@ -77,6 +130,9 @@ protected:
   }
 
 private:
+  bool finished;
+  float total_reward;
+  uint16_t last_action;
   uint16_t label;
 };
 
@@ -186,12 +242,12 @@ public:
     }
 
     return rgb;
-  }
+  }  
 
   // set input
-  void set_input(Tensor& in, const QImage& image)
+  void set_input(Tensor& in, const Image& image)
   {
-    auto imageI = image.bits();
+    auto imageI = image.data();
     std::vector<DTYPE> imageF(INPUT, 0);
     for (int i=0; i<INPUT; i++) imageF[i] = imageI[i];
 
@@ -235,7 +291,7 @@ public:
 
     // new episode
     _env->new_episode();
-    _env->set_data_rgb(sample.data(), 1, DATA_ROWS, DATA_COLS);
+    _env->set_full_rgb(sample.data(), 1, DATA_ROWS, DATA_COLS);
     _env->set_label(label);
 
     // loop in time

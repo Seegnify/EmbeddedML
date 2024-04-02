@@ -24,11 +24,14 @@
 #define DATA_COLS   28
 #define LABELS      10
 
+// actions
+#define NUM_OF_ACTIONS 8
+
 // RL model params
 #define STEPS   10
 #define HIDDEN  500
 #define INPUT   (3 * VIEW_ROWS * VIEW_COLS)
-#define OUTPUT  (LABELS + Env::ACTION_END)
+#define OUTPUT  (LABELS + NUM_OF_ACTIONS)
 
 // RL env params
 #define VIEW_ROWS   16
@@ -62,13 +65,13 @@ public:
       _input.push_back(g.new_constant(INPUT, 1));
       auto x = _input.back();
 
-      h1 = g.new_tanh(*g.new_linear(*x, INPUT, SIZE, "INPUT"));
+      h1 = g.new_tanh(*g.new_linear(*x, INPUT, SIZE));
 
-      h2 = g.new_gru(*h1, *h2, SIZE, SIZE, "GU");
+      h2 = g.new_gru(*h1, *h2, SIZE, SIZE);
 
-      h3  = g.new_gru(*h2, *h3, SIZE, SIZE, "GU");
+      h3  = g.new_gru(*h2, *h3, SIZE, SIZE);
 
-      auto y = g.new_linear(*h3, SIZE, OUTPUT, "ACTION");
+      auto y = g.new_linear(*h3, SIZE, OUTPUT);
 
       // action policy
       _policy.push_back(g.new_softmax(*y));

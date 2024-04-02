@@ -85,9 +85,29 @@ utils/unittest.cc
 utils/rlenv.cc
 )
 
-# full test
-add_library (seegnify-fulltest SHARED
-utils/fulltest.cc
+# train MNIST
+add_library (example-mnist SHARED
+examples/mnist.cc
+)
+
+# train MNIST RL
+add_library (example-mnist-rl SHARED
+examples/mnistRL.cc
+)
+
+# train CIFAR
+add_library (example-cifar SHARED
+examples/cifar10.cc
+)
+
+# train CIFAR RL
+add_library (example-cifar-rl SHARED
+examples/cifarRL.cc
+)
+
+# train regression
+add_library (example-regression SHARED
+examples/regression.cc
 )
 
 # test regression
@@ -103,20 +123,10 @@ examples/transformer.cc
 external/cnpy/cnpy.cpp
 )
 
-# train TRANSFORMER
+# train transformer
 add_library (example-transformer SHARED
 examples/transformer.cc
 external/cnpy/cnpy.cpp
-)
-
-# train MNIST
-add_library (example-mnist SHARED
-examples/mnist.cc
-)
-
-# train CIFAR
-add_library (example-cifar SHARED
-examples/cifar10.cc
 )
 
 # set dependency libs
@@ -129,12 +139,14 @@ list(APPEND DL_LIBS Magick++-6.Q16 MagickCore-6.Q16)
 target_link_libraries(seegnify-common)
 target_link_libraries(seegnify-training ${DL_LIBS})
 target_link_libraries(seegnify-unittest ${DL_LIBS})
-target_link_libraries(seegnify-fulltest ${DL_LIBS})
 
-target_link_libraries(test-transformer ${DL_LIBS} ${ZLIB_LIBRARIES})
 target_link_libraries(test-regression ${DL_LIBS})
+target_link_libraries(test-transformer ${DL_LIBS} ${ZLIB_LIBRARIES})
 
-target_link_libraries(example-transformer ${DL_LIBS})
 target_link_libraries(example-mnist ${DL_LIBS})
+target_link_libraries(example-mnist-rl ${DL_LIBS})
 target_link_libraries(example-cifar ${DL_LIBS})
+target_link_libraries(example-cifar-rl ${DL_LIBS})
+target_link_libraries(example-regression ${DL_LIBS})
+target_link_libraries(example-transformer ${DL_LIBS})
 

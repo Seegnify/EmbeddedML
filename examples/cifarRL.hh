@@ -24,6 +24,9 @@
 #define DATA_COLS   32
 #define LABELS      10
 
+// actions
+#define NUM_OF_ACTIONS 8
+
 // RL env params
 #define VIEW_ROWS   16
 #define VIEW_COLS   16
@@ -33,7 +36,11 @@
 #define STEPS       10
 #define HIDDEN      50
 #define INPUT       (3 * VIEW_ROWS * VIEW_COLS)
-#define OUTPUT      (LABELS + Env::ACTION_END)
+#define OUTPUT      (LABELS + NUM_OF_ACTIONS)
+
+// termination codintions
+#define MAX_ACTIONS 1000
+#define MIN_REWARD -1000
 
 using namespace seegnify;
 
@@ -78,7 +85,8 @@ public:
       {
         char name[32];
         sprintf(name, "GU-%d", i+1);
-        auto h = g.new_lstm(*h_x, *hidden[i], *cell[i], SIZE, SIZE, name);
+        auto h = g.new_lstm(*h_x, *hidden[i], *cell[i], SIZE, SIZE);
+        g.name(h, name);
         hidden[i] = h;
         cell[i] = &h->cell();
         h_x = h;

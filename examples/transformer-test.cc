@@ -64,75 +64,6 @@ void print(const Graph& g, bool values = false, bool grads = false)
   }
 }
 
-void compute_result(
-  const std::vector<double>& input,
-  std::vector<double>& result,
-  int index) {
-  for (int n=0; n<1000; n++)
-  {
-    for (int i=0; i<input.size(); i++)
-    {
-        result[index * input.size() + i] = std::sqrt(input[i]);
-    }
-  }
-}
-
-// Function to perform parallel matrix multiplication
-void parallel_compute_result(
-  const std::vector<double>& input,
-  std::vector<double>& result,
-  int num_threads) {
-    int num_blocks = result.size() / input.size();
-
-    // Launch threads
-    while (num_blocks)
-    {
-      // Vector to store thread objects
-      std::vector<std::thread> threads;
-
-      std::cout << "blocks to do " << num_blocks << std::endl;
-
-      for (int i = 0; i < num_threads && num_blocks; ++i) {
-          threads.emplace_back(compute_result, input, std::ref(result), num_blocks-1);
-          num_blocks--;
-      }
-
-      std::cout << "thread running " << threads.size() << std::endl;
-
-      // Wait for threads to finish
-      for (auto& thread : threads) {
-          thread.join();
-      }
-    }
-}
-
-void test_threads() {    
-    int num_threads = 4;
-    std::cout << "threads=" << num_threads << std::endl;
-
-    // Initialize input matrix with consecutive numbers
-    std::vector<double> input(1000000, 0);
-    for (int i=0; i<input.size(); i++) input[i] = i;
-    std::cout << "input=" << input.size() << std::endl;
-
-    int num_blocks = 8;
-    std::cout << "blocks=" << num_blocks << std::endl;
-
-    // Initialize result matrix with zeros
-    std::vector<double> result(num_blocks * input.size(), 0);
-    std::cout << "result=" << result.size() << std::endl;
-
-    // Perform parallel matrix multiplication
-    parallel_compute_result(input, result, num_threads);
-
-    // Display the result
-    std::cout << "Result" << std::endl;
-    for (int i=0; i<10; i++)
-    {
-        std::cout << "input=" << input[i] << ", result=" << result[i] << std::endl;
-    }
-}
-
 void test_cnpy()
 {
   TEST_BEGIN("Numpy Test")
@@ -2091,8 +2022,7 @@ void test_transformer_backward()
 int main(int argc, char* argv[]) {
 
     test_cnpy();
-    //test_threads();
-    //test_thread_pool();
+    test_thread_pool();
 
     test_sequence_mask();
     test_scaled_dot_product_attention_forward();
