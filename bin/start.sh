@@ -22,17 +22,16 @@ start() {
   IMPL=$2
   CMD=./build/seegnify-training
   LIB=./build/lib$IMPL.so
-  echo Starting $IMPL at port $PORT
+  echo Starting master $IMPL at port $PORT
   nice -n 10 $CMD master $IMPL.graph $PORT >> $IMPL.master.log 2>&1 &
   sleep 1
+  echo Starting worker $IMPL at port $PORT
+  #nice -n 10 $CMD worker 127.0.0.1 $PORT $LIB
   nice -n 10 $CMD worker 127.0.0.1 $PORT $LIB >> $IMPL.client.log 2>&1 &
   #valgrind $CMD worker 127.0.0.1 $PORT $LIB >> $IMPL.client.log 2>&1 &
 }
 
 ulimit -c unlimited
 
-#start 9091 example-selector-gaussian
-#start 9092 example-selector-softmax
-#start 9093 example-selector-sequence
-#start 9094 example-selector-net2
-start 9095 example-composer-net2
+#start 9090 example-transformer
+start 9191 example-regression
