@@ -45,7 +45,7 @@ int main(int argc, char* argv[]) {
       error += l(0);
 
       // update gradients
-      g.backward(loss, l);
+      g.backward(loss, Tensor::Ones(1,1));
 
       // update weights
       opt.update();

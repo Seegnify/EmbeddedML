@@ -22,7 +22,7 @@
 namespace seegnify {
 
 // meta parameters
-#define SIZE 5
+#define SIZE 200
 
 /////////////////////////////////////////////
 // model definition and graph referece holder

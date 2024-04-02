@@ -28,7 +28,7 @@ class RegressionClient : public Training
 public:
   RegressionClient(int worker) : Training(worker)
   {
-    std::cout << "Full test worker " << worker << std::endl;
+    std::cout << "Regression test worker " << worker << std::endl;
 
     // get graph instance
     Graph& g = graph();
@@ -39,14 +39,14 @@ public:
     // create loss function
     _yhat = g.new_constant(1, SIZE);
     auto& diff = *g.new_sub(_model->output(), *_yhat);
-    _loss = g.new_sum(diff * diff);
+    _loss = g.new_mean(diff * diff);
   
     // create optimizer
     _optimizer = new Adam(g.variables(), 0.001);
 
     // initialize variables for regression samples
-    _W = Tensor::Random(SIZE, SIZE);
-    _b = Tensor::Random(1, SIZE);
+    _W = Tensor::Random(SIZE, SIZE) / (SIZE * SIZE);
+    _b = Tensor::Random(1, SIZE) / SIZE;
   }
 
   ~RegressionClient()
@@ -82,7 +82,7 @@ public:
       error += l(0);
 
       // update gradients
-      g.backward(loss, l);
+      g.backward(loss, 0.01 * Tensor::Ones(1,1));
 
       // update weights
       opt.update();
@@ -99,22 +99,7 @@ public:
       {
         std::cout << "training complete" <<  std::endl;
         exit(0);      
-      }
-      
-      std::cout << "target variables:" << std::endl;
-      for (const auto& t: {_W, _b})
-      {
-        std::cout << t.rows() << "x" << t.cols() << std::endl;
-        std::cout << t << std::endl;
-      }
-        
-      std::cout << "learned variables:" << std::endl;
-      for (auto v: g.variables())
-      {
-        auto& t = v->value();
-        std::cout << t.rows() << "x" << t.cols() << std::endl;
-        std::cout << t << std::endl;
-      }
+      }      
     }    
   }
 

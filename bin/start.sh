@@ -26,7 +26,6 @@ start() {
   nice -n 10 $CMD master $IMPL.graph $PORT >> $IMPL.master.log 2>&1 &
   sleep 1
   echo Starting worker $IMPL at port $PORT
-  #nice -n 10 $CMD worker 127.0.0.1 $PORT $LIB
   nice -n 10 $CMD worker 127.0.0.1 $PORT $LIB >> $IMPL.client.log 2>&1 &
   #valgrind $CMD worker 127.0.0.1 $PORT $LIB >> $IMPL.client.log 2>&1 &
 }
