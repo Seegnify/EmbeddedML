@@ -306,14 +306,14 @@ public:
         std::cout << "Target:[" << x.second << "]" << std::endl;
         std::cout << "Output:[" << y_txt << "]" << std::endl;
 
-        for (int i=0; i<SEQ_SIZE; i++)
+        for (int i=0; i<=SEQ_SIZE; i++)
         {
-          auto inp = (i<SEQ_SIZE-1) ? std::to_string(tgt_x[i+1]) : "N/A";
-          auto out = (i>0) ? std::to_string(y[i]) : "N/A";
+          auto inp = (i<SEQ_SIZE) ? std::to_string(tgt_x[i]) : "N/A";
+          auto out = (i>0) ? std::to_string(y[i-1]) : "N/A";
 
           auto diff = (inp == out)? " (==)" : " (!=)";
-          std::cout << "Inp["<< i+1 << "]=" << inp
-                    << " Out[" << i << "]=" << out
+          std::cout << "Inp["<< i << "]=" << inp
+                    << " Out[" << i-1 << "]=" << out
                     << diff << std::endl;
         }
       }
