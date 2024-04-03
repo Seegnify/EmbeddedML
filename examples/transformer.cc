@@ -307,7 +307,7 @@ public:
         std::cout << "Output:[" << y_txt << "]" << std::endl;
 
         std::cout << "First Target Token:" << "First Tgt=" << tgt_x.front() << std::endl;
-        for (int i=0; i<SEQ_SIZE-1; i++)
+        for (int i=0; i<y.size(); i++)
         {
           auto diff = (tgt_x[i+1] == y[i])? " (==)" : " (!=)";
           std::cout << "Tgt["<< i+1 << "]=" << tgt_x[i+1]
