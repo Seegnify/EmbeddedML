@@ -288,7 +288,7 @@ public:
       g.recache();
 
       // validation sample
-      // TODO: change data to validation
+      // TODO: change data for validation
       auto& x = _train_data[i];
       auto src_x = source_tokens(x.first);
       auto tgt_x = target_tokens(x.second);
@@ -306,15 +306,14 @@ public:
         std::cout << "Target:[" << x.second << "]" << std::endl;
         std::cout << "Output:[" << y_txt << "]" << std::endl;
 
-        std::cout << "First Target Token:" << "First Tgt=" << tgt_x.front() << std::endl;
+        std::cout << "Inp[0]=" << tgt_x[0] << std::endl;
         for (int i=0; i<y.size(); i++)
         {
           auto diff = (tgt_x[i+1] == y[i])? " (==)" : " (!=)";
-          std::cout << "Tgt["<< i+1 << "]=" << tgt_x[i+1]
+          std::cout << "Inp["<< i+1 << "]=" << tgt_x[i+1]
                     << " Out[" << i << "]=" << y[i]
                     << diff << std::endl;
         }
-        std::cout << "Last Output Token:" << "Last Out=" << y.back() << std::endl;
       }
     }
 
