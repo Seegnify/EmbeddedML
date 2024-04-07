@@ -132,5 +132,5 @@ Stop the training by sending SIGINT (Ctrl-C) signal to the master process.
 
 To build the library for Android simply copy the folder `main` to Android
 project folder `app/src/main/cpp`. Update `CMakeLists.txt` by adding the source
-files from `main` to the project, and including Eigen headers either with
+files from `main` to the project, and include Eigen headers either with
 `include_directories` or `target_include_directories` clause.
