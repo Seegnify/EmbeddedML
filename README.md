@@ -132,7 +132,8 @@ Stop the training by sending SIGINT (Ctrl-C) signal to the master process.
 ## Android Support
 
 To build the library for Android simply copy the folder `main` to folder 
-`app/src/main/cpp` in Android project. Update `CMakeLists.txt` by adding the 
-source files from `main` to the build target, and include Eigen headers either 
-with`include_directories` or `target_include_directories` clause. To add BLAS or 
+`app/src/main/cpp` in Android project. Implement inferrence or training process
+as in the `regression` example. Update `CMakeLists.txt` by adding the source 
+files from `main` to the build target, and include Eigen headers either with 
+`include_directories` or `target_include_directories` clause. To add BLAS or 
 OpenMP support link the target with `openblas` or `openmp` libraries.
