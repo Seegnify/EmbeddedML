@@ -8,6 +8,7 @@
   * Automatic differentiation for training
   * SGD, Adam, AdamNC, Yogi and RMSprop optimizers
   * Extendable generic tensor with default Eigen backend
+  * High-performance computing with BLAS and OpenMP
   * No third-party dependencies for training or inference
   * Out-of-the-box distributed training option
 
@@ -132,5 +133,6 @@ Stop the training by sending SIGINT (Ctrl-C) signal to the master process.
 
 To build the library for Android simply copy the folder `main` to folder 
 `app/src/main/cpp` in Android project. Update `CMakeLists.txt` by adding the 
-source files from `main` to the project, and include Eigen headers either with
-`include_directories` or `target_include_directories` clause.
+source files from `main` to built target, and include Eigen headers either with
+`include_directories` or `target_include_directories` clause. To add BLAS or 
+OpenMP support link the target with `openblas` or `openmp` libraries.
