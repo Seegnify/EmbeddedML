@@ -1,3 +1,9 @@
+#+============================================================================
+# Copyright (c) 2024 Greg Padiasek
+# Distributed under the terms of the MIT License.
+# See accompanying file LICENSE or copy at http://opensource.org/licenses/MIT
+#+============================================================================
+
 #source: https://towardsdatascience.com/build-your-own-transformer-from-scratch-using-pytorch-84c850470dcb
 import torch
 import torch.nn as nn

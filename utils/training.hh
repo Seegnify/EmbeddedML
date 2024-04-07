@@ -1,17 +1,7 @@
 /*
- * Copyright 2020-2021 Greg Padiasek and Seegnify <http://www.seegnify.org>
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * Copyright (c) 2024 Greg Padiasek
+ * Distributed under the terms of the MIT License.
+ * See accompanying file LICENSE or copy at http://opensource.org/licenses/MIT
  */
 
 #ifndef _SEEGNIFY_TRAINING_H_
@@ -87,7 +77,21 @@ public:
     {
       auto& curr = curr_vars[i]->value();
       auto& prev = prev_vars[i]->value();
-      write_tensor(curr - prev, out); // save weight increments (+)
+      
+      Tensor delta = curr - prev;
+      int rows = delta.rows();
+      int cols = delta.cols();
+      
+      // mask some weights to simulate sparse update
+      int size = 0.9 * delta.size();
+      for (int i=0; i<size; i++)
+      {
+        auto r = _curr.random().uniform_int(rows-1);
+        auto c = _curr.random().uniform_int(cols-1);
+        delta(r,c) = 0;
+      }
+      
+      write_tensor(delta, out); // save weight increments (+)
     }
     return out.str();
   }
