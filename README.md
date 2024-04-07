@@ -1,6 +1,6 @@
 # Seegnify
 
-[Seegnify](https://www.seegnify.org/) is a machine learning library that runs anywhere.
+[Seegnify](https://seegnify.org/) is a machine learning library that runs anywhere.
 
 ## Main Features
 
