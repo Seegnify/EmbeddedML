@@ -6,10 +6,9 @@
 
   * Written in C++ for performance, portability and usability
   * Automatic differentiation for training
-  * SGD, Adam/AdamNC, Yogi and RMSprop optimizers
+  * SGD, Adam, AdamNC, Yogi and RMSprop optimizers
   * Extendable generic tensor with default Eigen backend
-  * No third-party dependencies in main module
-  * Zero memory allocations during runtime
+  * No third-party dependencies for training or inference
   * Out-of-the-box distributed training option
 
 ## More About Seegnify
