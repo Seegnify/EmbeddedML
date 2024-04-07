@@ -9,6 +9,7 @@
   * SGD, Adam, AdamNC, Yogi and RMSprop optimizers
   * Extendable generic tensor with default Eigen backend
   * High-performance computing with BLAS and OpenMP
+  * Vectorization for SSE 2/3/4, AVX, FMA, AVX512, ARM NEON
   * No third-party dependencies for training or inference
   * Out-of-the-box distributed training option
 
