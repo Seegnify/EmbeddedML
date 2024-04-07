@@ -45,7 +45,7 @@
 | bin       | no     | no       | no   | no          | no      | no   |
 | main      | yes    | no       | no   | no          | no      | no   |
 | utils     | yes    | yes      | yes  | yes         | yes     | no   |
-| external  | yes    | no       | no   | no          | no      | yes  |
+| external  | no     | no       | no   | no          | no      | yes  |
 | examples  | yes    | yes      | yes  | yes         | no      | no   |
 
 (*) Eigen is a header-only template library
