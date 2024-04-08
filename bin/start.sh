@@ -21,5 +21,5 @@ start() {
 
 ulimit -c unlimited
 
-start 9090 example-transformer
-#start 9191 example-regression
+#start 9090 example-transformer
+start 9191 example-regression
