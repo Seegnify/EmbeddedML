@@ -14,10 +14,10 @@
 #include "types.hh"
 #include "random.hh"
 
-namespace seegnify {
+namespace seegnify 
+{
 
 // Base class declarations
-class Aggregator;
 class Function;
 class Graph;
 
@@ -44,22 +44,34 @@ public:
   Function(Graph& graph);
 
   // virtual destructor
-  virtual ~Function() { _derivative.clear(); };
+  virtual ~Function() {};
 
   // disable copy ctor
   Function(const Function& f) = delete;
 
-  // forward traversal
+  // value operator
+  const Tensor& operator()() { return forward(); }
+
+  // forward evaluation
   virtual const Tensor& forward() = 0;
 
-  // backward traversal
+  // backward evaluation
   virtual const Tensor& backward();
+
+  // add forward input callback (input)
+  void iforward(Function* d) { _forward.push_back(d); }
+
+  // add backward input callback (derivative)
+  void ibackward(Function* d) { _backward.push_back(d); }
+
+  // get forward input callbacks
+  const std::vector<Function*>& iforward() const { return _forward; }
+
+  // get backward input callbacks
+  const std::vector<Function*>& ibackward() const { return _backward; }
 
   // recache function value and gradient
   virtual void recache();
-
-  // set derivative callback
-  void derivative(Function* d) { _derivative.push_back(d); }
 
   // enable / disable back-prop
   void backprop(bool enable) { _backprop = enable; }
@@ -70,18 +82,18 @@ public:
   // gradient value
   Tensor& gradient() { return _gradient; }
 
-  // value operator
-  const Tensor& operator()() { return forward(); }
-
   // graph access
   Graph& graph() { return _graph; }
 
 protected:
   // backprop flag
   bool _backprop;
+  
+  // forward callbacks
+  std::vector<Function*> _forward;
 
-  // derivative callbacks
-  std::vector<Function*> _derivative;
+  // backward callbacks
+  std::vector<Function*> _backward;
 
   // function value cache
   Tensor _value;
@@ -100,9 +112,6 @@ public:
   IDerivative(Graph& graph, Function& base);
 
   virtual const Tensor& forward();
-
-protected:
-  Function& _base;
 };
 
 // Rowwise function
@@ -143,7 +152,7 @@ protected:
 class Constant : public Function
 {
 public:
-  Constant(Graph& graph, int rows = 0, int cols = 0);
+  Constant(Graph& graph, size_t rows = 0, size_t cols = 0);
 
   virtual const Tensor& forward() { return _value; }
 
@@ -154,7 +163,7 @@ public:
 class Variable : public Function
 {
 public:
-  Variable(Graph& graph, int rows = 0, int cols = 0);
+  Variable(Graph& graph, size_t rows = 0, size_t cols = 0);
 
   virtual const Tensor& forward() { return _value; }
 
@@ -170,55 +179,47 @@ public:
   Broadcast(Graph& graph, Function& x, Function& target);
 
   virtual const Tensor& forward();
-
-protected:
-  Function& _x;
-  Function& _t;
 };
 
 // Reshape function
 class Reshape : public Function
 {
 public:
-  Reshape(Graph& graph, Function& x, int rows, int cols);
+  Reshape(Graph& graph, Function& x, size_t rows, size_t cols);
 
   virtual const Tensor& forward();
 
 protected:
-  const int _rows;
-  const int _cols;
-  Function& _x;
+  size_t _rows;
+  size_t _cols;
 };
 
 // Split function (takes a fragment of the input)
 class Split : public Function
 {
 public:
-  Split(Graph& graph, Function& x, int r, int c, int rows, int cols);
+  Split(Graph& graph, Function& x, size_t r, size_t c, size_t rows, size_t cols);
 
   virtual const Tensor& forward();
 
 protected:
-  const int _r;
-  const int _c;
-  const int _rows;
-  const int _cols;
-  Function& _x;
+  size_t _r;
+  size_t _c;
+  size_t _rows;
+  size_t _cols;
 };
 
 // Join function (takes two inputs and creates concatenated output)
 class Join : public Function
 {
 public:
-  Join(Graph& graph, Function& x, Function& y, int rows, int cols);
+  Join(Graph& graph, Function& x, Function& y, size_t rows, size_t cols);
 
   virtual const Tensor& forward();
 
 protected:
-  const int _rows;
-  const int _cols;
-  Function& _x;
-  Function& _y;
+  size_t _rows;
+  size_t _cols;
 };
 
 // Min function (takes two inputs and creates min output)
@@ -228,10 +229,6 @@ public:
   Min(Graph& graph, Function& x, Function& y);
 
   virtual const Tensor& forward();
-
-protected:
-  Function& _x;
-  Function& _y;
 };
 
 // Max function (takes two inputs and creates max output)
@@ -241,10 +238,6 @@ public:
   Max(Graph& graph, Function& x, Function& y);
 
   virtual const Tensor& forward();
-
-protected:
-  Function& _x;
-  Function& _y;
 };
 
 // Linear function
@@ -279,10 +272,6 @@ public:
   Product(Graph& graph, Function& x, Function& y);
 
   virtual const Tensor& forward();
-
-protected:
-  Function& _x;
-  Function& _y;
 };
 
 // Add function
@@ -292,10 +281,6 @@ public:
   Add(Graph& graph, Function& x, Function& y);
 
   virtual const Tensor& forward();
-
-protected:
-  Function& _x;
-  Function& _y;
 };
 
 // Subtract function
@@ -305,10 +290,6 @@ public:
   Sub(Graph& graph, Function& x, Function& y);
 
   virtual const Tensor& forward();
-
-protected:
-  Function& _x;
-  Function& _y;
 };
 
 // Multiply function
@@ -318,10 +299,6 @@ public:
   Mul(Graph& graph, Function& x, Function& y);
 
   virtual const Tensor& forward();
-
-protected:
-  Function& _x;
-  Function& _y;
 };
 
 // Power function
@@ -331,10 +308,6 @@ public:
   Power(Graph& graph, Function& x, Function& y);
 
   virtual const Tensor& forward();
-
-protected:
-  Function& _x;
-  Function& _y;
 };
 
 // Tanh function
@@ -344,9 +317,6 @@ public:
   Tanh(Graph& graph, Function& x);
 
   virtual const Tensor& forward();
-
-protected:
-  Function& _x;
 };
 
 // Sigmoid function
@@ -356,9 +326,6 @@ public:
   Sigmoid(Graph& graph, Function& x);
 
   virtual const Tensor& forward();
-
-protected:
-  Function& _x;
 };
 
 // ReLU function
@@ -386,8 +353,30 @@ public:
 protected:
   DTYPE _rate;
   Tensor _mask;
-  Function& _x;
   bool _enabled;
+};
+
+// Error function
+class Erf : public Function
+{
+public:
+  Erf(Graph& graph, Function& x);
+
+  virtual const Tensor& forward();
+};
+
+// GeLU function
+class GeLU : public Function
+{
+public:
+  GeLU(Graph& graph, Function& x);
+
+  virtual const Tensor& forward();
+
+protected:
+#ifdef APPROXIMATE_GELU
+  Function* _gelu;
+#endif
 };
 
 // Softmax function
@@ -397,9 +386,6 @@ public:
   Softmax(Graph& graph, Function& x);
 
   virtual const Tensor& forward();
-
-protected:
-  Function& _x;
 };
 
 // Softplus function
@@ -409,9 +395,6 @@ public:
   Softplus(Graph& graph, Function& x);
 
   virtual const Tensor& forward();
-
-protected:
-  Function& _x;
 };
 
 // Log-Softmax function
@@ -422,9 +405,6 @@ public:
 
   const Tensor softmax();
   virtual const Tensor& forward();
-
-protected:
-  Function& _x;
 };
 
 // Logarithm function
@@ -434,9 +414,6 @@ public:
   Log(Graph& graph, Function& x);
 
   virtual const Tensor& forward();
-
-protected:
-  Function& _x;
 };
 
 // Absolute function
@@ -446,9 +423,6 @@ public:
   Abs(Graph& graph, Function& x);
 
   virtual const Tensor& forward();
-
-protected:
-  Function& _x;
 };
 
 // Transpose function
@@ -458,9 +432,6 @@ public:
   Transpose(Graph& graph, Function& x);
 
   virtual const Tensor& forward();
-
-protected:
-  Function& _x;
 };
 
 // Sum reduction function
@@ -470,9 +441,6 @@ public:
   Sum(Graph& graph, Function& x);
 
   virtual const Tensor& forward();
-
-protected:
-  Function& _x;
 };
 
 // Mean reduction function
@@ -482,9 +450,6 @@ public:
   Mean(Graph& graph, Function& x);
 
   virtual const Tensor& forward();
-
-protected:
-  Function& _x;
 };
 
 // Standard GRU function
@@ -513,11 +478,9 @@ public:
   virtual const Tensor& forward();
 
 private:
-  void init();
+  void init(Function& x, Function& h);
 
 protected:
-  Function  &_x;
-  Function  &_h;
   Variable  *_Wz, *_Uz, *_bz;
   Variable  *_Wr, *_Ur, *_br;
   Variable  *_Wh, *_Uh, *_bh;
@@ -525,12 +488,10 @@ protected:
 };
 
 // Long Short-Term Memory (LSTM) function
-// Based on PyTorch implemenation
-// f(t) = Sigmoid(Wf * x(t) + Hf * h(t-1) + bf)
-// i(t) = Sigmoid(Wi * x(t) + Hi * h(t-1) + bi)
-// o(t) = Sigmoid(Wo * x(t) + Ho * h(t-1) + bo)
-// g(t) = Tanh   (Wg * x(t) + Hg * h(t-1) + bo)
-// c(t) = f(t) . c(t-1) + i(t) . g(t)
+// i(t) = Sigmoid(Wxi * x(t) + Whi * h(t-1) + Wci * c(t-1) + bi)
+// f(t) = Sigmoid(Wxf * x(t) + Whf * h(t-1) + Whi * c(t-1) + bh)
+// c(t) = f(t) . c(t-1) + i(t) . Tanh(Wxc * x(t) + Whc * h(t-1) + bc)
+// o(t) = Sigmoid(Wxo * x(t) + Who * h(t-1) + Who * c(t) + bo)
 // h(t) = o(t) . Tanh(c(t))
 class LSTM : public Function
 {
@@ -538,21 +499,24 @@ public:
   LSTM(Graph& graph, Function& x, Function& h, Function& c, int in, int out);
   LSTM(Graph& graph, Function& x, Function& h, Function& c, const LSTM& other);
 
-  Variable& Wf() { return *_Wf; }
-  Variable& Hf() { return *_Hf; }
-  Variable& bf() { return *_bf; }
-
-  Variable& Wi() { return *_Wi; }
-  Variable& Hi() { return *_Hi; }
+  Variable& Wxi() { return *_Wxi; }
+  Variable& Whi() { return *_Whi; }
+  Variable& Wci() { return *_Wci; }
   Variable& bi() { return *_bi; }
 
-  Variable& Wo() { return *_Wo; }
-  Variable& Ho() { return *_Ho; }
-  Variable& bo() { return *_bo; }
+  Variable& Wxf() { return *_Wxf; }
+  Variable& Whf() { return *_Whf; }
+  Variable& Wcf() { return *_Wcf; }
+  Variable& bf() { return *_bf; }
 
-  Variable& Wg() { return *_Wg; }
-  Variable& Hg() { return *_Hg; }
-  Variable& bg() { return *_bg; }
+  Variable& Wxc() { return *_Wxc; }
+  Variable& Whc() { return *_Whc; }
+  Variable& bc() { return *_bc; }
+
+  Variable& Wxo() { return *_Wxo; }
+  Variable& Who() { return *_Who; }
+  Variable& Wco() { return *_Wco; }
+  Variable& bo() { return *_bo; }
 
   // c(t)
   Function& cell() { return *_cell; }
@@ -560,14 +524,13 @@ public:
   virtual const Tensor& forward();
 
 private:
-  void init();
+  void init(Function& x, Function& h, Function& c);
 
 protected:
-  Function &_x, &_h, &_c;
-  Variable *_Wf, *_Hf, *_bf;
-  Variable *_Wi, *_Hi, *_bi;
-  Variable *_Wo, *_Ho, *_bo;
-  Variable *_Wg, *_Hg, *_bg;
+  Variable *_Wxi, *_Whi, *_Wci, *_bi;
+  Variable *_Wxf, *_Whf, *_Wcf, *_bf;
+  Variable *_Wxc, *_Whc       , *_bc;
+  Variable *_Wxo, *_Who, *_Wco, *_bo;
   Function *_cell;
   Function *_LSTM;
 };
@@ -588,11 +551,10 @@ public:
   Variable& B() { return *_b; }
 
 private:
-  void init();
+  void init(Function& x);
 
 protected:
   const DTYPE _epsilon;
-  Function &_x;
   Variable *_a;
   Variable *_b;
   Function *_N;
@@ -610,7 +572,6 @@ public:
   void enable(bool enable) { _enabled = enable; }
 
 protected:
-  Function &_m, &_s;
   Constant *_e;
   Function *_Z;
   bool _enabled;
@@ -646,8 +607,8 @@ protected:
 class Embedding : public Function
 {
 public:
-  Embedding(Graph& graph, Function& i, int in, int out);
-  Embedding(Graph& graph, Function& i, const Embedding& other);
+  Embedding(Graph& graph, Function& index, int in, int out);
+  Embedding(Graph& graph, Function& index, const Embedding& other);
 
   // variable access
   Variable& E() { return *_E; }
@@ -655,10 +616,9 @@ public:
   virtual const Tensor& forward();
 
 private:
-  void init();
+  void init(Function& index);
 
 protected:
-  Function& _i;
   Variable* _E;
 };
 
@@ -687,7 +647,7 @@ public:
   virtual const Tensor& forward();
 
 private:
-  void init();
+  void init(Function& x);
 
   SparseTensor& K_matrix();
   Tensor K_gradient(SparseTensor& dK_matrix);
@@ -704,38 +664,9 @@ protected:
   int _stride;
   int _padding;
   int _dilation;
-  Function& _x;
   Variable* _K;
   Tensor _K_tracker;
   SparseTensor _K_matrix;
-};
-
-// Error function
-class Erf : public Function
-{
-public:
-  Erf(Graph& graph, Function& x);
-
-  virtual const Tensor& forward();
-
-protected:
-  Function& _x;
-};
-
-// GeLU function
-class GeLU : public Function
-{
-public:
-  GeLU(Graph& graph, Function& x);
-
-  virtual const Tensor& forward();
-
-protected:
-#ifdef APPROXIMATE_GELU
-  Function* _gelu;
-#else
-  Function& _x;
-#endif
 };
 
 // No Value computed in the graph exception

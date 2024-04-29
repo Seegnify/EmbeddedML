@@ -207,7 +207,7 @@ const Tensor& Function::backward()
   {
     _gradient = Tensor::Zero(_value.rows(), _value.cols());
 
-    if (_backprop) _graph.aggregate(_gradient, _derivative);
+    if (_backprop) _graph.aggregate(_gradient, _backward);
   }
 
   return _gradient;
@@ -224,8 +224,10 @@ void Function::recache()
 // Identity Derivarive impl
 ///////////////////////////////////////////
 
-IDerivative::IDerivative(Graph& graph, Function& base) :
-Function(graph), _base(base) {}
+IDerivative::IDerivative(Graph& graph, Function& base) : Function(graph)
+{
+  iforward(&base);
+}
 
 // dFdx = base.dFdx
 const Tensor& IDerivative::forward()
@@ -233,7 +235,7 @@ const Tensor& IDerivative::forward()
   // return cached value
   if (_value.size()) return _value;
 
-  auto& g = _base.backward();
+  auto& g = _forward[0]->backward();
 
   // update gradient value
   _value = g;
@@ -249,6 +251,8 @@ const Tensor& IDerivative::forward()
 Rowwise::Rowwise(Graph& graph, Function& x, int rows, int cols,
 std::function<Function*(Function& block)> ctor) : Function(graph)
 {
+  iforward(&x);
+
   _y = nullptr;
 
   // split x by row and join rows
@@ -265,7 +269,7 @@ std::function<Function*(Function& block)> ctor) : Function(graph)
     }
   }
 
-  _y->derivative(graph.new_iderivative(*this));
+  _y->ibackward(graph.new_iderivative(*this));
 }
 
 Rowwise::Rowwise(Graph& graph, Function& x, int rows, int cols,
@@ -273,6 +277,8 @@ std::function<Function*(Function& block)> shared_ctor,
 std::function<Function*(Function& block, Function& shared)> ctor) :
 Function(graph)
 {
+  iforward(&x);
+
   // row-wise function with shared weights
   Function* shared = nullptr;
 
@@ -291,7 +297,7 @@ Function(graph)
     }
   }
 
-  _y->derivative(graph.new_iderivative(*this));
+  _y->ibackward(graph.new_iderivative(*this));
 }
 
 
@@ -313,8 +319,11 @@ const Tensor& Rowwise::forward()
 ///////////////////////////////////////////
 
 Colwise::Colwise(Graph& graph, Function& x, int rows, int cols,
-std::function<Function*(Function& block)> ctor) : Function(graph)
+std::function<Function*(Function& block)> ctor) :
+Function(graph)
 {
+  iforward(&x);
+
   // transpose and apply row-wise ctor, then transpose again
   _y = graph.new_transpose(
     *graph.new_rowwise(
@@ -322,7 +331,7 @@ std::function<Function*(Function& block)> ctor) : Function(graph)
     )
   );
 
-  _y->derivative(graph.new_iderivative(*this));
+  _y->ibackward(graph.new_iderivative(*this));
 }
 
 Colwise::Colwise(Graph& graph, Function& x, int rows, int cols,
@@ -330,6 +339,8 @@ std::function<Function*(Function& block)> shared_ctor,
 std::function<Function*(Function& block, Function& shared)> ctor) :
 Function(graph)
 {
+  iforward(&x);
+
   // transpose and apply row-wise ctor, then transpose again
   _y = graph.new_transpose(
     *graph.new_rowwise(
@@ -337,7 +348,7 @@ Function(graph)
     )
   );
 
-  _y->derivative(graph.new_iderivative(*this));
+  _y->ibackward(graph.new_iderivative(*this));
 }
 
 // F = f(x colwise)
@@ -357,7 +368,7 @@ const Tensor& Colwise::forward()
 // Function Constant
 ///////////////////////////////////////////
 
-Constant::Constant(Graph& graph, int rows, int cols) : 
+Constant::Constant(Graph& graph, size_t rows, size_t cols) :
 Function(graph)
 {
   _value.resize(rows, cols);
@@ -368,7 +379,7 @@ Function(graph)
 ///////////////////////////////////////////
 
 // random variable
-Variable::Variable(Graph& graph, int rows, int cols) : 
+Variable::Variable(Graph& graph, size_t rows, size_t cols) :
 Function(graph)
 {
   // Xavier initialization
@@ -389,7 +400,7 @@ const Tensor& Variable::backward()
     _gradient = Tensor::Zero(_value.rows(), _value.cols());
   }
 
-  if (_backprop) _graph.aggregate(_gradient, _derivative);
+  if (_backprop) _graph.aggregate(_gradient, _backward);
 
   return _gradient;
 }
@@ -399,14 +410,21 @@ const Tensor& Variable::backward()
 ///////////////////////////////////////////
 
 Broadcast::Broadcast(Graph& graph, Function& x, Function& target) :
-Function(graph), _x(x), _t(target)
+Function(graph)
 {
+  iforward(&x);
+  iforward(&target);
+
   // Broadcast Backward function
   class Derivative_x : public Function
   {
   public:
-    Derivative_x(Graph& graph, Broadcast& base) :
-    Function(graph), _base(base) { graph.keep(this); }
+    Derivative_x(Graph& graph, Broadcast& base) : Function(graph)
+    {
+      iforward(&base);
+      iforward(base._forward[0]);
+      graph.keep(this);
+    }
 
     // dFdx = 1
     virtual const Tensor& forward()
@@ -414,8 +432,8 @@ Function(graph), _x(x), _t(target)
       // return cached value
       if (_value.size()) return _value;
 
-      auto& g = _base.backward();
-      auto& x = _base._x.forward();
+      auto& g = _forward[0]->backward();
+      auto& x = _forward[1]->forward();
 
       // broadcast row-wise
       if (x.rows() == 1 && x.cols() > 1)
@@ -439,12 +457,9 @@ Function(graph), _x(x), _t(target)
       // return gradient value
       return _value;
     }
-
-  private:
-    Broadcast& _base;
   };
 
-  _x.derivative(new Derivative_x(_graph, *this));
+  x.ibackward(new Derivative_x(_graph, *this));
 }
 
 // F = x (x broadcast to target)
@@ -454,25 +469,27 @@ const Tensor& Broadcast::forward()
   if (_value.size()) return _value;
 
   // get source and target
-  auto& x = _x.forward();
-  auto& t = _t.forward();
+  auto& x = _forward[0]->forward();
+  auto& t = _forward[1]->forward();
+  auto rows = t.rows();
+  auto cols = t.cols();
 
   // broadcast row-wise
   if (x.rows() == 1 && x.cols() > 1)
   {
-    _value = Tensor::Zero(t.rows(), t.cols());
+    _value = Tensor::Zero(rows, cols);
     _value.rowwise() += ConstRowVectorMap(x.data(), x.size());
   }
   // broadcast col-wise
   else if (x.rows() > 1 && x.cols() == 1)
   {
-    _value = Tensor::Zero(t.rows(), t.cols());
+    _value = Tensor::Zero(rows, cols);
     _value.colwise() += ConstColVectorMap(x.data(), x.size());
   }
   // broadcast any size
   else
   {
-    _value = Tensor::Constant(t.rows(), t.cols(), x.sum());
+    _value = Tensor::Constant(rows, cols, x.sum());
   }
 
   return _value;
@@ -482,15 +499,21 @@ const Tensor& Broadcast::forward()
 // Function Reshape
 ///////////////////////////////////////////
 
-Reshape::Reshape(Graph& graph, Function& x, int rows, int cols) :
-Function(graph), _x(x), _rows(rows), _cols(cols)
+Reshape::Reshape(Graph& graph, Function& x, size_t rows, size_t cols) :
+Function(graph), _rows(rows), _cols(cols)
 {
+  iforward(&x);
+
   // Reshape Backward function
   class Derivative_x : public Function
   {
   public:
-    Derivative_x(Graph& graph, Reshape& base) :
-    Function(graph), _base(base) { graph.keep(this); }
+    Derivative_x(Graph& graph, Reshape& base) : Function(graph)
+    {
+      iforward(&base);
+      iforward(base._forward[0]);
+      graph.keep(this);
+    }
 
     // dFdx = 1
     virtual const Tensor& forward()
@@ -498,8 +521,8 @@ Function(graph), _x(x), _rows(rows), _cols(cols)
       // return cached value
       if (_value.size()) return _value;
 
-      auto& g = _base.backward();
-      auto& x = _base._x.forward();
+      auto& g = _forward[0]->backward();
+      auto& x = _forward[1]->forward();
 
       // pass the reshaped gradient through (default is ColMajor)
       auto dFdx = g.reshaped<Eigen::RowMajor>(x.rows(), x.cols());
@@ -510,12 +533,9 @@ Function(graph), _x(x), _rows(rows), _cols(cols)
       // return gradient value
       return _value;
     }
-
-  private:
-    Reshape& _base;
   };
 
-  _x.derivative(new Derivative_x(graph, *this));
+  x.ibackward(new Derivative_x(graph, *this));
 }
 
 // F = x
@@ -525,7 +545,7 @@ const Tensor& Reshape::forward()
   if (_value.size()) return _value;
 
   // get input
-  auto& x = _x.forward();
+  auto& x = _forward[0]->forward();
 
   // update value (reshaped() default is ColMajor)
   _value = x.reshaped<Eigen::RowMajor>(_rows, _cols);
@@ -537,15 +557,21 @@ const Tensor& Reshape::forward()
 // Function Split
 ///////////////////////////////////////////
 
-Split::Split(Graph& graph, Function& x, int r, int c, int rows, int cols) :
-Function(graph), _x(x), _r(r), _c(c), _rows(rows), _cols(cols)
+Split::Split(Graph& graph, Function& x, size_t r, size_t c, size_t rows, size_t cols) :
+Function(graph), _r(r), _c(c), _rows(rows), _cols(cols)
 {
+  iforward(&x);
+
   // Split Backward function
   class Derivative_x : public Function
   {
   public:
-    Derivative_x(Graph& graph, Split& base) :
-    Function(graph), _base(base) { graph.keep(this); }
+    Derivative_x(Graph& graph, Split& base) : Function(graph)
+    {
+      iforward(&base);
+      iforward(base._forward[0]);
+      graph.keep(this);
+    }
 
     // dFdx = 1
     virtual const Tensor& forward()
@@ -553,12 +579,19 @@ Function(graph), _x(x), _r(r), _c(c), _rows(rows), _cols(cols)
       // return cached value
       if (_value.size()) return _value;
 
-      auto& g = _base.backward();
-      auto& x = _base._x.forward();
+      auto base = (Split*)_forward[0];
+
+      auto& g = _forward[0]->backward();
+      auto& x = _forward[1]->forward();
+
+      auto r = base->_r;
+      auto c = base->_c;
+      auto rows = base->_rows;
+      auto cols = base->_cols;
 
       // pass the gradient through the block
       Tensor dFdx = Tensor::Zero(x.rows(), x.cols());
-      dFdx.block(_base._r, _base._c, _base._rows, _base._cols) = g;
+      dFdx.block(r, c, rows, cols) = g;
 
       // update gradient value
       _value = dFdx;
@@ -566,12 +599,9 @@ Function(graph), _x(x), _r(r), _c(c), _rows(rows), _cols(cols)
       // return gradient value
       return _value;
     }    
-
-  private:
-    Split& _base;
   };
 
-  _x.derivative(new Derivative_x(graph, *this));
+  x.ibackward(new Derivative_x(graph, *this));
 }
 
 // F = block(x)
@@ -581,7 +611,7 @@ const Tensor& Split::forward()
   if (_value.size()) return _value;
 
   // get input
-  auto& x = _x.forward();
+  auto& x = _forward[0]->forward();
 
   // update value
   _value = x.block(_r, _c, _rows, _cols);
@@ -594,15 +624,22 @@ const Tensor& Split::forward()
 // Function Join
 ///////////////////////////////////////////
 
-Join::Join(Graph& graph, Function& x, Function& y, int rows, int cols) :
-Function(graph), _x(x), _y(y), _rows(rows), _cols(cols)
+Join::Join(Graph& graph, Function& x, Function& y, size_t rows, size_t cols) :
+Function(graph), _rows(rows), _cols(cols)
 {
+  iforward(&x);
+  iforward(&y);
+
   // Join Derivative with respect to X
   class Derivative_x : public Function
   {
   public:
-    Derivative_x(Graph& graph, Join& base) :
-    Function(graph), _base(base) { graph.keep(this); }
+    Derivative_x(Graph& graph, Join& base) : Function(graph)
+    {
+      iforward(&base);
+      iforward(base._forward[0]);
+      graph.keep(this);
+    }
 
     // dFdx = 1
     virtual const Tensor& forward()
@@ -610,8 +647,8 @@ Function(graph), _x(x), _y(y), _rows(rows), _cols(cols)
       // return cached value
       if (_value.size()) return _value;
 
-      auto& g = _base.backward();
-      auto& x = _base._x.forward();
+      auto& g = _forward[0]->backward();
+      auto& x = _forward[1]->forward();
 
       // split g into gx and gy (g data is already flat)
       ConstTensorMap gx(g.data(), x.rows(), x.cols());
@@ -619,18 +656,20 @@ Function(graph), _x(x), _y(y), _rows(rows), _cols(cols)
       // update gradient value
       _value = gx;
       return _value;
-    }    
-
-  private:
-    Join& _base;
+    }
   };
 
   // Join Derivative with respect to Y
   class Derivative_y : public Function
   {
   public:
-    Derivative_y(Graph& graph, Join& base) :
-    Function(graph), _base(base) { graph.keep(this); }
+    Derivative_y(Graph& graph, Join& base) : Function(graph)
+    {
+      iforward(&base);
+      iforward(base._forward[0]);
+      iforward(base._forward[1]);
+      graph.keep(this);
+    }
 
     // dFdy = 1
     virtual const Tensor& forward()
@@ -638,9 +677,9 @@ Function(graph), _x(x), _y(y), _rows(rows), _cols(cols)
       // return cached value
       if (_value.size()) return _value;
 
-      auto& g = _base.backward();
-      auto& x = _base._x.forward();
-      auto& y = _base._y.forward();
+      auto& g = _forward[0]->backward();
+      auto& x = _forward[1]->forward();
+      auto& y = _forward[2]->forward();
 
       // split g into gx and gy (g data is already flat)
       ConstTensorMap gy(g.data() + x.size(), y.rows(), y.cols());
@@ -649,13 +688,10 @@ Function(graph), _x(x), _y(y), _rows(rows), _cols(cols)
       _value = gy;
       return _value;
     }    
-
-  private:
-    Join& _base;
   };
 
-  _x.derivative(new Derivative_x(graph, *this));
-  _y.derivative(new Derivative_y(graph, *this));
+  x.ibackward(new Derivative_x(graph, *this));
+  y.ibackward(new Derivative_y(graph, *this));
 }
 
 // F = join(x)
@@ -665,8 +701,8 @@ const Tensor& Join::forward()
   if (_value.size()) return _value;
 
   // get input
-  auto& x = _x.forward();
-  auto& y = _y.forward();
+  auto& x = _forward[0]->forward();
+  auto& y = _forward[1]->forward();
 
   // join x and y into a flat vector
   ConstRowVectorMap vx(x.data(), x.size());
@@ -686,15 +722,22 @@ const Tensor& Join::forward()
 // Function Min
 ///////////////////////////////////////////
 
-Min::Min(Graph& graph, Function& x, Function& y) :
-Function(graph), _x(x), _y(y)
+Min::Min(Graph& graph, Function& x, Function& y) : Function(graph)
 {
+  iforward(&x);
+  iforward(&y);
+
   // Derivative with respect to X
   class Derivative_x : public Function
   {
   public:
-    Derivative_x(Graph& graph, Min& base) :
-    Function(graph), _base(base) { graph.keep(this); }
+    Derivative_x(Graph& graph, Min& base) : Function(graph)
+    {
+      iforward(&base);
+      iforward(base._forward[0]);
+      iforward(base._forward[1]);
+      graph.keep(this);
+    }
 
     // dFdx = 1 if x < y, 0 otherwise
     virtual const Tensor& forward()
@@ -702,9 +745,9 @@ Function(graph), _x(x), _y(y)
       // return cached value
       if (_value.size()) return _value;
 
-      auto& g = _base.backward();
-      auto& x = _base._x.forward();
-      auto& y = _base._y.forward();
+      auto& g = _forward[0]->backward();
+      auto& x = _forward[1]->forward();
+      auto& y = _forward[2]->forward();
 
       // compute gradient mask
       auto one = Tensor::Ones(x.rows(), x.cols());
@@ -716,17 +759,19 @@ Function(graph), _x(x), _y(y)
       _value = g.array() * dFdx_mask.array();
       return _value;
     }    
-
-  private:
-    Min& _base;
   };
 
   // Derivative with respect to Y
   class Derivative_y : public Function
   {
   public:
-    Derivative_y(Graph& graph, Min& base) :
-    Function(graph), _base(base) { graph.keep(this); }
+    Derivative_y(Graph& graph, Min& base) : Function(graph)
+    {
+      iforward(&base);
+      iforward(base._forward[0]);
+      iforward(base._forward[1]);
+      graph.keep(this);
+    }
 
     // dFdy = 1 if x > y, 0 otherwise
     virtual const Tensor& forward()
@@ -734,9 +779,9 @@ Function(graph), _x(x), _y(y)
       // return cached value
       if (_value.size()) return _value;
 
-      auto& g = _base.backward();
-      auto& x = _base._x.forward();
-      auto& y = _base._y.forward();
+      auto& g = _forward[0]->backward();
+      auto& x = _forward[1]->forward();
+      auto& y = _forward[2]->forward();
 
       // compute gradient mask
       auto one = Tensor::Ones(x.rows(), x.cols());
@@ -748,13 +793,10 @@ Function(graph), _x(x), _y(y)
       _value = g.array() * dFdy_mask.array();
       return _value;
     }    
-
-  private:
-    Min& _base;
   };
 
-  _x.derivative(new Derivative_x(graph, *this));
-  _y.derivative(new Derivative_y(graph, *this));
+  x.ibackward(new Derivative_x(graph, *this));
+  y.ibackward(new Derivative_y(graph, *this));
 }
 
 // F = min(x,y)
@@ -764,8 +806,8 @@ const Tensor& Min::forward()
   if (_value.size()) return _value;
 
   // get input
-  auto& x = _x.forward();
-  auto& y = _y.forward();
+  auto& x = _forward[0]->forward();
+  auto& y = _forward[1]->forward();
 
   // update value
   _value = x.array().min(y.array());
@@ -778,15 +820,22 @@ const Tensor& Min::forward()
 // Function Max
 ///////////////////////////////////////////
 
-Max::Max(Graph& graph, Function& x, Function& y) :
-Function(graph), _x(x), _y(y)
+Max::Max(Graph& graph, Function& x, Function& y) : Function(graph)
 {
+  iforward(&x);
+  iforward(&y);
+
   // Derivative with respect to X
   class Derivative_x : public Function
   {
   public:
-    Derivative_x(Graph& graph, Max& base) :
-    Function(graph), _base(base) { graph.keep(this); }
+    Derivative_x(Graph& graph, Max& base) : Function(graph)
+    {
+      iforward(&base);
+      iforward(base._forward[0]);
+      iforward(base._forward[1]);
+      graph.keep(this);
+    }
 
     // dFdx = 1 if x > y, 0 otherwise
     virtual const Tensor& forward()
@@ -794,9 +843,9 @@ Function(graph), _x(x), _y(y)
       // return cached value
       if (_value.size()) return _value;
 
-      auto& d = _base.backward();
-      auto& x = _base._x.forward();
-      auto& y = _base._y.forward();
+      auto& g = _forward[0]->backward();
+      auto& x = _forward[1]->forward();
+      auto& y = _forward[2]->forward();
 
       // compute gradient mask
       auto one = Tensor::Ones(x.rows(), x.cols());
@@ -804,20 +853,22 @@ Function(graph), _x(x), _y(y)
       auto dFdx_mask = (x.array() > y.array()).select(one, zero);
 
       // update gradient value
-      _value = d.array() * dFdx_mask.array();
+      _value = g.array() * dFdx_mask.array();
       return _value;
     }    
-
-  private:
-    Max& _base;
   };
 
   // Derivative with respect to Y
   class Derivative_y : public Function
   {
   public:
-    Derivative_y(Graph& graph, Max& base) :
-    Function(graph), _base(base) { graph.keep(this); }
+    Derivative_y(Graph& graph, Max& base) : Function(graph)
+    {
+      iforward(&base);
+      iforward(base._forward[0]);
+      iforward(base._forward[1]);
+      graph.keep(this);
+    }
 
     // dFdy = 1 if x < y, 0 otherwise
     virtual const Tensor& forward()
@@ -825,9 +876,9 @@ Function(graph), _x(x), _y(y)
       // return cached value
       if (_value.size()) return _value;
 
-      auto& d = _base.backward();
-      auto& x = _base._x.forward();
-      auto& y = _base._y.forward();
+      auto& g = _forward[0]->backward();
+      auto& x = _forward[1]->forward();
+      auto& y = _forward[2]->forward();
 
       // compute gradient mask
       auto one = Tensor::Ones(x.rows(), x.cols());
@@ -835,16 +886,13 @@ Function(graph), _x(x), _y(y)
       auto dFdy_mask = (x.array() < y.array()).select(one, zero);
 
       // update gradient value
-      _value = d.array() * dFdy_mask.array();
+      _value = g.array() * dFdy_mask.array();
       return _value;
     }    
-
-  private:
-    Max& _base;
   };
 
-  _x.derivative(new Derivative_x(graph, *this));
-  _y.derivative(new Derivative_y(graph, *this));
+  x.ibackward(new Derivative_x(graph, *this));
+  y.ibackward(new Derivative_y(graph, *this));
 }
 
 // F = max(x,y)
@@ -854,8 +902,8 @@ const Tensor& Max::forward()
   if (_value.size()) return _value;
 
   // get input
-  auto& x = _x.forward();
-  auto& y = _y.forward();
+  auto& x = _forward[0]->forward();
+  auto& y = _forward[1]->forward();
 
   // update value
   _value = x.array().max(y.array());
@@ -898,6 +946,8 @@ Function(graph)
 
 void Linear::init(Function& x)
 {
+  iforward(&x);
+
   // col major
   // F = W * x + b
   // _y = _graph.new_product(*_W, x);
@@ -911,7 +961,7 @@ void Linear::init(Function& x)
     _y = _graph.new_add(*_y, *_graph.new_broadcast(*_b, *_y));
   }
 
-  _y->derivative(_graph.new_iderivative(*this));
+  _y->ibackward(_graph.new_iderivative(*this));
 }
 
 const Tensor& Linear::forward()
@@ -930,15 +980,22 @@ const Tensor& Linear::forward()
 // Function Product
 ///////////////////////////////////////////
 
-Product::Product(Graph& graph, Function& x, Function& y) : 
-Function(graph), _x(x), _y(y)
+Product::Product(Graph& graph, Function& x, Function& y) :
+Function(graph)
 {
+  iforward(&x);
+  iforward(&y);
+
   // Derivative with respect to x
   class Derivative_x : public Function
   {
   public:
-    Derivative_x(Graph& graph, Product& base) :
-    Function(graph), _base(base) { graph.keep(this); }
+    Derivative_x(Graph& graph, Product& base) : Function(graph)
+    {
+      iforward(&base);
+      iforward(base._forward[1]);
+      graph.keep(this);
+    }
 
     // dFdx = y.T
     virtual const Tensor& forward()
@@ -946,26 +1003,27 @@ Function(graph), _x(x), _y(y)
       // return cached value
       if (_value.size()) return _value;
 
-      auto& g = _base.backward();
-      auto& y = _base._y.forward();
+      auto& g = _forward[0]->backward();
+      auto& y = _forward[1]->forward();
 
       auto& dFdx = y;
 
       // update gradient value
       _value = ABT(g, dFdx);
       return _value;
-    }    
-
-  private:
-    Product& _base;
+    }
   };
 
   // Derivative with respect to y
   class Derivative_y : public Function
   {
   public:
-    Derivative_y(Graph& graph, Product& base) :
-    Function(graph), _base(base) { graph.keep(this); }
+    Derivative_y(Graph& graph, Product& base) : Function(graph)
+    {
+      iforward(&base);
+      iforward(base._forward[0]);
+      graph.keep(this);
+    }
 
     // dFdy = x.T
     virtual const Tensor& forward()
@@ -973,22 +1031,19 @@ Function(graph), _x(x), _y(y)
       // return cached value
       if (_value.size()) return _value;
 
-      auto& g = _base.backward();
-      auto& x = _base._x.forward();
+      auto& g = _forward[0]->backward();
+      auto& x = _forward[1]->forward();
 
       auto& dFdy = x;
 
       // update gradient value
       _value = ATB(dFdy, g);
       return _value;
-    }    
-
-  private:
-    Product& _base;
+    }
   };
 
-  _x.derivative(new Derivative_x(graph, *this));
-  _y.derivative(new Derivative_y(graph, *this));
+  x.ibackward(new Derivative_x(graph, *this));
+  y.ibackward(new Derivative_y(graph, *this));
 }
 
 // F = x * y
@@ -998,8 +1053,8 @@ const Tensor& Product::forward()
   if (_value.size()) return _value;
 
   // get input
-  auto& x = _x.forward();
-  auto& y = _y.forward();
+  auto& x = _forward[0]->forward();
+  auto& y = _forward[1]->forward();
 
   // create cached value
   _value.noalias() = x * y;
@@ -1012,15 +1067,20 @@ const Tensor& Product::forward()
 // Function Add
 ///////////////////////////////////////////
 
-Add::Add(Graph& graph, Function& x, Function& y) : 
-Function(graph), _x(x), _y(y) 
+Add::Add(Graph& graph, Function& x, Function& y) : Function(graph)
 {
+  iforward(&x);
+  iforward(&y);
+
   // Derivative with respect to x or y
   class Derivative_any : public Function
   {
   public:
-    Derivative_any(Graph& graph, Add& base) :
-    Function(graph), _base(base) { graph.keep(this); }
+    Derivative_any(Graph& graph, Add& base) : Function(graph)
+    {
+      iforward(&base);
+      graph.keep(this);
+    }
 
     // dFdx = 1
     // dFdy = 1
@@ -1029,19 +1089,16 @@ Function(graph), _x(x), _y(y)
       // return cached value
       if (_value.size()) return _value;
 
-      auto& g = _base.backward();
+      auto& g = _forward[0]->backward();
 
       // update gradient value
       _value = g;
       return _value;
-    }    
-
-  private:
-    Add& _base;
+    }
   };
 
-  _x.derivative(new Derivative_any(graph, *this));
-  _y.derivative(new Derivative_any(graph, *this));
+  x.ibackward(new Derivative_any(graph, *this));
+  y.ibackward(new Derivative_any(graph, *this));
 }
 
 // F = x + y
@@ -1051,8 +1108,8 @@ const Tensor& Add::forward()
   if (_value.size()) return _value;
 
   // get inputs
-  auto& x = _x.forward();
-  auto& y = _y.forward();
+  auto& x = _forward[0]->forward();
+  auto& y = _forward[1]->forward();
 
   // update value
   _value.noalias() = x + y;
@@ -1065,15 +1122,20 @@ const Tensor& Add::forward()
 // Function Sub
 ///////////////////////////////////////////
 
-Sub::Sub(Graph& graph, Function& x, Function& y) : 
-Function(graph), _x(x), _y(y)
+Sub::Sub(Graph& graph, Function& x, Function& y) : Function(graph)
 {
+  iforward(&x);
+  iforward(&y);
+
   // Derivative with respect to x
   class Derivative_x : public Function
   {
   public:
-    Derivative_x(Graph& graph, Sub& base) :
-    Function(graph), _base(base) { graph.keep(this); }
+    Derivative_x(Graph& graph, Sub& base) : Function(graph)
+    {
+      iforward(&base);
+      graph.keep(this);
+    }
 
     // dFdx = 1
     virtual const Tensor& forward()
@@ -1081,23 +1143,23 @@ Function(graph), _x(x), _y(y)
       // return cached value
       if (_value.size()) return _value;
 
-      auto& g = _base.backward();
+      auto& g = _forward[0]->backward();
 
       // update gradient value
       _value = g;
       return _value;
-    }    
-
-  private:
-    Sub& _base;
+    }
   };
 
   // Derivative with respect to y
   class Derivative_y : public Function
   {
   public:
-    Derivative_y(Graph& graph, Sub& base) :
-    Function(graph), _base(base) { graph.keep(this); }
+    Derivative_y(Graph& graph, Sub& base) : Function(graph)
+    {
+      iforward(&base);
+      graph.keep(this);
+    }
 
     // dFdy = -1
     virtual const Tensor& forward()
@@ -1105,19 +1167,16 @@ Function(graph), _x(x), _y(y)
       // return cached value
       if (_value.size()) return _value;
 
-      auto& g = _base.backward();
+      auto& g = _forward[0]->backward();
 
       // update gradient value
       _value = -g;
       return _value;
     }    
-
-  private:
-    Sub& _base;
   };
 
-  _x.derivative(new Derivative_x(graph, *this));
-  _y.derivative(new Derivative_y(graph, *this));
+  x.ibackward(new Derivative_x(graph, *this));
+  y.ibackward(new Derivative_y(graph, *this));
 }
 
 // F = x - y
@@ -1127,8 +1186,8 @@ const Tensor& Sub::forward()
   if (_value.size()) return _value;
 
   // get inputs
-  auto& x = _x.forward();
-  auto& y = _y.forward();
+  auto& x = _forward[0]->forward();
+  auto& y = _forward[1]->forward();
 
   // update value
   _value.noalias() = x - y;
@@ -1141,15 +1200,21 @@ const Tensor& Sub::forward()
 // Function Mul
 ///////////////////////////////////////////
 
-Mul::Mul(Graph& graph, Function& x, Function& y) :
-Function(graph), _x(x), _y(y)
+Mul::Mul(Graph& graph, Function& x, Function& y) : Function(graph)
 {
+  iforward(&x);
+  iforward(&y);
+
   // Derivative with respect to x
   class Derivative_x : public Function
   {
   public:
-    Derivative_x(Graph& graph, Mul& base) :
-    Function(graph), _base(base) { graph.keep(this); }
+    Derivative_x(Graph& graph, Mul& base) : Function(graph)
+    {
+      iforward(&base);
+      iforward(base._forward[1]);
+      graph.keep(this);
+    }
 
     // dFdx = y
     virtual const Tensor& forward()
@@ -1157,8 +1222,8 @@ Function(graph), _x(x), _y(y)
       // return cached value
       if (_value.size()) return _value;
 
-      auto& g = _base.backward();
-      auto& y = _base._y.forward();
+      auto& g = _forward[0]->backward();
+      auto& y = _forward[1]->forward();
 
       auto& dFdx = y;
 
@@ -1167,17 +1232,18 @@ Function(graph), _x(x), _y(y)
 
       return _value;
     }    
-
-  private:
-    Mul& _base;
   };
 
   // Derivative with respect to y
   class Derivative_y : public Function
   {
   public:
-    Derivative_y(Graph& graph, Mul& base) :
-    Function(graph), _base(base) { graph.keep(this); }
+    Derivative_y(Graph& graph, Mul& base) : Function(graph)
+    {
+      iforward(&base);
+      iforward(base._forward[0]);
+      graph.keep(this);
+    }
 
     // dFdy = x
     virtual const Tensor& forward()
@@ -1185,8 +1251,8 @@ Function(graph), _x(x), _y(y)
       // return cached value
       if (_value.size()) return _value;
 
-      auto& g = _base.backward();
-      auto& x = _base._x.forward();
+      auto& g = _forward[0]->backward();
+      auto& x = _forward[1]->forward();
 
       auto& dFdy = x;
 
@@ -1195,13 +1261,10 @@ Function(graph), _x(x), _y(y)
 
       return _value;
     }    
-
-  private:
-    Mul& _base;
   };
 
-  _x.derivative(new Derivative_x(graph, *this));
-  _y.derivative(new Derivative_y(graph, *this));
+  x.ibackward(new Derivative_x(graph, *this));
+  y.ibackward(new Derivative_y(graph, *this));
 }
 
 // F = x * y
@@ -1211,8 +1274,8 @@ const Tensor& Mul::forward()
   if (_value.size()) return _value;
 
   // get inputs
-  auto& x = _x.forward();
-  auto& y = _y.forward();
+  auto& x = _forward[0]->forward();
+  auto& y = _forward[1]->forward();
 
   // update value
   _value = x.array() * y.array();
@@ -1225,15 +1288,22 @@ const Tensor& Mul::forward()
 // Function Power
 ///////////////////////////////////////////
 
-Power::Power(Graph& graph, Function& x, Function& y) :
-Function(graph), _x(x), _y(y)
+Power::Power(Graph& graph, Function& x, Function& y) : Function(graph)
 {
+  iforward(&x);
+  iforward(&y);
+
   // Derivative with respect to x
   class Derivative_x : public Function
   {
   public:
-    Derivative_x(Graph& graph, Power& base) :
-    Function(graph), _base(base) { graph.keep(this); }
+    Derivative_x(Graph& graph, Power& base) : Function(graph)
+    {
+      iforward(&base);
+      iforward(base._forward[0]);
+      iforward(base._forward[1]);
+      graph.keep(this);
+    }
 
     // dFdx = y * pow(F, y-1)
     virtual const Tensor& forward()
@@ -1241,10 +1311,10 @@ Function(graph), _x(x), _y(y)
       // return cached value
       if (_value.size()) return _value;
 
-      auto& F = _base.forward();
-      auto& g = _base.backward();
-      auto& x = _base._x.forward();
-      auto& y = _base._y.forward();
+      auto& F = _forward[0]->forward();
+      auto& g = _forward[0]->backward();
+      auto& x = _forward[1]->forward();
+      auto& y = _forward[2]->forward();
 
       auto dFdx = y.array() * x.array().pow(y.array() - 1);
 
@@ -1252,17 +1322,19 @@ Function(graph), _x(x), _y(y)
       _value = g.array() * dFdx.array();
       return _value;
     }    
-
-  private:
-    Power& _base;
   };
 
   // Derivative with respect to y
   class Derivative_y : public Function
   {
   public:
-    Derivative_y(Graph& graph, Power& base) :
-    Function(graph), _base(base) { graph.keep(this); }
+    Derivative_y(Graph& graph, Power& base) : Function(graph)
+    {
+      iforward(&base);
+      iforward(base._forward[0]);
+      iforward(base._forward[1]);
+      graph.keep(this);
+    }
 
     // dFdy = F * log(x)
     virtual const Tensor& forward()
@@ -1270,10 +1342,10 @@ Function(graph), _x(x), _y(y)
       // return cached value
       if (_value.size()) return _value;
 
-      auto& F = _base.forward();
-      auto& g = _base.backward();
-      auto& x = _base._x.forward();
-      auto& y = _base._y.forward();
+      auto& F = _forward[0]->forward();
+      auto& g = _forward[0]->backward();
+      auto& x = _forward[1]->forward();
+      auto& y = _forward[2]->forward();
 
       auto dFdy = F.array() * x.array().log();
 
@@ -1281,13 +1353,10 @@ Function(graph), _x(x), _y(y)
       _value = g.array() * dFdy.array();
       return _value;
     }    
-
-  private:
-    Power& _base;
   };
 
-  _x.derivative(new Derivative_x(graph, *this));
-  _y.derivative(new Derivative_y(graph, *this));
+  x.ibackward(new Derivative_x(graph, *this));
+  y.ibackward(new Derivative_y(graph, *this));
 }
 
 // F = pow(x, y)
@@ -1297,8 +1366,8 @@ const Tensor& Power::forward()
   if (_value.size()) return _value;
 
   // get inputs
-  auto& x = _x.forward();
-  auto& y = _y.forward();
+  auto& x = _forward[0]->forward();
+  auto& y = _forward[1]->forward();
 
   // update value
   _value = x.array().pow(y.array());
@@ -1311,14 +1380,19 @@ const Tensor& Power::forward()
 // Function Tanh
 ///////////////////////////////////////////
 
-Tanh::Tanh(Graph& graph, Function& x) : Function(graph), _x(x)
+Tanh::Tanh(Graph& graph, Function& x) : Function(graph)
 {
+  iforward(&x);
+
   // Derivative with respect to x
   class Derivative_x : public Function
   {
   public:
-    Derivative_x(Graph& graph, Tanh& base) :
-    Function(graph), _base(base) { graph.keep(this); }
+    Derivative_x(Graph& graph, Tanh& base) : Function(graph)
+    {
+      iforward(&base);
+      graph.keep(this);
+    }
 
     // dFdx = 1 - (tanh(x))^2
     virtual const Tensor& forward()
@@ -1326,8 +1400,8 @@ Tanh::Tanh(Graph& graph, Function& x) : Function(graph), _x(x)
       // return cached gradient
       if (_value.size()) return _value;
 
-      auto& g = _base.backward();
-      auto& F = _base.forward();
+      auto& g = _forward[0]->backward();
+      auto& F = _forward[0]->forward();
 
       auto dFdx = 1 - F.array() * F.array();
 
@@ -1335,13 +1409,10 @@ Tanh::Tanh(Graph& graph, Function& x) : Function(graph), _x(x)
       _value = g.array() * dFdx.array();
 
       return _value;
-    }    
-
-  private:
-    Tanh& _base;
+    }
   };
 
-  _x.derivative(new Derivative_x(graph, *this));
+  x.ibackward(new Derivative_x(graph, *this));
 }
 
 // F = (exp(x) - exp(-x) / (exp(x) + exp(-x))
@@ -1351,7 +1422,7 @@ const Tensor& Tanh::forward()
   if (_value.size()) return _value;
 
   // get input
-  auto& x = _x.forward();
+  auto& x = _forward[0]->forward();
 
   // update value
   _value = x.array().tanh();
@@ -1365,14 +1436,19 @@ const Tensor& Tanh::forward()
 ///////////////////////////////////////////
 
 Sigmoid::Sigmoid(Graph& graph, Function& x) :
-Function(graph), _x(x)
+Function(graph)
 {
+  iforward(&x);
+
   // Derivative with respect to x
   class Derivative_x : public Function
   {
   public:
-    Derivative_x(Graph& graph, Sigmoid& base) :
-    Function(graph), _base(base) { graph.keep(this); }
+    Derivative_x(Graph& graph, Sigmoid& base) : Function(graph)
+    {
+      iforward(&base);
+      graph.keep(this);
+    }
 
     // dFdx = F(1 - F)
     virtual const Tensor& forward()
@@ -1380,8 +1456,8 @@ Function(graph), _x(x)
       // return cached gradient
       if (_value.size()) return _value;
 
-      auto& g = _base.backward();
-      auto& F = _base.forward();
+      auto& g = _forward[0]->backward();
+      auto& F = _forward[0]->forward();
 
       auto dFdx = F.array() * (1 - F.array());
 
@@ -1390,12 +1466,9 @@ Function(graph), _x(x)
 
       return _value;
     }    
-
-  private:
-    Sigmoid& _base;
   };
 
-  _x.derivative(new Derivative_x(graph, *this));
+  x.ibackward(new Derivative_x(graph, *this));
 }
 
 // F = 1 / (1 + exp(-x))
@@ -1405,7 +1478,7 @@ const Tensor& Sigmoid::forward()
   if (_value.size()) return _value;
 
   // get input
-  auto& x = _x.forward();
+  auto& x = _forward[0]->forward();
 
   // update value
   //_value = 1 / (1 + (-x).array().exp());
@@ -1423,13 +1496,15 @@ const Tensor& Sigmoid::forward()
 ReLU::ReLU(Graph& graph, Function& x) :
 Function(graph)
 {
+  iforward(&x);
+
   auto& zero = scalar(graph, 0);
 
   // create relu from function max and constant '0'
   _relu = graph.new_max(x, *graph.new_broadcast(zero, x));
 
   // let output handle the gradient directly
-  _relu->derivative(_graph.new_iderivative(*this));
+  _relu->ibackward(_graph.new_iderivative(*this));
 }
 
 // F = max(x, 0)
@@ -1450,14 +1525,19 @@ const Tensor& ReLU::forward()
 ///////////////////////////////////////////
 
 Dropout::Dropout(Graph& graph, Function& x, DTYPE rate) :
-Function(graph), _x(x), _rate(rate), _enabled(true)
+Function(graph), _rate(rate), _enabled(true)
 {
+  iforward(&x);
+
   // Derivative with respect to x
   class Derivative_x : public Function
   {
   public:
-    Derivative_x(Graph& graph, Dropout& base) :
-    Function(graph), _base(base) { graph.keep(this); }
+    Derivative_x(Graph& graph, Dropout& base) : Function(graph)
+    {
+      iforward(&base);
+      graph.keep(this);
+    }
 
     // dFdy = x * mask
     virtual const Tensor& forward()
@@ -1465,8 +1545,10 @@ Function(graph), _x(x), _rate(rate), _enabled(true)
       // return cached value
       if (_value.size()) return _value;
 
-      auto& g = _base.backward();
-      auto& m = _base._mask;
+      auto base = (Dropout*)_forward[0];
+
+      auto& g = base->backward();
+      auto& m = base->_mask;
 
       auto dFdx = g.array() * m.array();
 
@@ -1474,12 +1556,9 @@ Function(graph), _x(x), _rate(rate), _enabled(true)
       _value = dFdx;
       return _value;
     }
-
-  private:
-    Dropout& _base;
   };
 
-  _x.derivative(new Derivative_x(graph, *this));
+  x.ibackward(new Derivative_x(graph, *this));
 }
 
 // F = x * mask
@@ -1489,7 +1568,7 @@ const Tensor& Dropout::forward()
   if (_value.size()) return _value;
 
   // get values
-  auto& x = _x.forward();
+  auto& x = _forward[0]->forward();
 
   // compute dropout mask
   if (_enabled)
@@ -1513,20 +1592,180 @@ const Tensor& Dropout::forward()
 }
 
 ///////////////////////////////////////////
+// Function Error
+///////////////////////////////////////////
+
+Erf::Erf(Graph& graph, Function& x) :
+Function(graph)
+{
+  iforward(&x);
+
+  // Derivative with respect to x
+  class Derivative_x : public Function
+  {
+  public:
+    Derivative_x(Graph& graph, Erf& base) : Function(graph)
+    {
+      iforward(&base);
+      iforward(base._forward[0]);
+      graph.keep(this);
+    }
+
+    // dFdx = (2 / sqrt(pi)) * exp(-x^2)
+    virtual const Tensor& forward()
+    {
+      // return cached gradient
+      if (_value.size()) return _value;
+
+      auto& g = _forward[0]->backward();
+      auto& x = _forward[1]->forward();
+
+      // M_2_SQRTPI = 2/sqrt(pi)
+      auto dFdx = M_2_SQRTPI * (-x.array() * x.array()).exp();
+
+      // update gradient value
+      _value = dFdx.array() * g.array();
+
+     return _value;
+    }
+  };
+
+  x.ibackward(new Derivative_x(graph, *this));
+}
+
+// F = erf(x)
+const Tensor& Erf::forward()
+{
+  // return cached value
+  if (_value.size()) return _value;
+
+  // get input
+  auto& x = _forward[0]->forward();
+
+  // update value
+  _value = x.array().erf();
+
+  // return value
+  return _value;
+}
+
+///////////////////////////////////////////
+// Function GeLU
+///////////////////////////////////////////
+
+#ifdef APPROXIMATE_GELU
+
+GeLU::GeLU(Graph& graph, Function& x) :
+Function(graph)
+{
+  iforward(&x);
+
+  // M_2_PI = 2 / pi
+  //_gelu = &(0.5 * x * (1.0 + *graph.new_tanh(
+  //  M_2_PI * (x + 0.044715 * *graph.new_power(x, 3))
+  //)));
+
+  _gelu = &(x * *graph.new_sigmoid(1.702 * x));
+
+  _gelu->ibackward(graph.new_iderivative(*this));
+}
+
+// F = 0.5 (1 + tanh(√2/π(x + 0.044715 x^3)))
+const Tensor& GeLU::forward()
+{
+  // return cached value
+  if (_value.size()) return _value;
+
+  _value = _gelu->forward();
+
+  // return value
+  return _value;
+}
+
+#else
+
+GeLU::GeLU(Graph& graph, Function& x) :
+Function(graph)
+{
+  iforward(&x);
+
+  // Derivative with respect to x
+  class Derivative_x : public Function
+  {
+  public:
+    Derivative_x(Graph& graph, GeLU& base) : Function(graph)
+    {
+      iforward(&base);
+      iforward(base._forward[0]);
+      graph.keep(this);
+    }
+
+    // F = 0.5 * x * (1 + erf(x / sqrt(2)))
+    // z(x) = x / sqrt(2)
+    // F = 0.5 * x * (1 + erf(z))
+    // dFdx = 0.5 * (1 + erf(z)) + 0.5 * x * derfdz / sqrt(2)
+    // derfdz = erf(-z^2) * 2 / sqrt(pi)
+    // dFdx = 0.5 * (1 + erf(z)) + 0.5 * x * erf(-z^2) * 2 / sqrt(pi) / sqrt(2)
+    virtual const Tensor& forward()
+    {
+      // return cached gradient
+      if (_value.size()) return _value;
+
+      auto& g = _forward[0]->backward();
+      auto& x = _forward[1]->forward();
+
+      auto z = x.array() * M_SQRT1_2;
+      auto derfdz = M_2_SQRTPI * (-z.array() * z.array()).exp();
+      Tensor dFdx = 0.5 * (1 + z.erf()) + 0.5 * x.array() * derfdz * M_SQRT1_2;
+
+      // update gradient value
+      _value = g.array() * dFdx.array();
+
+      return _value;
+    }
+  };
+
+  x.ibackward(new Derivative_x(graph, *this));
+}
+
+// F = 0.5 * x * (1 + erf(x / sqrt(2)))
+const Tensor& GeLU::forward()
+{
+  // return cached value
+  if (_value.size()) return _value;
+
+  // get input
+  auto& x = _forward[0]->forward();
+
+  // update value
+  _value = 0.5 * x.array() * (1 + (x.array() * M_SQRT1_2).erf());
+
+  // return value
+  return _value;
+}
+
+#endif
+
+///////////////////////////////////////////
 // Function Softmax
 ///////////////////////////////////////////
 
 // Derivative approches 0 when error is evently distributed.
 // Use LogSoftmax for training and Softmax for inference.
 Softmax::Softmax(Graph& graph, Function& x) :
-Function(graph), _x(x)
+Function(graph)
 {
+  iforward(&x);
+
   // Derivative with respect to x
   class Derivative_x : public Function
   {
   public:
-    Derivative_x(Graph& graph, Softmax& base) :
-    Function(graph), _base(base) { graph.keep(this); }
+    Derivative_x(Graph& graph, Softmax& base) : Function(graph)
+    {
+      iforward(&base);
+      graph.keep(this);
+    }
 
     // dFdx(j,i) = F(i)(K(i,j) - F(j))
     // K(i,j) = 1 for i==j, 0 for i!=j (Kronecker delta)
@@ -1535,8 +1774,8 @@ Function(graph), _x(x)
       // return cached gradient
       if (_value.size()) return _value;
 
-      auto& g = _base.backward();
-      auto& y = _base.forward();
+      auto& g = _forward[0]->backward();
+      auto& y = _forward[0]->forward();
 
       // reshape input to flat row vector
       auto F = y.reshaped(1, y.size());
@@ -1557,12 +1796,9 @@ Function(graph), _x(x)
 
       return _value;
     }    
-
-  private:
-    Softmax& _base;
   };
 
-  _x.derivative(new Derivative_x(graph, *this));
+  x.ibackward(new Derivative_x(graph, *this));
 }
 
 // F = exp(x) / sum(exp(x))
@@ -1572,7 +1808,7 @@ const Tensor& Softmax::forward()
   if (_value.size()) return _value;
 
   // get input vector
-  auto& x = _x.forward();
+  auto& x = _forward[0]->forward();
 
   // for numerical stability subtract max(_x) before exponential
   auto exp_x = (x.array() - x.maxCoeff()).exp();
@@ -1589,14 +1825,19 @@ const Tensor& Softmax::forward()
 ///////////////////////////////////////////
 
 Softplus::Softplus(Graph& graph, Function& x) :
-Function(graph), _x(x)
+Function(graph)
 {
+  iforward(&x);
+
   // Derivative with respect to x
   class Derivative_x : public Function
   {
   public:
-    Derivative_x(Graph& graph, Softplus& base) :
-    Function(graph), _base(base) { graph.keep(this); }
+    Derivative_x(Graph& graph, Softplus& base) : Function(graph)
+    {
+      iforward(base._forward[0]);
+      graph.keep(this);
+    }
 
     // dFdx = sigmoid(x) = 1 / (1 + exp(-x))
     virtual const Tensor& forward()
@@ -1605,7 +1846,7 @@ Function(graph), _x(x)
       if (_value.size()) return _value;
 
       // get input
-      auto& x = _base._x.forward();
+      auto& x = _forward[0]->forward();
 
       // update gradient
       //_value = 1 / (1 + (-x).array().exp());
@@ -1615,12 +1856,9 @@ Function(graph), _x(x)
       // return value
       return _value;
     }    
-
-  private:
-    Softplus& _base;
   };
 
-  _x.derivative(new Derivative_x(graph, *this));
+  x.ibackward(new Derivative_x(graph, *this));
 }
 
 // F = log(1 + exp(x))
@@ -1630,7 +1868,7 @@ const Tensor& Softplus::forward()
   if (_value.size()) return _value;
 
   // get input vector
-  auto& x = _x.forward();
+  auto& x = _forward[0]->forward();
 
   // _value = log(1+exp(x))
   // log(1+exp(x)) = log(1+exp(x)) - log(exp(x)) + x = log(1+exp(-x)) + x
@@ -1650,14 +1888,19 @@ const Tensor& Softplus::forward()
 ///////////////////////////////////////////
 
 LogSoftmax::LogSoftmax(Graph& graph, Function& x) :
-Function(graph), _x(x)
+Function(graph)
 {
+  iforward(&x);
+
   // Derivative with respect to x
   class Derivative_x : public Function
   {
   public:
-    Derivative_x(Graph& graph, LogSoftmax& base) :
-    Function(graph), _base(base) { graph.keep(this); }
+    Derivative_x(Graph& graph, LogSoftmax& base) : Function(graph)
+    {
+      iforward(&base);
+      graph.keep(this);
+    }
 
     // dFdx(j,i) = K(i,j) - F(j)
     // K(i,j) = 1 for i==j, 0 for i!=j (Kronecker delta)
@@ -1666,8 +1909,10 @@ Function(graph), _x(x)
       // return cached gradient
       if (_value.size()) return _value;
 
-      auto& g = _base.backward();
-      auto s = _base.softmax();
+      auto base = (LogSoftmax*)_forward[0];
+
+      auto& g = base->backward();
+      auto s = base->softmax();
 
       // reshape input to flat row vector
       auto S = s.reshaped(1, s.size());
@@ -1688,19 +1933,16 @@ Function(graph), _x(x)
 
       return _value;
     }    
-
-  private:
-    LogSoftmax& _base;
   };
 
-  _x.derivative(new Derivative_x(graph, *this));
+  x.ibackward(new Derivative_x(graph, *this));
 }
 
 // F = exp(x) / sum(exp(x))
 const Tensor LogSoftmax::softmax()
 {
   // get input vector
-  auto& x = _x.forward();
+  auto& x = _forward[0]->forward();
 
   // for numerical stability subtract max(_x) before exponential
   auto exp_x = (x.array() - x.maxCoeff()).exp();
@@ -1715,7 +1957,7 @@ const Tensor& LogSoftmax::forward()
   // return cached value
   if (_value.size()) return _value;
 
-  auto& x = _x.forward();
+  auto& x = _forward[0]->forward();
 
   // for numerical stability subtract max(_x) before exponential
   auto x_C = x.array() - x.maxCoeff();
@@ -1732,14 +1974,20 @@ const Tensor& LogSoftmax::forward()
 ///////////////////////////////////////////
 
 Log::Log(Graph& graph, Function& x) :
-Function(graph), _x(x)
+Function(graph)
 {
+  iforward(&x);
+
   // Derivative with respect to x
   class Derivative_x : public Function
   {
   public:
-    Derivative_x(Graph& graph, Log& base) :
-    Function(graph), _base(base) { graph.keep(this); }
+    Derivative_x(Graph& graph, Log& base) : Function(graph)
+    {
+      iforward(&base);
+      iforward(base._forward[0]);
+      graph.keep(this);
+    }
 
     // dFdx = 1 / x
     virtual const Tensor& forward()
@@ -1747,8 +1995,8 @@ Function(graph), _x(x)
       // return cached gradient
       if (_value.size()) return _value;
 
-      auto& g = _base.backward();
-      auto& x = _base._x.forward();
+      auto& g = _forward[0]->backward();
+      auto& x = _forward[1]->forward();
 
       auto dFdx = 1 / x.array();
 
@@ -1757,12 +2005,9 @@ Function(graph), _x(x)
 
       return _value;
     }    
-
-  private:
-    Log& _base;
   };
 
-  _x.derivative(new Derivative_x(graph, *this));
+  x.ibackward(new Derivative_x(graph, *this));
 }
 
 // F = log(x)
@@ -1772,7 +2017,7 @@ const Tensor& Log::forward()
   if (_value.size()) return _value;
 
   // get input
-  auto& x = _x.forward();
+  auto& x = _forward[0]->forward();
 
   // update value
   _value = x.array().log();
@@ -1786,14 +2031,20 @@ const Tensor& Log::forward()
 ///////////////////////////////////////////
 
 Abs::Abs(Graph& graph, Function& x) :
-Function(graph), _x(x)
+Function(graph)
 {
+  iforward(&x);
+
   // Derivative with respect to x
   class Derivative_x : public Function
   {
   public:
-    Derivative_x(Graph& graph, Abs& base) :
-    Function(graph), _base(base) { graph.keep(this); }
+    Derivative_x(Graph& graph, Abs& base) : Function(graph)
+    {
+      iforward(&base);
+      iforward(base._forward[0]);
+      graph.keep(this);
+    }
 
     // dFdx = abs(x) / x
     virtual const Tensor& forward()
@@ -1801,8 +2052,8 @@ Function(graph), _x(x)
       // return cached gradient
       if (_value.size()) return _value;
 
-      auto& g = _base.backward();
-      auto& x = _base._x.forward();
+      auto& g = _forward[0]->backward();
+      auto& x = _forward[1]->forward();
 
       // Taking sing() of input, gives the derivative values,
       // and for x == 0 the derivative becomes 0, which is half
@@ -1814,12 +2065,9 @@ Function(graph), _x(x)
 
       return _value;
     }    
-
-  private:
-    Abs& _base;
   };
 
-  _x.derivative(new Derivative_x(graph, *this));
+  x.ibackward(new Derivative_x(graph, *this));
 }
 
 // F = abs(x)
@@ -1829,7 +2077,7 @@ const Tensor& Abs::forward()
   if (_value.size()) return _value;
 
   // get input
-  auto& x = _x.forward();
+  auto& x = _forward[0]->forward();
 
   // update value
   _value = x.array().abs();
@@ -1843,14 +2091,19 @@ const Tensor& Abs::forward()
 ///////////////////////////////////////////
 
 Transpose::Transpose(Graph& graph, Function& x) :
-Function(graph), _x(x)
+Function(graph)
 {
+  iforward(&x);
+
   // Derivative with respect to x
   class Derivative_x : public Function
   {
   public:
-    Derivative_x(Graph& graph, Transpose& base) :
-    Function(graph), _base(base) { graph.keep(this); }
+    Derivative_x(Graph& graph, Transpose& base) : Function(graph)
+    {
+      iforward(&base);
+      graph.keep(this);
+    }
 
     // dFdx = base.dFdx.T
     virtual const Tensor& forward()
@@ -1858,7 +2111,7 @@ Function(graph), _x(x)
       // return cached value
       if (_value.size()) return _value;
 
-      auto& g = _base.backward();
+      auto& g = _forward[0]->backward();
 
       // update gradient value
       _value = g.transpose();
@@ -1866,12 +2119,9 @@ Function(graph), _x(x)
       // return gradient value
       return _value;
     }    
-
-  private:
-    Transpose& _base;
   };
 
-  _x.derivative(new Derivative_x(graph, *this));
+  x.ibackward(new Derivative_x(graph, *this));
 }
 
 // F = x.T
@@ -1881,7 +2131,7 @@ const Tensor& Transpose::forward()
   if (_value.size()) return _value;
 
   // get input
-  auto& x = _x.forward();
+  auto& x = _forward[0]->forward();
 
   // update value
   _value = x.transpose();
@@ -1895,14 +2145,20 @@ const Tensor& Transpose::forward()
 ///////////////////////////////////////////
 
 Sum::Sum(Graph& graph, Function& x) :
-Function(graph), _x(x)
+Function(graph)
 {
+  iforward(&x);
+
   // Derivative with respect to x
   class Derivative_x : public Function
   {
   public:
-    Derivative_x(Graph& graph, Sum& base) :
-    Function(graph), _base(base) { graph.keep(this); }
+    Derivative_x(Graph& graph, Sum& base) : Function(graph)
+    {
+      iforward(&base);
+      iforward(base._forward[0]);
+      graph.keep(this);
+    }
 
     // dFdx = 1
     virtual const Tensor& forward()
@@ -1910,8 +2166,8 @@ Function(graph), _x(x)
       // return cached gradient
       if (_value.size()) return _value;
 
-      auto& g = _base.backward();
-      auto& x = _base._x.forward();
+      auto& g = _forward[0]->backward();
+      auto& x = _forward[1]->forward();
 
       auto dFdx = g(0,0);
 
@@ -1920,12 +2176,9 @@ Function(graph), _x(x)
 
      return _value;
     }    
-
-  private:
-    Sum& _base;
   };
 
-  _x.derivative(new Derivative_x(graph, *this));
+  x.ibackward(new Derivative_x(graph, *this));
 }
 
 // F = sum(x)
@@ -1935,7 +2188,7 @@ const Tensor& Sum::forward()
   if (_value.size()) return _value;
 
   // get input
-  auto& x = _x.forward();
+  auto& x = _forward[0]->forward();
 
   // update value
   _value.resize(1,1);
@@ -1950,14 +2203,20 @@ const Tensor& Sum::forward()
 ///////////////////////////////////////////
 
 Mean::Mean(Graph& graph, Function& x) :
-Function(graph), _x(x)
+Function(graph)
 {
+  iforward(&x);
+
   // Derivative with respect to x
   class Derivative_x : public Function
   {
   public:
-    Derivative_x(Graph& graph, Mean& base) :
-    Function(graph), _base(base) { graph.keep(this); }
+    Derivative_x(Graph& graph, Mean& base) : Function(graph)
+    {
+      iforward(&base);
+      iforward(base._forward[0]);
+      graph.keep(this);
+    }
 
     // dFdx = 1 / N
     virtual const Tensor& forward()
@@ -1965,8 +2224,8 @@ Function(graph), _x(x)
       // return cached gradient
       if (_value.size()) return _value;
 
-      auto& g = _base.backward();
-      auto& x = _base._x.forward();
+      auto& g = _forward[0]->backward();
+      auto& x = _forward[1]->forward();
 
       auto dFdx = g(0,0) / x.size();
 
@@ -1975,12 +2234,9 @@ Function(graph), _x(x)
 
       return _value;
     }    
-
-  private:
-    Mean& _base;
   };
 
-  _x.derivative(new Derivative_x(graph, *this));
+  x.ibackward(new Derivative_x(graph, *this));
 }
 
 // F = sum(x) / N
@@ -1990,7 +2246,7 @@ const Tensor& Mean::forward()
   if (_value.size()) return _value;
 
   // get input
-  auto& x = _x.forward();
+  auto& x = _forward[0]->forward();
 
   // update value
   _value.resize(1,1);
@@ -2005,7 +2261,7 @@ const Tensor& Mean::forward()
 ///////////////////////////////////////////
 
 GRU::GRU(Graph& graph, Function& x, Function& h, int in, int out) :
-Function(graph), _x(x), _h(h)
+Function(graph)
 {
   // construct new variables (row-major)
   _Wz = graph.new_variable(in, out, "Wz");
@@ -2021,11 +2277,11 @@ Function(graph), _x(x), _h(h)
   _bh = graph.new_variable(1, out, "bh");
 
   // build graph
-  init();
+  init(x, h);
 }
 
 GRU::GRU(Graph& graph, Function& x, Function& h, const GRU& other) :
-Function(graph), _x(x), _h(h)
+Function(graph)
 {
   // share variables with the "other"
   _Wz = other._Wz;
@@ -2041,7 +2297,7 @@ Function(graph), _x(x), _h(h)
   _bh = other._bh;
 
   // build graph
-  init();
+  init(x, h);
 }
 
 const Tensor& GRU::forward()
@@ -2056,25 +2312,28 @@ const Tensor& GRU::forward()
   return _value;
 }
 
-void GRU::init()
+void GRU::init(Function& x, Function& h)
 {
+  iforward(&x);
+  iforward(&h);
+
   // z
   auto& z = *_graph.new_sigmoid(
-    product(_x,*_Wz) + product(_h,*_Uz) + *_bz);
+    product(x,*_Wz) + product(h,*_Uz) + *_bz);
 
   // r
   auto& r = *_graph.new_sigmoid(
-    product(_x,*_Wr) + product(_h,*_Ur) + *_br);
+    product(x,*_Wr) + product(h,*_Ur) + *_br);
 
   // c
   auto& c = *_graph.new_tanh(
-    product(_x,*_Wh) + product(r * _h,*_Uh) + *_bh);
+    product(x,*_Wh) + product(r * h,*_Uh) + *_bh);
 
   // h(t)
-  _GRU = &(z * _h + (1-z) * c);
+  _GRU = &(z * h + (1-z) * c);
 
   // let output handle the gradient directly
-  _GRU->derivative(_graph.new_iderivative(*this));
+  _GRU->ibackward(_graph.new_iderivative(*this));
 }
 
 ///////////////////////////////////////////
@@ -2082,51 +2341,57 @@ void GRU::init()
 ///////////////////////////////////////////
 
 LSTM::LSTM(Graph& graph, Function& x, Function& h, Function& c, int in, int out) :
-Function(graph), _x(x), _h(h), _c(c)
+Function(graph)
 {
   // construct new variables (row-major)
-  _Wi = graph.new_variable(in, out, "Wi");
-  _Hi = graph.new_variable(out, out, "Hi");
+  _Wxi = graph.new_variable(in, out, "Wxi");
+  _Whi = graph.new_variable(out, out, "Hhi");
+  _Wci = graph.new_variable(out, out, "Hci");
   _bi = graph.new_variable(1, out, "bi");
 
-  _Wf = graph.new_variable(in, out, "Wf");
-  _Hf = graph.new_variable(out, out, "Hf");
+  _Wxf = graph.new_variable(in, out, "Wxf");
+  _Whf = graph.new_variable(out, out, "Hhf");
+  _Wcf = graph.new_variable(out, out, "Hcf");
   _bf = graph.new_variable(1, out, "bf");
 
-  _Wo = graph.new_variable(in, out, "Wo");
-  _Ho = graph.new_variable(out, out, "Ho");
+  _Wxc = graph.new_variable(in, out, "Wxc");
+  _Whc = graph.new_variable(out, out, "Whc");
+  _bc = graph.new_variable(1, out, "bc");
+
+  _Wxo = graph.new_variable(in, out, "Wxo");
+  _Who = graph.new_variable(out, out, "Who");
+  _Wco = graph.new_variable(out, out, "Wco");
   _bo = graph.new_variable(1, out, "bo");
 
-  _Wg = graph.new_variable(in, out, "Wg");
-  _Hg = graph.new_variable(out, out, "Hg");
-  _bg = graph.new_variable(1, out, "bg");
-
   // build graph
-  init();
+  init(x, h, c);
 }
 
 LSTM::LSTM(Graph& graph, Function& x, Function& h, Function& c, const LSTM& other) :
-Function(graph), _x(x), _h(h), _c(c)
+Function(graph)
 {
   // share variables with the "other"
-  _Wi = other._Wi;
-  _Hi = other._Hi;
+  _Wxi = other._Wxi;
+  _Whi = other._Whi;
+  _Wci = other._Wci;
   _bi = other._bi;
 
-  _Wf = other._Wf;
-  _Hf = other._Hf;
+  _Wxf = other._Wxf;
+  _Whf = other._Whf;
+  _Wcf = other._Wcf;
   _bf = other._bf;
 
-  _Wo = other._Wo;
-  _Ho = other._Ho;
+  _Wxc = other._Wxc;
+  _Whc = other._Whc;
+  _bc = other._bc;
+
+  _Wxo = other._Wxo;
+  _Who = other._Who;
+  _Wco = other._Wco;
   _bo = other._bo;
 
-  _Wg = other._Wg;
-  _Hg = other._Hg;
-  _bg = other._bg;
-
   // build graph
-  init();
+  init(x, h, c);
 }
 
 const Tensor& LSTM::forward()
@@ -2141,86 +2406,44 @@ const Tensor& LSTM::forward()
   return _value;
 }
 
-// f(t) = Sigmoid(Wf * x(t) + Hf * h(t-1) + bf)
-// i(t) = Sigmoid(Wi * x(t) + Hi * h(t-1) + bi)
-// o(t) = Sigmoid(Wo * x(t) + Ho * h(t-1) + bo)
-// g(t) = Tanh   (Wg * x(t) + Hg * h(t-1) + bo)
-// c(t) = f(t) . c(t-1) + i(t) . g(t)
+// Long Short-Term Memory (LSTM) function
+// https://arxiv.org/pdf/1308.0850
+// i(t) = Sigmoid(Wxi * x(t) + Whi * h(t-1) + Wci * c(t-1) + bi)
+// f(t) = Sigmoid(Wxf * x(t) + Whf * h(t-1) + Whi * c(t-1) + bh)
+// c(t) = f(t) . c(t-1) + i(t) . Tanh(Wxc * x(t) + Whc * h(t-1) + bc)
+// o(t) = Sigmoid(Wxo * x(t) + Who * h(t-1) + Who * c(t) + bo)
 // h(t) = o(t) . Tanh(c(t))
-void LSTM::init()
+void LSTM::init(Function& x, Function& h, Function& c)
 {
-  // f
-  auto& f = *_graph.new_sigmoid(
-    product(_x,*_Wf) + product(_h,*_Hf) + *_bf);
+  iforward(&x);
+  iforward(&h);
+  iforward(&c);
 
   // i
   auto& i = *_graph.new_sigmoid(
-    product(_x,*_Wi) + product(_h,*_Hi) + *_bi);
+    product(x,*_Wxi) + product(h,*_Whi) + product(c,*_Wci) + *_bi);
+
+  // f
+  auto& f = *_graph.new_sigmoid(
+    product(x,*_Wxf) + product(h,*_Whf) + product(c,*_Wcf) + *_bf);
+
+  // c
+  auto& new_c = f * c + i * *_graph.new_tanh(
+    product(x,*_Wxc) + product(h,*_Whc) + *_bc);
 
   // o
   auto& o = *_graph.new_sigmoid(
-    product(_x,*_Wo) + product(_h,*_Ho) + *_bo);
-
-  // g
-  auto& g = *_graph.new_tanh(
-    product(_x,*_Wg) + product(_h,*_Hg) + *_bg);
-
-  // c
-  auto& c = f * _c + i * g;
+    product(x,*_Wxo) + product(h,*_Who) + product(new_c,*_Wco) + *_bo);
 
   // h
-  auto& h = o * *_graph.new_tanh(c);
+  auto& new_h = o * *_graph.new_tanh(new_c);
 
   // set references
-  _cell = &c;
-  _LSTM = &h;
+  _cell = &new_c;
+  _LSTM = &new_h;
 
   // let output handle the gradient directly
-  _LSTM->derivative(_graph.new_iderivative(*this));
-}
-
-///////////////////////////////////////////
-// Sampler
-///////////////////////////////////////////
-
-Sampler::Sampler(Graph& graph, Function& m, Function& s) : 
-Function(graph), _m(m), _s(s), _enabled(true)
-{
-  // random sampling with parametrization trick for back-propagation
-  // Auto-Encoding Variational Bayes by Diederik P. Kingma, Max Welling
-  // https://arxiv.org/pdf/1312.6114.pdf
-
-  _e = _graph.new_constant();
-
-  _Z = &(_m + *_e * _s);
-
-  _Z->derivative(_graph.new_iderivative(*this));
-}
-
-const Tensor& Sampler::forward()
-{
-  // return cached value
-  if (_value.size()) return _value;
-
-  int rows = _m().rows();
-  int cols = _m().cols();
-
-  // sample random constant
-  if (_enabled)
-  {
-    auto random = [&]() { return _graph.random().normal_dec(0, 1); };
-    _e->value() = Tensor::NullaryExpr(rows, cols, random);
-  }
-  else
-  {
-    _e->value() = Tensor::Zero(rows, cols);
-  }
-
-  // update value
-  _value = _Z->forward();
-
-  // return value
-  return _value;
+  _LSTM->ibackward(_graph.new_iderivative(*this));
 }
 
 ///////////////////////////////////////////
@@ -2228,7 +2451,7 @@ const Tensor& Sampler::forward()
 ///////////////////////////////////////////
 
 Norm::Norm(Graph& graph, Function& x, int rows, int cols, DTYPE eps) :
-Function(graph), _x(x), _epsilon(eps)
+Function(graph), _epsilon(eps)
 {
   if (rows * cols > 1)
   {
@@ -2244,24 +2467,26 @@ Function(graph), _x(x), _epsilon(eps)
   _a->value() = Tensor::Ones(_a->value().rows(), _a->value().cols());
   _b->value() = Tensor::Zero(_b->value().rows(), _b->value().cols());
 
-  init();
+  init(x);
 }
 
 Norm::Norm(Graph& graph, Function& x, const Norm& other) :
-Function(graph), _x(x), _epsilon(other._epsilon)
+Function(graph), _epsilon(other._epsilon)
 {
   _a = other._a;
   _b = other._b;
 
-  init();
+  init(x);
 }
 
-void Norm::init()
+void Norm::init(Function& x)
 {
+  iforward(&x);
+
   _H = _graph.new_constant(1,1); // dimension placeholder
 
-  auto& mean = *_graph.new_sum(_x) / *_H;
-  auto& x_mean = _x - *_graph.new_broadcast(mean, _x);
+  auto& mean = *_graph.new_sum(x) / *_H;
+  auto& x_mean = x - *_graph.new_broadcast(mean, x);
 
   auto& var = *_graph.new_sum(x_mean * x_mean) / *_H;
   auto& std = power(var + _epsilon, 0.5);
@@ -2280,7 +2505,7 @@ void Norm::init()
     _N = &(*_N * *a + *b);
   }
 
-  _N->derivative(_graph.new_iderivative(*this));
+  _N->ibackward(_graph.new_iderivative(*this));
 }
 
 // F = a * (x - m) / s - b
@@ -2289,7 +2514,7 @@ const Tensor& Norm::forward()
   // return cached value
   if (_value.size()) return _value;
 
-  auto& x = _x.forward();
+  auto& x = _forward[0]->forward();
 
   // update dimension placeholder
   _H->value() = Tensor::Constant(1,1, x.rows() * x.cols());
@@ -2301,12 +2526,65 @@ const Tensor& Norm::forward()
 }
 
 ///////////////////////////////////////////
+// Sampler
+///////////////////////////////////////////
+
+Sampler::Sampler(Graph& graph, Function& m, Function& s) :
+Function(graph), _enabled(true)
+{
+  iforward(&m);
+  iforward(&s);
+
+  // random sampling with parametrization trick for back-propagation
+  // Auto-Encoding Variational Bayes by Diederik P. Kingma, Max Welling
+  // https://arxiv.org/pdf/1312.6114.pdf
+
+  _e = _graph.new_constant();
+
+  _Z = &(m + *_e * s);
+
+  _Z->ibackward(_graph.new_iderivative(*this));
+}
+
+const Tensor& Sampler::forward()
+{
+  // return cached value
+  if (_value.size()) return _value;
+
+  auto& m = _forward[0]->forward();
+
+  int rows = m.rows();
+  int cols = m.cols();
+
+  // sample random constant
+  if (_enabled)
+  {
+    auto random = [this]() { return _graph.random().normal_dec(0, 1); };
+    _e->value() = Tensor::NullaryExpr(rows, cols, random);
+  }
+  else
+  {
+    _e->value() = Tensor::Zero(rows, cols);
+  }
+
+  // update value
+  _value = _Z->forward();
+
+  // return value
+  return _value;
+}
+
+///////////////////////////////////////////
 // Gaussian
 ///////////////////////////////////////////
 
 Gaussian::Gaussian(Graph& graph, Function& x, Function& m, Function& s) : 
 Function(graph)
 {
+  iforward(&x);
+  iforward(&m);
+  iforward(&s);
+
   // compute height of distribution's peak
   _a = &(1 / (s * sqrt(2 * M_PI)));
 
@@ -2321,8 +2599,12 @@ Function(graph)
   class Derivative_a : public Function
   {
   public:
-    Derivative_a(Graph& graph, Gaussian& base) :
-    Function(graph), _base(base) { graph.keep(this); }
+    Derivative_a(Graph& graph, Gaussian& base) : Function(graph)
+    {
+      iforward(&base);
+      iforward(base._z);
+      graph.keep(this);
+    }
 
     // dFda = exp(z)
     virtual const Tensor& forward()
@@ -2330,8 +2612,9 @@ Function(graph)
       // return cached value
       if (_value.size()) return _value;
 
-      auto& g = _base.backward();
-      auto& z = _base._z->forward();
+      auto& g = _forward[0]->backward();
+      auto& z = _forward[1]->forward();
+
       auto dFda = z.array().exp();
 
       // update gradient value
@@ -2340,17 +2623,17 @@ Function(graph)
       // return gradient value
       return _value;
     }
-
-  private:
-    Gaussian& _base;
   };
 
   // Derivative with respect to z
   class Derivative_z : public Function
   {
   public:
-    Derivative_z(Graph& graph, Function& base) :
-    Function(graph), _base(base) { graph.keep(this); }
+    Derivative_z(Graph& graph, Gaussian& base) : Function(graph)
+    {
+      iforward(&base);
+      graph.keep(this);
+    }
 
     // dFdz = a * exp(z) = F
     virtual const Tensor& forward()
@@ -2358,8 +2641,8 @@ Function(graph)
       // return cached value
       if (_value.size()) return _value;
 
-      auto& g = _base.backward();
-      auto& dFdz = _base.forward();
+      auto& g = _forward[0]->backward();
+      auto& dFdz = _forward[0]->forward();
 
       // update gradient value
       _value = g.array() * dFdz.array();
@@ -2367,13 +2650,10 @@ Function(graph)
       // return gradient value
       return _value;
     }
-
-  private:
-    Function& _base;
   };
 
-  _a->derivative(new Derivative_a(_graph, *this));
-  _z->derivative(new Derivative_z(_graph, *this));
+  _a->ibackward(new Derivative_a(_graph, *this));
+  _z->ibackward(new Derivative_z(_graph, *this));
 }
 
 // A = 1 / (s * sqrt(2 * PI))
@@ -2401,6 +2681,10 @@ const Tensor& Gaussian::forward()
 LogGaussian::LogGaussian(Graph& graph, Function& x, Function& m, Function& s) :
 Function(graph)
 {
+  iforward(&x);
+  iforward(&m);
+  iforward(&s);
+
   // compute height of distribution's peak
   _a = &(1 / (s * sqrt(2 * M_PI)));
 
@@ -2415,8 +2699,12 @@ Function(graph)
   class Derivative_a : public Function
   {
   public:
-    Derivative_a(Graph& graph, LogGaussian& base) :
-    Function(graph), _base(base) { graph.keep(this); }
+    Derivative_a(Graph& graph, LogGaussian& base) : Function(graph)
+    {
+      iforward(&base);
+      iforward(base._a);
+      graph.keep(this);
+    }
 
     // dFda = exp(z)
     virtual const Tensor& forward()
@@ -2424,8 +2712,8 @@ Function(graph)
       // return cached value
       if (_value.size()) return _value;
 
-      auto& g = _base.backward();
-      auto& a = _base._a->forward();
+      auto& g = _forward[0]->backward();
+      auto& a = _forward[1]->forward();
       auto dFda = 1 / a.array();
 
       // update gradient value
@@ -2434,17 +2722,17 @@ Function(graph)
       // return gradient value
       return _value;
     }
-
-  private:
-    LogGaussian& _base;
   };
 
   // Derivative with respect to z
   class Derivative_z : public Function
   {
   public:
-    Derivative_z(Graph& graph, Function& base) :
-    Function(graph), _base(base) { graph.keep(this); }
+    Derivative_z(Graph& graph, LogGaussian& base) : Function(graph)
+    {
+      iforward(&base);
+      graph.keep(this);
+    }
 
     // dFdz = a * exp(z) = F
     virtual const Tensor& forward()
@@ -2452,7 +2740,7 @@ Function(graph)
       // return cached value
       if (_value.size()) return _value;
 
-      auto& g = _base.backward();
+      auto& g = _forward[0]->backward();
       // auto dFdz = Tensor::Ones(g.rows(), g.cols());
 
       // update gradient value
@@ -2461,13 +2749,10 @@ Function(graph)
       // return gradient value
       return _value;
     }
-
-  private:
-    Function& _base;
   };
 
-  _a->derivative(new Derivative_a(_graph, *this));
-  _z->derivative(new Derivative_z(_graph, *this));
+  _a->ibackward(new Derivative_a(_graph, *this));
+  _z->ibackward(new Derivative_z(_graph, *this));
 }
 
 // A = 1 / (s * sqrt(2 * PI))
@@ -2491,32 +2776,39 @@ const Tensor& LogGaussian::forward()
 // Function Embedding
 ///////////////////////////////////////////
 
-Embedding::Embedding(Graph& graph, Function& i, int in, int out) :
-Function(graph), _i(i)
+Embedding::Embedding(Graph& graph, Function& index, int in, int out) :
+Function(graph)
 {
   // construct new variables with row-wise embedding vectors
   _E = graph.new_variable(in, out, "Embedding.E");
 
-  init();
+  init(index);
 }
 
-Embedding::Embedding(Graph& graph, Function& i, const Embedding& other) :
-Function(graph), _i(i)
+Embedding::Embedding(Graph& graph, Function& index, const Embedding& other) :
+Function(graph)
 {
   // share variables with the "other"
   _E = other._E;
 
-  init();
+  init(index);
 }
 
-void Embedding::init()
+void Embedding::init(Function& index)
 {
+  iforward(&index);
+
   // Derivative with respect to E
   class Derivative_E : public Function
   {
   public:
-    Derivative_E(Graph& graph, Embedding& base) :
-    Function(graph), _base(base) { graph.keep(this); }
+    Derivative_E(Graph& graph, Embedding& base) : Function(graph)
+    {
+      iforward(&base);
+      iforward(base._E);
+      iforward(base._forward[0]);
+      graph.keep(this);
+    }
 
     // dFdE = x(i)
     virtual const Tensor& forward()
@@ -2524,26 +2816,23 @@ void Embedding::init()
       // return cached value
       if (_value.size()) return _value;
 
-      auto& g = _base.backward();
-      auto& E = _base._E->forward();
+      auto& g = _forward[0]->backward();
+      auto& E = _forward[1]->forward();
+      auto& index = _forward[2]->forward();
 
       // update gradient value
       _value = Tensor::Zero(E.rows(), E.cols());
-      auto& index = _base._i();
 
       for (int i=0; i<index.size(); i++)
       {
-        _value.row((int)index(i)) = g.row(i);
+        _value.row((size_t)index(i)) = g.row(i);
       }
 
       return _value;
     }
-
-  private:
-    Embedding& _base;
   };
 
-  _E->derivative(new Derivative_E(_graph, *this));
+  _E->ibackward(new Derivative_E(_graph, *this));
 }
 
 // F = E * x(i)
@@ -2554,14 +2843,14 @@ const Tensor& Embedding::forward()
 
   // get variables
   auto& E = _E->forward();
+  auto& index = _forward[0]->forward();
 
   // create initial value
-  auto& index = _i();
   _value = Tensor::Zero(index.size(), E.cols());
 
   for (int i=0; i<index.size(); i++)
   {
-    _value.row(i) = E.row((int)index(i));
+    _value.row(i) = E.row((size_t)index(i));
   }
 
   // return value
@@ -2585,7 +2874,6 @@ Conv2D::Conv2D(
   int padding,
   int dilation) :
 Function(graph),
-_x(x),
 _i_rows(i_rows),
 _i_cols(i_cols),
 _i_channels(i_channels),
@@ -2638,11 +2926,11 @@ _dilation(dilation)
   // construct new variables
   _K = graph.new_variable(_o_channels * _k_rows, _i_channels * _k_cols);
 
-  init();
+  init(x);
 }
 
 Conv2D::Conv2D(Graph& graph, Function& x, const Conv2D& other) :
-Function(graph), _x(x)
+Function(graph)
 {
   // share dimentions and variables with the "other"
   _i_rows = other._i_rows;
@@ -2656,7 +2944,7 @@ Function(graph), _x(x)
   _dilation = other._dilation,
   _K = other._K;
 
-  init();
+  init(x);
 }
 
 const Tensor& Conv2D::forward()
@@ -2664,7 +2952,7 @@ const Tensor& Conv2D::forward()
   // return cached value
   if (_value.size()) return _value;
 
-  auto& x = _x();
+  auto& x = _forward[0]->forward();
   auto& K = K_matrix();
 
   //_value = K * x; // col major
@@ -2674,14 +2962,19 @@ const Tensor& Conv2D::forward()
   return _value;
 }
 
-void Conv2D::init()
+void Conv2D::init(Function& x)
 {
+  iforward(&x);
+
   // Derivative with respect to x
   class Derivative_x : public Function
   {
   public:
-    Derivative_x(Graph& graph, Conv2D& base) :
-    Function(graph), _base(base) { graph.keep(this); }
+    Derivative_x(Graph& graph, Conv2D& base) : Function(graph)
+    {
+      iforward(&base);
+      graph.keep(this);
+    }
 
     // dFdx = K_matrix
     virtual const Tensor& forward()
@@ -2689,8 +2982,10 @@ void Conv2D::init()
       // return cached value
       if (_value.size()) return _value;
 
-      auto& g = _base.backward();
-      auto& K = _base.K_matrix();
+      auto base = (Conv2D*)_forward[0];
+
+      auto& g = base->backward();
+      auto& K = base->K_matrix();
 
       auto& dFdx = K;
 
@@ -2699,18 +2994,19 @@ void Conv2D::init()
       _value = g * dFdx; // row major
 
       return _value;
-    }    
-
-  private:
-    Conv2D& _base;
+    }
   };
 
   // Derivative with respect to K
   class Derivative_K : public Function
   {
   public:
-    Derivative_K(Graph& graph, Conv2D& base) :
-    Function(graph), _base(base) { graph.keep(this); }
+    Derivative_K(Graph& graph, Conv2D& base) : Function(graph)
+    {
+      iforward(&base);
+      iforward(base._forward[0]);
+      graph.keep(this);
+    }
 
     // dFdK = x
     virtual const Tensor& forward()
@@ -2718,26 +3014,26 @@ void Conv2D::init()
       // return cached value
       if (_value.size()) return _value;
 
-      auto& g = _base.backward();
-      auto& x = _base._x.forward();
-      auto& K = _base.K_matrix();
+      auto base = (Conv2D*)_forward[0];
+      auto base_x = _forward[1];
+
+      auto& g = base->backward();
+      auto& x = base_x->forward();
+      auto& K = base->K_matrix();
 
       auto& dFdK = x;
       //auto dFdK_matrix = ABT(g, dFdK, K); // col major
       auto dFdK_matrix = ATB(g, dFdK, K); // row major
 
       // update gradient value
-      _value = _base.K_gradient(dFdK_matrix);
+      _value = base->K_gradient(dFdK_matrix);
 
       return _value;
     }
-
-  private:
-    Conv2D& _base;
   };
 
-  _x.derivative(new Derivative_x(_graph, *this));
-  _K->derivative(new Derivative_K(_graph, *this));
+  x.ibackward(new Derivative_x(_graph, *this));
+  _K->ibackward(new Derivative_K(_graph, *this));
 }
 
 SparseTensor& Conv2D::K_matrix()
@@ -2972,153 +3268,6 @@ void Conv2D::convert(Tensor& K, SparseTensor& K_matrix, bool forward)
     }
   }
 }
-
-///////////////////////////////////////////
-// Function Error
-///////////////////////////////////////////
-
-Erf::Erf(Graph& graph, Function& x) :
-Function(graph), _x(x)
-{
-  // Derivative with respect to x
-  class Derivative_x : public Function
-  {
-  public:
-    Derivative_x(Graph& graph, Erf& base) :
-    Function(graph), _base(base) { graph.keep(this); }
-
-    // dFdx = (2 / sqrt(pi)) * exp(-x^2)
-    virtual const Tensor& forward()
-    {
-      // return cached gradient
-      if (_value.size()) return _value;
-
-      auto& g = _base.backward();
-      auto& x = _base._x.forward();
-
-      // M_2_SQRTPI = 2/sqrt(pi)
-      auto dFdx = M_2_SQRTPI * (-x.array() * x.array()).exp();
-
-      // update gradient value
-      _value = dFdx.array() * g.array();
-
-     return _value;
-    }
-
-  private:
-    Erf& _base;
-  };
-
-  _x.derivative(new Derivative_x(graph, *this));
-}
-
-// F = erf(x)
-const Tensor& Erf::forward()
-{
-  // return cached value
-  if (_value.size()) return _value;
-
-  // get input
-  auto& x = _x.forward();
-
-  // update value
-  _value = x.array().erf();
-
-  // return value
-  return _value;
-}
-
-///////////////////////////////////////////
-// Function GeLU
-///////////////////////////////////////////
-
-#ifdef APPROXIMATE_GELU
-
-GeLU::GeLU(Graph& graph, Function& x) :
-Function(graph)
-{
-  // M_2_PI = 2 / pi
-  //_gelu = &(0.5 * x * (1.0 + *graph.new_tanh(
-  //  M_2_PI * (x + 0.044715 * *graph.new_power(x, 3))
-  //)));
-
-  _gelu = &(x * *graph.new_sigmoid(1.702 * x));
-
-  _gelu->derivative(graph.new_iderivative(*this));
-}
-
-// F = 0.5 (1 + tanh(√2/π(x + 0.044715 x^3)))
-const Tensor& GeLU::forward()
-{
-  // return cached value
-  if (_value.size()) return _value;
-
-  _value = _gelu->forward();
-
-  // return value
-  return _value;
-}
-
-#else
-
-GeLU::GeLU(Graph& graph, Function& x) :
-Function(graph), _x(x)
-{
-  // Derivative with respect to x
-  class Derivative_x : public Function
-  {
-  public:
-    Derivative_x(Graph& graph, GeLU& base) :
-    Function(graph), _base(base) { graph.keep(this); }
-
-    // F = 0.5 * x * (1 + erf(x / sqrt(2)))
-    // z(x) = x / sqrt(2)
-    // F = 0.5 * x * (1 + erf(z))
-    // dFdx = 0.5 * (1 + erf(z)) + 0.5 * x * derfdz / sqrt(2)
-    // derfdz = erf(-z^2) * 2 / sqrt(pi)
-    // dFdx = 0.5 * (1 + erf(z)) + 0.5 * x * erf(-z^2) * 2 / sqrt(pi) / sqrt(2)
-    virtual const Tensor& forward()
-    {
-      // return cached gradient
-      if (_value.size()) return _value;
-
-      auto& g = _base.backward();
-      auto& x = _base._x.forward();
-
-      auto z = x.array() * M_SQRT1_2;
-      auto derfdz = M_2_SQRTPI * (-z.array() * z.array()).exp();
-      Tensor dFdx = 0.5 * (1 + z.erf()) + 0.5 * x.array() * derfdz * M_SQRT1_2;
-
-      // update gradient value
-      _value = g.array() * dFdx.array();
-
-      return _value;
-    }
-
-  private:
-    GeLU& _base;
-  };
-
-  _x.derivative(new Derivative_x(graph, *this));
-}
-
-// F = 0.5 * x * (1 + erf(x / sqrt(2)))
-const Tensor& GeLU::forward()
-{
-  // return cached value
-  if (_value.size()) return _value;
-
-  // get input
-  auto& x = _x.forward();
-
-  // update value
-  _value = 0.5 * x.array() * (1 + (x.array() * M_SQRT1_2).erf());
-
-  // return value
-  return _value;
-}
-
-#endif
 
 ///////////////////////////////////////////
 // Graph

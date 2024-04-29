@@ -115,7 +115,7 @@ public:
     // complete qkv attention []
     _attention = _graph.new_product(*_attention, _v);
 
-    _attention->derivative(_graph.new_iderivative(*this));
+    _attention->ibackward(_graph.new_iderivative(*this));
   }
 
   virtual const Tensor& forward()
@@ -170,7 +170,7 @@ public:
 
     _attention = &linear(join_heads(heads, S, D), E, E, bias, "Wo", "bo");
 
-    _attention->derivative(_graph.new_iderivative(*this));
+    _attention->ibackward(_graph.new_iderivative(*this));
   }
 
   virtual const Tensor& forward()
@@ -276,7 +276,7 @@ public:
     }
     _y = g.new_linear(*_y, ff_size, emb_size, true);
 
-    _y->derivative(g.new_iderivative(*this));
+    _y->ibackward(g.new_iderivative(*this));
   }
 
   virtual const Tensor& forward()
@@ -318,7 +318,7 @@ public:
     _pe(Eigen::all, Eigen::seq(0, emb_size-1, 2)) = prod.array().sin();
     _pe(Eigen::all, Eigen::seq(1, emb_size-1, 2)) = prod.array().cos();
 
-    _x.derivative(g.new_iderivative(*this));
+    _x.ibackward(g.new_iderivative(*this));
   }
 
   virtual const Tensor& forward()
@@ -360,7 +360,7 @@ public:
       }
     );
 
-    _y->derivative(g.new_iderivative(*this));
+    _y->ibackward(g.new_iderivative(*this));
   }
 
   virtual const Tensor& forward()
@@ -403,7 +403,7 @@ public:
       g, *_y + *g.new_dropout(*ff, dropout), seq_size, emb_size);
     g.keep(_y);
 
-    _y->derivative(g.new_iderivative(*this));
+    _y->ibackward(g.new_iderivative(*this));
   }
 
   virtual const Tensor& forward()
@@ -454,7 +454,7 @@ public:
       g, *_y + *g.new_dropout(*ff, dropout), seq_size, emb_size);
     g.keep(_y);
 
-    _y->derivative(g.new_iderivative(*this));
+    _y->ibackward(g.new_iderivative(*this));
   }
 
   virtual const Tensor& forward()
@@ -524,7 +524,7 @@ public:
 
     _decoder = g.new_linear(*_decoder, emb_size, tgt_tokens);
 
-    _decoder->derivative(g.new_iderivative(*this));
+    _decoder->ibackward(g.new_iderivative(*this));
   }
 
   // requires src and tgt sequences

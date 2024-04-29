@@ -8,7 +8,6 @@
 #define _SEEGNIFY_RANDOM_H_
 
 #include <random>
-#include <unordered_map>
 
 namespace seegnify {
 

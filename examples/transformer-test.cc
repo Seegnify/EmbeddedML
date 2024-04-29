@@ -12,8 +12,6 @@
 #include <iostream>
 
 #include "external/cnpy/cnpy.h"
-#include "external/thread-pool-11/ThreadPool.h"
-
 #include "examples/transformer.hh"
 #include "utils/unittest.hh"
 
@@ -119,29 +117,6 @@ void test_cnpy()
   }
 
   TEST_END()
-}
-
-void test_thread_pool() {
-    int num_threads = 2;
-    ThreadPool pool(num_threads);
-    std::cout << "thread pool=" << num_threads << std::endl;
-    std::vector< std::future<double> > results;
-
-    for(int i = 0; i < 8; ++i) {
-        results.emplace_back(
-            pool.enqueue([i] {
-                double ret = 1;
-                for (int k=0; k<1000000000; k++) {
-                  ret = log(ret + k);
-                }
-                return ret + i;
-            })
-        );
-    }
-
-    for(auto && result: results)
-        std::cout << result.get() << ' ';
-    std::cout << std::endl;
 }
 
 void test_sequence_mask()
@@ -2028,7 +2003,6 @@ void test_transformer_backward()
 int main(int argc, char* argv[]) {
 
     test_cnpy();
-    test_thread_pool();
 
     test_sequence_mask();
     test_scaled_dot_product_attention_forward();
