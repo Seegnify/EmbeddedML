@@ -36,17 +36,17 @@ Function& product(Function& x, Function& y)
 }
 
 Function& operator+(Function& x, Function& y)
-{ 
+{
   return *x.graph().new_add(x, y);
 }
 
 Function& operator-(Function& x, Function& y)
-{ 
+{
   return *x.graph().new_sub(x, y);
 }
 
 Function& operator*(Function& x, Function& y)
-{ 
+{
   return *x.graph().new_mul(x, y);
 }
 
@@ -218,6 +218,30 @@ void Function::recache()
 {
   _value.resize(0,0);
   _gradient.resize(0,0);
+}
+
+// set function name
+void Function::name(const std::string& name, bool unique)
+{
+  if (unique)
+  {
+    auto scope_name = _graph.scope_name() + name;
+
+    size_t index = 0;
+
+    auto unique_name = scope_name + "." + std::to_string(index);
+
+    while(_graph.function(unique_name))
+    {
+      unique_name = scope_name + "." + std::to_string(++index);
+    }
+
+    _name = unique_name;
+  }
+  else
+  {
+    _name = name;
+  }
 }
 
 ///////////////////////////////////////////
@@ -598,7 +622,7 @@ Function(graph), _r(r), _c(c), _rows(rows), _cols(cols)
 
       // return gradient value
       return _value;
-    }    
+    }
   };
 
   x.ibackward(new Derivative_x(graph, *this));
@@ -687,7 +711,7 @@ Function(graph), _rows(rows), _cols(cols)
       // update gradient value
       _value = gy;
       return _value;
-    }    
+    }
   };
 
   x.ibackward(new Derivative_x(graph, *this));
@@ -758,7 +782,7 @@ Min::Min(Graph& graph, Function& x, Function& y) : Function(graph)
       // update gradient value
       _value = g.array() * dFdx_mask.array();
       return _value;
-    }    
+    }
   };
 
   // Derivative with respect to Y
@@ -792,7 +816,7 @@ Min::Min(Graph& graph, Function& x, Function& y) : Function(graph)
       // update gradient value
       _value = g.array() * dFdy_mask.array();
       return _value;
-    }    
+    }
   };
 
   x.ibackward(new Derivative_x(graph, *this));
@@ -855,7 +879,7 @@ Max::Max(Graph& graph, Function& x, Function& y) : Function(graph)
       // update gradient value
       _value = g.array() * dFdx_mask.array();
       return _value;
-    }    
+    }
   };
 
   // Derivative with respect to Y
@@ -888,7 +912,7 @@ Max::Max(Graph& graph, Function& x, Function& y) : Function(graph)
       // update gradient value
       _value = g.array() * dFdy_mask.array();
       return _value;
-    }    
+    }
   };
 
   x.ibackward(new Derivative_x(graph, *this));
@@ -934,7 +958,7 @@ Function(graph)
   init(x);
 }
 
-Linear::Linear(Graph& graph, Function& x, const Linear& other) : 
+Linear::Linear(Graph& graph, Function& x, const Linear& other) :
 Function(graph)
 {
   // share variables with the "other"
@@ -1172,7 +1196,7 @@ Sub::Sub(Graph& graph, Function& x, Function& y) : Function(graph)
       // update gradient value
       _value = -g;
       return _value;
-    }    
+    }
   };
 
   x.ibackward(new Derivative_x(graph, *this));
@@ -1231,7 +1255,7 @@ Mul::Mul(Graph& graph, Function& x, Function& y) : Function(graph)
       _value = g.array() * dFdx.array();
 
       return _value;
-    }    
+    }
   };
 
   // Derivative with respect to y
@@ -1260,7 +1284,7 @@ Mul::Mul(Graph& graph, Function& x, Function& y) : Function(graph)
       _value = g.array() * dFdy.array();
 
       return _value;
-    }    
+    }
   };
 
   x.ibackward(new Derivative_x(graph, *this));
@@ -1321,7 +1345,7 @@ Power::Power(Graph& graph, Function& x, Function& y) : Function(graph)
       // update gradient value
       _value = g.array() * dFdx.array();
       return _value;
-    }    
+    }
   };
 
   // Derivative with respect to y
@@ -1352,7 +1376,7 @@ Power::Power(Graph& graph, Function& x, Function& y) : Function(graph)
       // update gradient value
       _value = g.array() * dFdy.array();
       return _value;
-    }    
+    }
   };
 
   x.ibackward(new Derivative_x(graph, *this));
@@ -1465,7 +1489,7 @@ Function(graph)
       _value = g.array() * dFdx.array();
 
       return _value;
-    }    
+    }
   };
 
   x.ibackward(new Derivative_x(graph, *this));
@@ -1795,7 +1819,7 @@ Function(graph)
       _value = gdFdx.reshaped(y.rows(), y.cols());
 
       return _value;
-    }    
+    }
   };
 
   x.ibackward(new Derivative_x(graph, *this));
@@ -1855,7 +1879,7 @@ Function(graph)
 
       // return value
       return _value;
-    }    
+    }
   };
 
   x.ibackward(new Derivative_x(graph, *this));
@@ -1873,7 +1897,7 @@ const Tensor& Softplus::forward()
   // _value = log(1+exp(x))
   // log(1+exp(x)) = log(1+exp(x)) - log(exp(x)) + x = log(1+exp(-x)) + x
   // so for numerical stability use: log(1+exp(-abs(x))) + max(x,0)
-  
+
   // create cached value
   auto zero = Tensor::Zero(x.rows(), x.cols());
   auto max_x_0 = x.array().max(zero.array());
@@ -1932,7 +1956,7 @@ Function(graph)
       _value = gdFdx.reshaped(s.rows(), s.cols());
 
       return _value;
-    }    
+    }
   };
 
   x.ibackward(new Derivative_x(graph, *this));
@@ -2004,7 +2028,7 @@ Function(graph)
       _value = g.array() * dFdx.array();
 
       return _value;
-    }    
+    }
   };
 
   x.ibackward(new Derivative_x(graph, *this));
@@ -2064,7 +2088,7 @@ Function(graph)
       _value = g.array() * dFdx.array();
 
       return _value;
-    }    
+    }
   };
 
   x.ibackward(new Derivative_x(graph, *this));
@@ -2118,7 +2142,7 @@ Function(graph)
 
       // return gradient value
       return _value;
-    }    
+    }
   };
 
   x.ibackward(new Derivative_x(graph, *this));
@@ -2175,7 +2199,7 @@ Function(graph)
       _value = Tensor::Constant(x.rows(), x.cols(), dFdx);
 
      return _value;
-    }    
+    }
   };
 
   x.ibackward(new Derivative_x(graph, *this));
@@ -2233,7 +2257,7 @@ Function(graph)
       _value = Tensor::Constant(x.rows(), x.cols(), dFdx);
 
       return _value;
-    }    
+    }
   };
 
   x.ibackward(new Derivative_x(graph, *this));
@@ -2578,7 +2602,7 @@ const Tensor& Sampler::forward()
 // Gaussian
 ///////////////////////////////////////////
 
-Gaussian::Gaussian(Graph& graph, Function& x, Function& m, Function& s) : 
+Gaussian::Gaussian(Graph& graph, Function& x, Function& m, Function& s) :
 Function(graph)
 {
   iforward(&x);
@@ -3074,7 +3098,7 @@ void Conv2D::convert(Tensor& K, SparseTensor& K_matrix, bool forward)
   // Multiple channels are in plannar format (channel, row, col)
   //
   // R,R,R, G,G,G, B,B,B
-  // 
+  //
   // Inputs with channels in packed format (row, col, channel)
   //
   // R,G,B, R,G,B, R,G,B
@@ -3136,7 +3160,7 @@ void Conv2D::convert(Tensor& K, SparseTensor& K_matrix, bool forward)
   //
   //     input channel 1      input channel I
   //
-  //     1  2  3  4  5  6 ... 1  2  3  4  5  6    o 
+  //     1  2  3  4  5  6 ... 1  2  3  4  5  6    o
   // 1  40                ... 40                  u
   // 2  30 40             ... 30 40               t
   // 3     30 40          ...    30 40
@@ -3149,10 +3173,10 @@ void Conv2D::convert(Tensor& K, SparseTensor& K_matrix, bool forward)
   // 0           10 20    ...          10 20      l
   // 1              10 20 ...             10 20
   // 2                 10 ...                10   1
-  //    .......................................   
   //    .......................................
   //    .......................................
-  //     1  2  3  4  5  6 ... 1  2  3  4  5  6    o 
+  //    .......................................
+  //     1  2  3  4  5  6 ... 1  2  3  4  5  6    o
   // 1  40                ... 40                  u
   // 2  30 40             ... 30 40               t
   // 3     30 40          ...    30 40
@@ -3278,90 +3302,37 @@ void Graph::clear()
   for (auto e: _nodes) delete e;
   _nodes.clear();
   _vars.clear();
-  _names.clear();
-}
-
-// set function name
-Function* Graph::name(Function* f, const char* name)
-{
-  if (f == nullptr || name == nullptr)
-    return nullptr;
-
-  auto it = std::find(_nodes.begin(), _nodes.end(), f);
-  if (it != _nodes.end())
-  {
-    _names[it - _nodes.begin()] = name;
-    return *it;
-  }
-  else
-  {
-    return nullptr;
-  }
 }
 
 // get function by name
-Function* Graph::function(const char* name) const
+Function* Graph::function(const std::string& name) const
 {
-  if (name == nullptr)
-    return nullptr;
+  for (auto i=0; i<_nodes.size(); i++)
+  {
+    if (_nodes[i]->name() == name) return _nodes[i];
+  }
 
-  auto it = std::find(_names.begin(), _names.end(), name);
-  if (it != _names.end())
-  {
-    return _nodes[it - _names.begin()];
-  }
-  else
-  {
-    return nullptr;
-  }
+  return nullptr;
 }
 
-// get graph variables with unique names
-std::map<std::string, Variable*> Graph::named_variables() const
+// get nambed variables
+std::vector<Variable*> Graph::named_variables() const
 {
-  // get variable positions in node list
-  std::vector<uint32_t> inode;
-  for (int i=0; i<_nodes.size() && inode.size() != _vars.size(); i++)
+  std::vector<Variable*> vars;
+
+  for (auto v: _vars)
   {
-    if (_nodes[i] == _vars[inode.size()])
-    {
-      inode.push_back(i);
-    }
+    if (v->name().size()) vars.push_back(v);
   }
 
-  // keep track of name counts
-  std::map<std::string, int> counts;
-  std::map<std::string, Variable*> dict;
-
-  for (int i=0; i<_vars.size(); i++)
-  {
-    // get variable name
-    auto name = _names[inode[i]];
-
-    // index duplicate names
-    auto itc = counts.find(name);
-    if (itc == counts.end())
-    {
-      counts[name] = 0;
-    }
-    else
-    {
-      counts[name] = itc->second + 1;
-      name = name + "." + std::to_string(counts[name]);
-    }
-
-    // add name:variable to dictionary
-    dict[name] = _vars[i];
-  }
-
-  return dict;
+  return vars;
 }
 
 // track function
 void Graph::keep(Function* f, const char* name)
 {
   _nodes.push_back(f);
-  _names.push_back((name) ? name : "");
+  if (name) f->name(name);
 }
 
 // track variable
@@ -3369,11 +3340,11 @@ void Graph::keep(Variable* v, const char* name)
 {
   _nodes.push_back(v);
   _vars.push_back(v);
-  _names.push_back((name) ? scope_name() + name : scope_name() + "Variable");
+  if (name) v->name(name);
 }
 
 // reset cache
-void Graph::recache() 
+void Graph::recache()
 {
   for (auto e: _nodes) e->recache();
 }
@@ -3382,6 +3353,88 @@ void Graph::recache()
 void Graph::zero_grad()
 {
   for (auto e: _vars) e->gradient().setZero();
+}
+
+// compute values
+const Tensor& Graph::forward(Function& f)
+{
+  struct ExecInfo
+  {
+    size_t users;
+    size_t depth;
+  };
+
+  // execution plan
+  std::unordered_map<Function*, ExecInfo> plan;
+
+  // add top level node to execution plan
+  ExecInfo info = {0, 0};
+  plan.emplace(&f, info);
+
+  // add top level node to node stack
+  std::vector<Function*> stack;
+  stack.push_back(&f);
+
+  // collect dependent nodes
+  while(stack.size())
+  {
+    auto node = stack.back();
+    auto& info = plan[node];
+    stack.pop_back();
+
+    for (auto input: node->iforward())
+    {
+      auto it = plan.find(input);
+      if (it != plan.end())
+      {
+        it->second.users++;
+        it->second.depth = std::max(it->second.depth, info.depth+1);
+      }
+      else
+      {
+        ExecInfo info = {1, info.depth+1};
+        plan.emplace(input, info);
+      }
+      stack.push_back(input);
+    }
+  }
+
+  // create list of nodes to execute
+  for (auto it=plan.begin(); it != plan.end(); it++)
+  {
+    stack.push_back(it->first);
+  }
+
+  // sort nodes by node depth in graph
+  std::sort(stack.begin(), stack.end(), [&plan](Function* a, Function* b)
+  {
+    auto& info_a = plan[a];
+    auto& info_b = plan[b];
+    return info_a.depth > info_b.depth;
+  });
+
+  // execute nodes in order of graph depth (from bottom to top)
+  for (auto n: stack)
+  {
+    auto& info = plan[n];
+
+    // execute node
+    n->forward();
+
+    // decrement usage in input nodes and recache when no longer needed
+    for (auto input: n->iforward())
+    {
+      auto& info = plan[input];
+      info.users--;
+      if (info.users == 0)
+      {
+        input->recache();
+      }
+    }
+  }
+
+  // return the cached f value
+  return f.forward();
 }
 
 // compute gradients
@@ -3436,7 +3489,7 @@ Tensor Graph::dFdX(Function& f, Variable& x)
   }
 
   Tensor dfdx = Tensor::Zero(x_rows, x_cols);
-  
+
   for (int fr=0; fr<f_rows; fr++)
   for (int fc=0; fc<f_cols; fc++)
   for (int xr=0; xr<x_rows; xr++)

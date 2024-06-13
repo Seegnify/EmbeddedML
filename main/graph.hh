@@ -14,7 +14,7 @@
 #include "types.hh"
 #include "random.hh"
 
-namespace seegnify 
+namespace seegnify
 {
 
 // Base class declarations
@@ -85,10 +85,16 @@ public:
   // graph access
   Graph& graph() { return _graph; }
 
+  // get name
+  const std::string name() const { return _name; }
+
+  // set name
+  void name(const std::string& name, bool unique=false);
+
 protected:
   // backprop flag
   bool _backprop;
-  
+
   // forward callbacks
   std::vector<Function*> _forward;
 
@@ -103,6 +109,9 @@ protected:
 
   // function graph
   Graph& _graph;
+
+  // function name
+  std::string _name;
 };
 
 // Identity (pass-through) derivarive
@@ -694,11 +703,8 @@ public:
   // random number generator
   RNG& random() { return _rng; }
 
-  // set function name
-  Function* name(Function* f, const char* name);
-
   // get function by name
-  Function* function(const char* name) const;
+  Function* function(const std::string& name) const;
 
   // graph nodes
   const std::vector<Function*>& nodes() const { return _nodes; }
@@ -706,11 +712,8 @@ public:
   // graph variables
   const std::vector<Variable*>& variables() const { return _vars; }
 
-  // node names
-  const std::vector<std::string>& names() const { return _names; }
-
   // graph named variables
-  std::map<std::string, Variable*> named_variables() const;
+  std::vector<Variable*> named_variables() const;
 
   // track function
   void keep(Function* f, const char* name = nullptr);
@@ -723,6 +726,9 @@ public:
 
   // reset gradients
   void zero_grad();
+
+  // compute values
+  const Tensor& forward(Function& f);
 
   // compute gradients
   void backward(Function& f, const Tensor& g);
@@ -1107,7 +1113,6 @@ protected:
   RNG _rng;
   std::vector<Function*> _nodes;
   std::vector<Variable*> _vars;
-  std::vector<std::string> _names;
   std::vector<std::string> _scope;
 };
 

@@ -44,7 +44,7 @@ public:
   TransformerClient(int worker) : Training(worker)
   {
     std::cout << "TRANSFORMER training " << worker << std::endl;
-    
+
     // load data
     _train_data.push_back(
       {
@@ -78,12 +78,12 @@ public:
     // predicted output
     auto y = g.new_rowwise(*_model, SEQ_SIZE, TGT_TOKENS,
       [&](Function& row) { return g.new_log_softmax(row); });
-    g.name(y, "softmax_y");
+    y->name("softmax_y");
 
     // expected output
     _y_hat = new SequenceMask(g, PAD_TOKEN, SEQ_SIZE);
     g.keep(_y_hat);
-    
+
     // loss
     _loss = g.new_sum(- *_y_hat * *y); // cross entropy
 
@@ -105,10 +105,9 @@ public:
   {
     auto vars = graph().named_variables();
 
-    for (const auto& it: vars)
+    for (auto var: vars)
     {
-      auto name = it.first;
-      auto var = it.second;
+      auto& name = var->name();
 
       // print name and varaible value
       auto& tensor = var->forward();
@@ -190,10 +189,9 @@ public:
     int count = 0;
     auto vars = graph().named_variables();
 
-    for (const auto& it: vars)
+    for (auto var: vars)
     {
-      auto name = it.first;
-      auto var = it.second;
+      auto name = var->name();
       auto data = var->value().data();
       size_t rows = var->value().rows();
       size_t cols = var->value().cols();

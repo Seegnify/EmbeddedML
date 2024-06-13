@@ -45,10 +45,9 @@ void print(const Graph& g, bool values = false, bool grads = false)
 {
   auto vars = g.named_variables();
 
-  for (const auto& it: vars)
+  for (auto var: vars)
   {
-    auto name = it.first;
-    auto var = it.second;
+    auto& name = var->name();
 
     // print name and varaible value
     auto& tensor = var->forward();
@@ -259,7 +258,7 @@ void test_scaled_dot_product_attention_backward()
     auto& attn = *attnptr;
 
     attn.gradient() = Tensor::Ones(attn().rows(),attn().cols());
-    attn.gradient().block(0,0, attn.forward().rows(), 1) = 
+    attn.gradient().block(0,0, attn.forward().rows(), 1) =
       5 * Tensor::Ones(attn().rows(), 1);
 
     Tensor dQ = Q->backward();
@@ -342,7 +341,9 @@ void test_multihead_attention_forward()
       0.4097, 0.3034, 0.8000, 0.7103;
 
     // print(g);
-    auto vars = g.named_variables();
+    std::map<std::string, Variable*> vars;
+    for (auto v: g.named_variables()) vars[v->name()] = v;
+
     auto& Wq = *vars["MHA.Wq"];
     auto& Wk = *vars["MHA.Wk"];
     auto& Wv = *vars["MHA.Wv"];
@@ -361,7 +362,7 @@ void test_multihead_attention_forward()
       0.4271,  0.3013, -0.4279, -0.2122,
       0.2983,  0.3350, -0.4619,  0.5432,
       -0.1488,  0.1778, -0.4288, -0.5003,
-      0.1173,  0.3713, -0.2347, -0.2251;   
+      0.1173,  0.3713, -0.2347, -0.2251;
     Wk.value() <<
       0.1557,  0.4673,  0.0920,  0.3889,
       0.5867,  0.0088,  0.4371,  0.0371,
@@ -381,7 +382,7 @@ void test_multihead_attention_forward()
     if (bias)
     {
       bq.value() <<
-        0.4755, 0.1042, 0.6459, 0.2230;      
+        0.4755, 0.1042, 0.6459, 0.2230;
       bk.value() <<
         0.0739, 0.6705, 0.8532, 0.7830;
       bv.value() <<
@@ -391,7 +392,7 @@ void test_multihead_attention_forward()
     }
 
     Tensor mha_hat(TGT_SIZE, EMB_SIZE);
-    mha_hat <<   
+    mha_hat <<
         0.4363, 0.5356, 0.4469, 0.9232,
         0.4293, 0.5403, 0.4531, 0.9223,
         0.4353, 0.5364, 0.4456, 0.9224;
@@ -450,7 +451,9 @@ void test_multihead_attention_backward()
       0.4097, 0.3034, 0.8000, 0.7103;
 
     // print(g);
-    auto vars = g.named_variables();
+    std::map<std::string, Variable*> vars;
+    for (auto v: g.named_variables()) vars[v->name()] = v;
+
     auto& Wq = *vars["MHA.Wq"];
     auto& Wk = *vars["MHA.Wk"];
     auto& Wv = *vars["MHA.Wv"];
@@ -605,7 +608,7 @@ void test_multihead_attention_backward()
 void test_position_wise_ff_forward()
 {
     TEST_BEGIN("Position-Wise FF Forward")
-        
+
     Graph g;
 
     int EMB_SIZE = 4;
@@ -624,14 +627,16 @@ void test_position_wise_ff_forward()
     PositionWiseFeedForward ff(
       g, x, EMB_SIZE, FF_SIZE, dropout
     );
-    
+
     // print(g);
-    auto vars = g.named_variables();
+    std::map<std::string, Variable*> vars;
+    for (auto v: g.named_variables()) vars[v->name()] = v;
+
     auto& L1W = *vars["Linear.W"];
     auto& L1b = *vars["Linear.b"];
     auto& L2W = *vars["Linear.W.1"];
     auto& L2b = *vars["Linear.b.1"];
-    
+
     ASSERT(L1W.value().rows() == FF_SIZE);
     ASSERT(L1W.value().cols() == EMB_SIZE);
     ASSERT(L1b.value().rows() == 1);
@@ -658,7 +663,7 @@ void test_position_wise_ff_forward()
       -0.4660, -0.4707,  0.4046, -0.4392;
 
     Tensor ff_hat(TRG_SIZE, EMB_SIZE);
-    ff_hat <<   
+    ff_hat <<
       -0.4298, -0.5862,  0.5099, -0.4777,
       -0.4746, -0.5384,  0.4620, -0.4683;
 
@@ -673,7 +678,7 @@ void test_position_wise_ff_forward()
 void test_position_wise_ff_backward()
 {
     TEST_BEGIN("Position-Wise FF Backward")
-    
+
     Graph g;
 
     int EMB_SIZE = 4;
@@ -695,12 +700,14 @@ void test_position_wise_ff_backward()
     g.keep(&ff);
 
     // print(g);
-    auto vars = g.named_variables();
+    std::map<std::string, Variable*> vars;
+    for (auto v: g.named_variables()) vars[v->name()] = v;
+
     auto& L1W = *vars["Linear.W"];
     auto& L1b = *vars["Linear.b"];
     auto& L2W = *vars["Linear.W.1"];
     auto& L2b = *vars["Linear.b.1"];
-    
+
     ASSERT(L1W.value().rows() == FF_SIZE);
     ASSERT(L1W.value().cols() == EMB_SIZE);
     ASSERT(L1b.value().rows() == 1);
@@ -727,10 +734,10 @@ void test_position_wise_ff_backward()
       -0.4660, -0.4707,  0.4046, -0.4392;
 
     Tensor ff_hat(TRG_SIZE, EMB_SIZE);
-    ff_hat <<   
+    ff_hat <<
       -0.4298, -0.5862,  0.5099, -0.4777,
       -0.4746, -0.5384,  0.4620, -0.4683;
-      
+
     ASSERT(ff().isApprox(ff_hat, 0.0001))
     ASSERT(ff().rows() == TRG_SIZE)
     ASSERT(ff().cols() == EMB_SIZE)
@@ -738,9 +745,9 @@ void test_position_wise_ff_backward()
     Tensor dF(TRG_SIZE, EMB_SIZE);
     dF <<
       5., 1., 1., 1.,
-      1., 1., 1., 1.;      
+      1., 1., 1., 1.;
     ff.gradient() = dF;
-    
+
     Tensor dFdW1 = L1W.backward();
     Tensor dFdW2 = L2W.backward();
     Tensor dFdb1 = L1b.backward();
@@ -752,12 +759,12 @@ void test_position_wise_ff_backward()
     Tensor dFdb1_num = g.dFdX(ff, L1b);
     Tensor dFdb2_num = g.dFdX(ff, L2b);
     Tensor dFdx_num = g.dFdX(ff, x);
-        
+
     Tensor dFdW1_hat(FF_SIZE, EMB_SIZE);
     dFdW1_hat <<
       0.0213,  0.0101,  0.1494,  0.0358,
       0.2496,  0.1237,  1.1491,  0.3449,
-      -0.7570, -0.3846, -2.4491, -0.9172;    
+      -0.7570, -0.3846, -2.4491, -0.9172;
 
     Tensor dFdb1_hat(1, FF_SIZE);
     dFdb1_hat <<
@@ -769,7 +776,7 @@ void test_position_wise_ff_backward()
       0.0977, 0.2701, 0.1353,
       0.0977, 0.2701, 0.1353,
       0.0977, 0.2701, 0.1353;
-         
+
     Tensor dFdb2_hat(1, EMB_SIZE);
     dFdb2_hat <<
       6., 2., 2., 2.;
@@ -790,7 +797,7 @@ void test_position_wise_ff_backward()
     ASSERT(dFdb1.isApprox(dFdb1_num, 0.0001))
     ASSERT(dFdb2.isApprox(dFdb2_num, 0.0001))
     ASSERT(dFdx.isApprox(dFdx_num, 0.0001))
-              
+
     TEST_END()
 }
 
@@ -896,7 +903,8 @@ void test_encoder_layer_forward()
     EncoderLayer el(g, x, m,
       SEQ_SIZE, EMB_SIZE, NUM_HEADS, FF_SIZE, dropout);
 
-    auto vars = g.named_variables();
+    std::map<std::string, Variable*> vars;
+    for (auto v: g.named_variables()) vars[v->name()] = v;
     // print(g);
 
     auto& Wq = *vars["MHA.Wq"];
@@ -969,7 +977,7 @@ void test_encoder_layer_forward()
       -1.7241,  0.4332,  0.5882,  0.7027,
       -1.7244,  0.4406,  0.5782,  0.7056,
       -1.7241,  0.4344,  0.5848,  0.7048;
-         
+
     ASSERT(y.isApprox(y_hat, 0.0001))
 
     TEST_END()
@@ -1007,7 +1015,8 @@ void test_encoder_layer_backward()
       SEQ_SIZE, EMB_SIZE, NUM_HEADS, FF_SIZE, dropout));
     g.keep(&F);
 
-    auto vars = g.named_variables();
+    std::map<std::string, Variable*> vars;
+    for (auto v: g.named_variables()) vars[v->name()] = v;
 
     //print(g);
     auto& Wq = *vars["MHA.Wq"];
@@ -1132,7 +1141,8 @@ void test_decoder_layer_forward()
     DecoderLayer dl(g, x, e, src_mask, tgt_mask,
       SEQ_SIZE, EMB_SIZE, NUM_HEADS, FF_SIZE, dropout);
 
-    auto vars = g.named_variables();
+    std::map<std::string, Variable*> vars;
+    for (auto v: g.named_variables()) vars[v->name()] = v;
     //print(g);
 
     // self-attention
@@ -1296,7 +1306,8 @@ void test_decoder_layer_backward()
       SEQ_SIZE, EMB_SIZE, NUM_HEADS, FF_SIZE, dropout));
     g.keep(&F);
 
-    auto vars = g.named_variables();
+    std::map<std::string, Variable*> vars;
+    for (auto v: g.named_variables()) vars[v->name()] = v;
     //print(g);
 
     // self-attention
@@ -1459,7 +1470,8 @@ void test_transformer_forward()
     Transformer T(g, SRC_TOKENS, TGT_TOKENS, PAD_TOKEN,
       NUM_LAYERS, NUM_HEADS, EMB_SIZE, FF_SIZE, SEQ_SIZE, DROPOUT);
 
-    auto vars = g.named_variables();
+    std::map<std::string, Variable*> vars;
+    for (auto v: g.named_variables()) vars[v->name()] = v;
     //print(g);
 
     /////////////////////////////////////////////////////
@@ -1495,7 +1507,7 @@ void test_transformer_forward()
     /////////////////////////////////////////////////////
     // encoder weights
     /////////////////////////////////////////////////////
-    
+
     auto& Wq = *vars["encoder:MHA.Wq"];
     auto& Wk = *vars["encoder:MHA.Wk"];
     auto& Wv = *vars["encoder:MHA.Wv"];
@@ -1685,7 +1697,7 @@ void test_transformer_forward()
       -0.1221,  0.3670;
 
     /////////////////////////////////////////////////////
-    
+
     auto y_logit = T.forward(src_x, tgt_x);
     Tensor y_logit_hat(SEQ_SIZE, TGT_TOKENS);
     y_logit_hat <<
@@ -1734,7 +1746,8 @@ void test_transformer_backward()
       NUM_LAYERS, NUM_HEADS, EMB_SIZE, FF_SIZE, SEQ_SIZE, DROPOUT));
     g.keep(&T);
 
-    auto vars = g.named_variables();
+    std::map<std::string, Variable*> vars;
+    for (auto v: g.named_variables()) vars[v->name()] = v;
     //print(g);
 
     /////////////////////////////////////////////////////

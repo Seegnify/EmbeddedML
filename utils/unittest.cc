@@ -11,6 +11,7 @@
 #include <queue>
 
 #include <unsupported/Eigen/FFT>
+#include <unsupported/Eigen/CXX11/Tensor>
 
 #include "main/graph.hh"
 #include "main/optimizer.hh"
@@ -52,10 +53,9 @@ void print(const Graph& g, bool values = false)
 {
   auto vars = g.named_variables();
 
-  for (const auto& it: vars)
+  for (auto var: vars)
   {
-    auto name = it.first;
-    auto var = it.second;
+    auto& name = var->name();
 
     // print name and varaible value
     auto& tensor = var->forward();
@@ -147,7 +147,7 @@ void test_eigen_fft()
   ASSERT(std::abs(y_f - FR) < 1e-4);
   ASSERT(std::abs(y_a - AM) < 1e-4);
 
-  // calculate angles, mask frquencies of low amplitude 
+  // calculate angles, mask frquencies of low amplitude
   DTYPE threshold = *std::max_element(
     amplitude.begin(), amplitude.end()) / 10000;
   for (int i=0; i<N/2; i++)
@@ -375,9 +375,54 @@ void test_image_file()
   TEST_END()
 }
 
+Eigen::TensorMap<Eigen::Tensor<float, 2>> m2t(Tensor& m)
+{
+  Eigen::TensorMap<Eigen::Tensor<float, 2>> map(m.data(), m.rows(), m.cols());
+  return map;
+}
+
+void test_eigen_tensor()
+{
+  TEST_BEGIN("Tensor")
+
+  // create tensor
+  Eigen::Tensor<float, 2> t1(3,3);
+  float data[] = {1,2,3,
+                  4,5,6,
+                  7,8,9};
+  memcpy(t1.data(), data, sizeof(data));
+
+  // create matrix
+  Tensor m1(3, 3);
+  m1 << -1,2,3,
+        4,-5,6,
+        7,8,-9;
+
+  // create m2 as map of m1
+  auto m2 = m2t(m1);
+  ASSERT(m1.data() == m2.data())
+
+  // copy data to m2 and t1
+  memcpy(m2.data(), data, sizeof(data));
+
+  // add m1 and t1
+  Eigen::TensorMap<Eigen::Tensor<float, 2>> t1_map(t1.data(), t1.dimension(0), t1.dimension(1));
+  Eigen::TensorMap<Eigen::Tensor<float, 2>> m1_map(m1.data(), m1.rows(), m1.cols());
+
+  auto t1_p_m1 = t1_map + m1_map;
+  auto t1_x_2 = 2 * t1;
+
+  // since m1 has data via copy to m2, and t1 also has data,
+  // therefore m1 + t1 == 2 * t1
+  Eigen::Tensor<bool, 0> same = (t1_p_m1 == t1_x_2).all();
+  ASSERT(same(0) == true)
+
+  TEST_END()
+}
+
 void test_eigen_matrix()
 {
-  TEST_BEGIN("Matrix Map")  
+  TEST_BEGIN("Matrix Map")
 
   // copy form external
   //DTYPE X[] = {1,4,2,5,3,6}; // col major
@@ -389,14 +434,14 @@ void test_eigen_matrix()
   y1 << 1,2,3,4,5,6;
   ASSERT(x1 == y1);
 
-  // pointer to external 
+  // pointer to external
   Eigen::Map<Tensor> x2(X, 2, 3);
   //X[2] = 20; // col major
   X[1] = 20; // row major
   Tensor y2(2, 3);
   y2 << 1,20,3,19,5,6;
   ASSERT(x2 == y2);
-  
+
   // read tensor buffer
   Tensor x3(2, 3);
   x3 << 1,2,3,4,5,6;
@@ -418,7 +463,7 @@ void test_eigen_matrix()
 
   TEST_END()
 
-  TEST_BEGIN("Matrix Storage")  
+  TEST_BEGIN("Matrix Storage")
 
   // size
   int IN = 4;
@@ -491,7 +536,7 @@ void test_discount_reward()
   Tensor target(N, 1);
 
   reward << 0.1, 0, 0, 0, 1;
-  std::vector<DTYPE> v(reward.data(), reward.data() + reward.size()); 
+  std::vector<DTYPE> v(reward.data(), reward.data() + reward.size());
 
   // gamma 1.0
   target << 1.1, 1, 1, 1, 1;
@@ -562,7 +607,7 @@ void test_function_names()
   auto& mc = -c;
 
   const char* name = "Negative Constant";
-  g.name(&mc, name);
+  mc.name(name);
 
   auto named_mc = g.function(name);
   ASSERT(named_mc == &mc);
@@ -640,7 +685,7 @@ void test_numerical_derivative()
 
   // F = xW.T + b
   auto& y = *g.new_linear(x, IN, OUT);
-  
+
   // W
   auto& W = y.W();
   W.value() << 1, 2,
@@ -702,7 +747,7 @@ void test_back_propagation()
 
   // F = Wx + b
   auto& y = *g.new_linear(x, IN, OUT);
-  
+
   // W
   auto& W = y.W();
   W.value() << 1, 2,
@@ -1235,7 +1280,7 @@ void test_linear_backward()
 
   auto& W = y.W();
   auto& b = y.b();
-  
+
   // W
   W.value() <<
      0.5210, -0.3797,  0.2674,
@@ -1440,14 +1485,14 @@ void test_add_backward()
 
   // input A
   auto& A = *g.new_variable(H, W);
-  A.value() << 1, 2, 
+  A.value() << 1, 2,
                 3, 4,
                 5, 6;
 
   // input B
   auto& B = *g.new_variable(H, W);
-  B.value() << 7, 8, 
-                9, 10, 
+  B.value() << 7, 8,
+                9, 10,
                 11, 12;
 
   // F
@@ -1517,14 +1562,14 @@ void test_sub_backward()
 
   // input A
   auto& A = *g.new_variable(H, W);
-  A.value() << 1, 2, 
+  A.value() << 1, 2,
                 3, 4,
                 5, 6;
 
   // input B
   auto& B = *g.new_variable(H, W);
-  B.value() << 7, 8, 
-                9, 10, 
+  B.value() << 7, 8,
+                9, 10,
                 11, 12;
 
   // F
@@ -1594,14 +1639,14 @@ void test_mul_backward()
 
   // input A
   auto& A = *g.new_variable(H, W);
-  A.value() << 1, 2, 
+  A.value() << 1, 2,
                 3, 4,
                 5, 6;
 
   // input B
   auto& B = *g.new_variable(H, W);
-  B.value() << 7, 8, 
-                9, 10, 
+  B.value() << 7, 8,
+                9, 10,
                 11, 12;
 
   // F
@@ -1716,15 +1761,15 @@ void test_tanh_forward()
   // input
   Variable z(g, N, 1);
   z.value() << -2,
-                -1, 
-                0, 
+                -1,
+                0,
                 1,
                 2;
 
   // answer
   Tensor y_hat(N, 1);
   y_hat << -0.96402758,
-           -0.76159416,  
+           -0.76159416,
            0,
            0.76159416,
            0.96402758;
@@ -1779,16 +1824,16 @@ void test_sigmoid_forward()
 
   // sigmoid input
   Constant x(g, N, 1);
-  x.value() << 1, 
-               0, 
-               -3, 
+  x.value() << 1,
+               0,
+               -3,
                4;
 
   // sigmoid output
   Tensor y_hat(N, 1);
-  y_hat <<  1 / (1 + exp(-1)), 
-            1 / (1 + exp(0)), 
-            1 / (1 + exp(3)),  
+  y_hat <<  1 / (1 + exp(-1)),
+            1 / (1 + exp(0)),
+            1 / (1 + exp(3)),
             1 / (1 + exp(-4));
 
   Sigmoid y(g, x);
@@ -1809,8 +1854,8 @@ void test_sigmoid_backward()
   // sigmoid input
   auto& z = *g.new_variable(N, 1);
   z.value() << -1,
-                 0, 
-                 -3, 
+                 0,
+                 -3,
                  4;
 
   // gradient
@@ -2104,16 +2149,16 @@ void test_softmax_forward()
 
   // softmax input
   Constant x(g, 1, N);
-  x.value() << -1, 
-                0, 
-                -3, 
+  x.value() << -1,
+                0,
+                -3,
                 4;
 
   // softmax([-1,0,-3,4])
   Tensor y_hat(1, N);
   y_hat <<  6.56742084e-03,
             1.78521007e-02,
-            8.88803760e-04, 
+            8.88803760e-04,
             9.74691675e-01;
 
   Softmax y(g, x);
@@ -2121,15 +2166,15 @@ void test_softmax_forward()
   ASSERT(abs(y.forward().sum() - 1) < FINITE_DELTA)
 
   y.recache();
-  x.value() << 0, 
-               0, 
-               0, 
+  x.value() << 0,
+               0,
+               0,
                0;
 
   // softmax([0,0,0,0])
   y_hat <<  0.25,
             0.25,
-            0.25, 
+            0.25,
             0.25;
   ASSERT(y.forward() == y_hat)
   ASSERT(abs(y.forward().sum() - 1) < FINITE_DELTA)
@@ -2224,7 +2269,7 @@ void test_softplus_backward()
 
   // dFdX_hat
   Tensor dFdz_hat(N, 1);
-  dFdz_hat << 3.72007598e-44, 2.68941421e-01, 5.00000000e-01,           
+  dFdz_hat << 3.72007598e-44, 2.68941421e-01, 5.00000000e-01,
               4.74258732e-02, 9.82013790e-01, 1.00000000e+00;
   ASSERT(dFdz.isApprox(dFdz_hat, 0.001))
 
@@ -2299,8 +2344,8 @@ void test_log_forward()
   // input
   Variable z(g, N, 1);
   z.value() << 0,
-               1, 
-               2, 
+               1,
+               2,
                3;
 
   // answer
@@ -2372,15 +2417,15 @@ void test_sum_forward()
   // input
   Variable z(g, N, 1);
   z.value() << 0,
-               1, 
-               2, 
+               1,
+               2,
                3;
 
   // answer
   Tensor y_hat(1, 1);
-  y_hat << 0 + 
-           1 + 
-           2 + 
+  y_hat << 0 +
+           1 +
+           2 +
            3;
 
   // output
@@ -2636,12 +2681,12 @@ void test_stack_forward()
 
   ASSERT(y2.forward().rows() == 1)
   ASSERT(y2.forward().cols() == OUT)
-  
+
   // answer y1_hat
   Tensor y1_hat(1, MID);
   y1_hat << 31,  72, 113;
   ASSERT(x2.forward() == y1_hat)
-  
+
   // answer y2_hat
   Tensor y2_hat(1, OUT);
   y2_hat << 515, 1164;
@@ -2690,7 +2735,7 @@ void test_stack_backward()
   // b2
   auto& b2 = x3.b();
   b2.value() << 1, 2, 3, 4;
-  
+
   // gradient
   x3.forward();
   x3.gradient() = Tensor::Ones(1, OUT);
@@ -2717,7 +2762,7 @@ void test_stack_backward()
   ASSERT(dx3db1_hat.rows() == 1);
   ASSERT(dx3db1_hat.cols() == MID);
   ASSERT(dx3db1.isApprox(dx3db1_hat, 0.01))
-  
+
   TEST_END()
 }
 
@@ -3183,7 +3228,7 @@ void test_conv2d_forward()
   Tensor y_hat(OUT_ROWS, OUT_COLS);
   y_hat << 20, 36, 15,
             4,  7,  2;
-  
+
   ASSERT(y_hat == y2d);
 
   TEST_END()
@@ -3260,7 +3305,7 @@ void test_conv2d_forward()
   for (int i=0; i<OUT_CHANNELS; i++)
   {
     auto ch = y.block(0, i * OUT_ROWS * OUT_COLS, 1, OUT_ROWS * OUT_COLS);
-    y2d.block(i * OUT_ROWS, 0, OUT_ROWS, OUT_COLS) =         
+    y2d.block(i * OUT_ROWS, 0, OUT_ROWS, OUT_COLS) =
       ConstTensorMap(ch.data(), OUT_ROWS, OUT_COLS);
   }
 
@@ -3344,13 +3389,13 @@ void test_conv2d_backward()
   ASSERT(dFdx_hat.rows() == 1);
   ASSERT(dFdx_hat.cols() == IN);
   ASSERT(dFdx.isApprox(dFdx_hat, 0.01))
-  
+
   // dFdK_hat = x
   Tensor dFdK_hat = g.dFdX(y, K);
   ASSERT(dFdK_hat.rows() == K_ROWS);
   ASSERT(dFdK_hat.cols() == K_COLS);
   ASSERT(dFdK.isApprox(dFdK_hat, 0.01))
-  
+
   TEST_END()
 
   TEST_BEGIN("Conv2D Backward Multi-Channel")
@@ -3670,7 +3715,7 @@ void test_average_convergence()
 void test_adam_optimizer()
 {
   TEST_BEGIN("Adam Optimizer")
-  
+
   // size
   int N = 5;
   srand(time(NULL));
@@ -3722,7 +3767,7 @@ void test_adam_optimizer()
   while(batch)
   {
     for (int i=0; i<batch; i++)
-    {      
+    {
       step += 1;
 
       // create sample
@@ -3780,7 +3825,7 @@ void test_ImageFP()
   im_data = cropped.data();
 
   for(auto i=cropped.size(); i>0; i--) im_data[i-1] = data[i-1];
-    
+
   ASSERT(fp_cropped.rows() == cropped.rows());
   ASSERT(fp_cropped.cols() == cropped.cols());
   ASSERT(fp_cropped.size() == cropped.size());
@@ -3793,7 +3838,7 @@ void test_ImageFP()
   im_data = scaled.data();
 
   for(auto i=scaled.size(); i>0; i--) im_data[i-1] = data[i-1];
-    
+
   ASSERT(fp_scaled.rows() == scaled.rows());
   ASSERT(fp_scaled.cols() == scaled.cols());
   ASSERT(fp_scaled.size() == scaled.size());
@@ -3859,31 +3904,31 @@ void test_rl_env()
 
   int rows = 100;
   int cols = 150;
-  
+
   RLEnv env;
-  
+
   Image image(rows, cols, 3); // random image
   memset(image.data(), 0, rows * cols * 3);
-  
+
   env.set_full_rgb(image.data(), 1, rows, cols);
-  
+
   env.new_episode();
   env.enable_view_frame(true);
 
   auto full = env.get_full_rgb();
   auto view = env.get_view_rgb();
-  
+
   ASSERT(full.data()[0] == image.data()[0])
-  
+
   // find top-left corner of view in full image
   int frame_col = (full.cols() - view.cols()) / 2;
   int frame_row = (full.rows() - view.rows()) / 2;
-  
+
   // check if view frame is yellow
   ASSERT(full.red(frame_row-1, frame_col-1) == 0x00)
   ASSERT(full.green(frame_row-1, frame_col-1) == 0xFF)
   ASSERT(full.blue(frame_row-1, frame_col-1) == 0xFF)
-  
+
   // check if view matches the full image
   ASSERT(full.red(frame_row, frame_col) == view.red(0,0))
   ASSERT(full.green(frame_row, frame_col) == view.green(0,0))
@@ -3897,15 +3942,15 @@ void test_rl_env()
   int cols = 150;
   int view_rows = 20;
   int view_cols = 20;
-    
+
   RLEnv env;
   env.set_view_size(view_rows, view_cols);
-  
+
   Image image(rows, cols, 3); // random image
   memset(image.data(), 0, rows * cols * 3);
-  
+
   env.set_full_rgb(image.data(), 1, rows, cols);
-  
+
   env.new_episode();
   env.enable_full_frame(true);
   env.enable_view_frame(true);
@@ -3916,21 +3961,21 @@ void test_rl_env()
 
   auto full = env.get_full_rgb();
   auto view = env.get_view_rgb();
-  
+
   full.save("/home/greg/Pictures/rl-corner-full.bmp");
   view.save("/home/greg/Pictures/rl-corner-view.bmp");
 
   ASSERT(full.data()[0] == image.data()[0])
-  
+
   // find bottom-right corner of the full image in the view
   int frame_col = view_cols / 2;
   int frame_row = view_rows / 2;
-  
+
   // check if full frame is yellow
   ASSERT(view.red(frame_row, frame_col) == 0x00)
   ASSERT(view.green(frame_row, frame_col) == 0xFF)
   ASSERT(view.blue(frame_row, frame_col) == 0xFF)
-  
+
   // check if view matches the full image
   ASSERT(full.red(rows-1, cols-1) == view.red(frame_row-1, frame_col-1))
   ASSERT(full.green(rows-1, cols-1) == view.green(frame_row-1, frame_col-1))
@@ -3941,7 +3986,7 @@ void test_rl_env()
 
 /**
  * test entry point
- */ 
+ */
 int main(int argc, char* argv[]) {
 
   test_ImageFP();
@@ -3952,6 +3997,7 @@ int main(int argc, char* argv[]) {
   test_audio_file();
   test_image_file();
 
+  test_eigen_tensor();
   test_eigen_matrix();
   test_random_numbers();
   test_discount_reward();

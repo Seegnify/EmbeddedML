@@ -69,14 +69,14 @@ public:
         l0 = g.new_linear(*h0, SIZE, SIZE, name);
         h0 = g.new_tanh(*l0);
       }
-      
+
       Function *h_x = h0;
       for (int i=0; i<DEPTH; i++)
       {
         char name[32];
         sprintf(name, "GU-%d", i+1);
         auto h = g.new_lstm(*h_x, *hidden[i], *cell[i], SIZE, SIZE);
-        g.name(h, name);
+        h->name(name);
         hidden[i] = h;
         cell[i] = &h->cell();
         h_x = h;
