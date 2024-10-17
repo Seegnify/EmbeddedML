@@ -1,6 +1,6 @@
-# Seegnify
+# EmbeddedML
 
-[Seegnify](https://seegnify.org/) is a machine learning library that runs anywhere.
+[EmbeddedML](https://seegnify.org/) is a machine learning library that runs anywhere.
 
 ## Main Features
 
@@ -13,7 +13,7 @@
   * No third-party dependencies for training or inference
   * Out-of-the-box distributed training option
 
-## More About Seegnify
+## More About EmbeddedML
 
 <!-- toc -->
 
@@ -66,7 +66,7 @@ Compile the binaries using provided CMake wrapper script:
 Executed all unit tests:
 
 ```bash
-./build/seegnify-unittest
+./build/unittest
 ```
 
 ### Full test
@@ -119,13 +119,13 @@ utilizes all available cores and assigns one training instance to each core.
 Start the master process on port 2020 and store the model in my.graph:
 
 ```bash
-./build/seegnify-training master my.graph 2020
+./build/training master my.graph 2020
 ```
 
 Start the worker process with your compiled model and connect to master:
 
 ```bash
-./build/seegnify-training worker 127.0.0.1 2020 ./build/libexample-regression.so
+./build/training worker 127.0.0.1 2020 ./build/libexample-regression.so
 ```
 
 Stop the training by sending SIGINT (Ctrl-C) signal to the master process.
