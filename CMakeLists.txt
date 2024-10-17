@@ -6,9 +6,9 @@
 
 # CMakeLists files in this project can
 # refer to the root source directory and root bnary directory of the project as
-# respectively ${SEEGNIFY_SOURCE_DIR} and ${SEEGNIFY_BINARY_DIR}.
+# respectively ${EMBEDDEDML_SOURCE_DIR} and ${EMBEDDEDML_BINARY_DIR}.
 cmake_minimum_required (VERSION 2.8.11)
-project (SEEGNIFY)
+project (EMBEDDEDML)
 
 # Build type
 # set(CMAKE_BUILD_TYPE Release)
@@ -48,7 +48,7 @@ find_package(ZLIB REQUIRED)
 include_directories(${ZLIB_INCLUDE_DIRS})
 
 # common
-add_library (seegnify-common STATIC
+add_library (common STATIC
 main/graph.cc
 utils/storage.cc
 utils/image.cc
@@ -58,19 +58,19 @@ utils/graph.pb.cc
 
 # library build options
 target_compile_options(
-    seegnify-common PRIVATE
+    common PRIVATE
     -fPIC
 )
 
 # client / server
-add_executable (seegnify-training
+add_executable (training
 utils/main.cc
 utils/master.cc
 utils/worker.cc
 )
 
 # unit tests
-add_executable (seegnify-unittest
+add_executable (unittest
 utils/unittest.cc
 utils/rlenv.cc
 )
@@ -120,15 +120,15 @@ external/cnpy/cnpy.cpp
 )
 
 # set dependency libs
-list(APPEND DL_LIBS seegnify-common)
+list(APPEND DL_LIBS common)
 list(APPEND DL_LIBS pthread protobuf dl)
 list(APPEND DL_LIBS PocoFoundation PocoNet)
 list(APPEND DL_LIBS Magick++-6.Q16 MagickCore-6.Q16)
 
 # link targets
-target_link_libraries(seegnify-common)
-target_link_libraries(seegnify-training ${DL_LIBS})
-target_link_libraries(seegnify-unittest ${DL_LIBS})
+target_link_libraries(common)
+target_link_libraries(training ${DL_LIBS})
+target_link_libraries(unittest ${DL_LIBS})
 
 target_link_libraries(test-regression ${DL_LIBS})
 target_link_libraries(test-transformer ${DL_LIBS} ${ZLIB_LIBRARIES})

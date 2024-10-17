@@ -9,7 +9,7 @@
 start() {
   PORT=$1
   IMPL=$2
-  CMD=./build/seegnify-training
+  CMD=./build/training
   LIB=./build/lib$IMPL.so
   echo Starting master $IMPL at port $PORT
   nice -n 10 $CMD master $IMPL.graph $PORT >> $IMPL.master.log 2>&1 &
